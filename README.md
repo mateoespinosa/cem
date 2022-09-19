@@ -6,7 +6,7 @@ model and motivation, please refer to our official [paper](TODO).
 
 # Model
 
-![CEM Architecture](figures/cem.png)
+![CEM Architecture](figures/cem_white_background.png)
 
 [Concept Bottleneck Models (CBMs)](https://arxiv.org/abs/2007.04612) have recently gained attention as
 high-performing and interpretable neural architectures that can explain their
