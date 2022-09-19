@@ -1,5 +1,7 @@
 # Byte-compiled / optimized / DLL files
 __pycache__/
+lightning_logs/
+*.DS_Store/
 *.py[cod]
 *$py.class
 
