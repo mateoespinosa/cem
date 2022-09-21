@@ -2,7 +2,7 @@
 
 This repository contains the official Pytorch implementation of our work
 *"Concept Embedding Models"* accepted at **NeurIPS 2022**. For details on our
-model and motivation, please refer to our official [paper](TODO).
+model and motivation, please refer to our official [paper](https://arxiv.org/abs/2209.09056).
 
 # Model
 
@@ -111,30 +111,35 @@ output directory (`dot_results/` in this case).
 # Citation
 If you would like to cite this repository, or the accompanying paper, please
 use the following citation:
-
 ```
-@article{DBLP:journals/corr/abs-2111-12628,
-  author    = {Mateo Espinosa Zarlenga and
-            Pietro Barbiero and
-            Gabriele Ciravegna and
-            Giuseppe Marra and
-            Francesco Giannini and
-            Michelangelo Diligenti and
-            Zohreh Shams and
-            Frederic Precioso and
-            Stefano Melacci and
-            Adrian Weller and
-            Pietro Lio and
-            Mateja Jamnik},
-  title     = {Concept Embedding Models},
-  journal   = {CoRR},
-  volume    = {abs/TODO},
-  year      = {2021},
-  url       = {https://arxiv.org/abs/TODO},
-  eprinttype = {arXiv},
-  eprint    = {TODO},
-  timestamp = {TODO},
-  biburl    = {https://dblp.org/rec/journals/corr/abs-TODO.bib},
-  bibsource = {dblp computer science bibliography, https://dblp.org}
+@misc{https://doi.org/10.48550/arxiv.2209.09056,
+  doi = {10.48550/ARXIV.2209.09056},
+  url = {https://arxiv.org/abs/2209.09056},
+  author = {
+    Espinosa Zarlenga, Mateo and
+    Barbiero, Pietro and
+    Ciravegna, Gabriele and
+    Marra, Giuseppe and
+    Giannini, Francesco and
+    Diligenti, Michelangelo and
+    Shams, Zohreh and
+    Precioso, Frederic and
+    Melacci, Stefano and
+    Weller, Adrian and
+    Lio, Pietro and
+    Jamnik, Mateja
+  },
+  keywords = {
+    Machine Learning (cs.LG),
+    Artificial Intelligence (cs.AI),
+    FOS: Computer and information sciences,
+    FOS: Computer and information sciences,
+    I.2.6,
+    68T07
+  },
+  title = {Concept Embedding Models},
+  publisher = {arXiv},
+  year = {2022},
+  copyright = {arXiv.org perpetual, non-exclusive license}
 }
 ```
