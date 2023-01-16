@@ -1,7 +1,8 @@
 # Concept Embedding Models
 
 This repository contains the official Pytorch implementation of our work
-*"Concept Embedding Models"* accepted at **NeurIPS 2022**. For details on our
+*"Concept Embedding Models: Beyond the Accuracy-Explainability Trade-Off"*
+accepted at **NeurIPS 2022**. For details on our
 model and motivation, please refer to our official [paper](https://arxiv.org/abs/2209.09056).
 
 # Model
@@ -121,34 +122,16 @@ experiment scripts.
 If you would like to cite this repository, or the accompanying paper, please
 use the following citation:
 ```
-@misc{https://doi.org/10.48550/arxiv.2209.09056,
-  doi = {10.48550/ARXIV.2209.09056},
-  url = {https://arxiv.org/abs/2209.09056},
-  author = {
-    Espinosa Zarlenga, Mateo and
-    Barbiero, Pietro and
-    Ciravegna, Gabriele and
-    Marra, Giuseppe and
-    Giannini, Francesco and
-    Diligenti, Michelangelo and
-    Shams, Zohreh and
-    Precioso, Frederic and
-    Melacci, Stefano and
-    Weller, Adrian and
-    Lio, Pietro and
-    Jamnik, Mateja
+@article{EspinosaZarlenga2022cem,
+  title={Concept Embedding Models: Beyond the Accuracy-Explainability Trade-Off},
+  author={
+    Espinosa Zarlenga, Mateo and Barbiero, Pietro and Ciravegna, Gabriele and
+    Marra, Giuseppe and Giannini, Francesco and Diligenti, Michelangelo and
+    Shams, Zohreh and Precioso, Frederic and Melacci, Stefano and
+    Weller, Adrian and Lio, Pietro and Jamnik, Mateja
   },
-  keywords = {
-    Machine Learning (cs.LG),
-    Artificial Intelligence (cs.AI),
-    FOS: Computer and information sciences,
-    FOS: Computer and information sciences,
-    I.2.6,
-    68T07
-  },
-  title = {Concept Embedding Models},
-  publisher = {arXiv},
-  year = {2022},
-  copyright = {arXiv.org perpetual, non-exclusive license}
+  journal={Advances in Neural Information Processing Systems},
+  volume={35},
+  year={2022}
 }
 ```
