@@ -107,6 +107,15 @@ This should generate a summary of all the results after execution has
 terminated and dump all results/trained models/logs into the given
 output directory (`dot_results/` in this case).
 
+## IMPORTANT NOTE
+
+In order to be able to properly run our experiments, you will
+have to **download** the pre-processed *CUB dataset* found [here](https://worksheets.codalab.org/bundles/0xd013a7ba2e88481bbc07e787f73109f5) to
+`cenm/data/CUB200/CUB_200_2011` and the *CelebA dataset* found
+[here](https://mmlab.ie.cuhk.edu.hk/projects/CelebA.html) to `data/celeba`. You may opt to download them to different
+locations but their paths will have to be modified in the respective
+experiment scripts.
+
 
 # Citation
 If you would like to cite this repository, or the accompanying paper, please
