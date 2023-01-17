@@ -615,7 +615,7 @@ def intervene_in_cbm(
         avg = []
         for trial in range(n_trials):
             intervention_idxs = concept_selection_policy(
-                size=num_groups_intervened,
+                num_groups_intervened=num_groups_intervened,
                 concept_group_map=concept_group_map,
                 config=config,
             )
