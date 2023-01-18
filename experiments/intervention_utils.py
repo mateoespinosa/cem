@@ -597,6 +597,7 @@ def intervene_in_cbm(
     concept_group_map=None,
     intervened_groups=None,
     gpu=int(torch.cuda.is_available()),
+    split=0,
     concept_selection_policy=random_int_policy,
 ):
     intervention_accs = []
