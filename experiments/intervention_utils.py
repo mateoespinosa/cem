@@ -603,7 +603,7 @@ def intervene_in_cbm(
     # If no concept groups are given, then we assume that all concepts
     # represent a unitary group themselves
     concept_group_map = concept_group_map or dict(
-        [(i, i) for i in range(n_concepts)]
+        [(i, [i]) for i in range(n_concepts)]
     )
     groups = intervened_groups or list(range(0, len(concept_group_map) + 1, 4))
     for j, num_groups_intervened in enumerate(groups):
