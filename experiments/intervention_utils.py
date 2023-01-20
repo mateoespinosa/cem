@@ -4,6 +4,10 @@ import torch
 import pytorch_lightning as pl
 from collections import defaultdict
 import cem.train.training as cem_train
+import logging
+import io
+from contextlib import redirect_stdout
+
 
 # Set of CUB attributes selected by original CBM paper
 CUB_SEL_ATTRS = [
@@ -463,15 +467,18 @@ def load_trained_model(
     independent=False,
     gpu=int(torch.cuda.is_available()),
 ):
+    arch_name = config['c_extractor_arch']
+    if not isinstance(arch_name, str):
+        arch_name = "lambda"
     if split is not None:
         full_run_name = (
             f"{config['architecture']}{config.get('extra_name', '')}_"
-            f"{config['c_extractor_arch']}_fold_{split + 1}"
+            f"{arch_name}_fold_{split + 1}"
         )
     else:
         full_run_name = (
             f"{config['architecture']}{config.get('extra_name', '')}_"
-            f"{config['c_extractor_arch']}"
+            f"{arch_name}"
         )
     selected_concepts = np.arange(n_concepts)
     if (
@@ -599,6 +606,8 @@ def intervene_in_cbm(
     gpu=int(torch.cuda.is_available()),
     split=0,
     concept_selection_policy=random_int_policy,
+    rerun=False,
+    old_results=None,
 ):
     intervention_accs = []
     # If no concept groups are given, then we assume that all concepts
@@ -606,7 +615,16 @@ def intervene_in_cbm(
     concept_group_map = concept_group_map or dict(
         [(i, [i]) for i in range(n_concepts)]
     )
-    groups = intervened_groups or list(range(0, len(concept_group_map) + 1, 4))
+    groups = intervened_groups or list(range(0, len(concept_group_map) + 1, 1))
+
+    if (not rerun) and (old_results is not None):
+        for j, num_groups_intervened in enumerate(groups):
+            print(
+                f"\tTest accuracy when intervening with {num_groups_intervened} "
+                f"concept groups is {old_results[j] * 100:.2f}%."
+            )
+        return old_results
+
     for j, num_groups_intervened in enumerate(groups):
         logging.debug(
             f"Intervening with {num_groups_intervened} out of "
@@ -648,7 +666,9 @@ def intervene_in_cbm(
             trainer = pl.Trainer(
                 gpus=gpu,
             )
-            [test_results] = trainer.test(model, test_dl, verbose=False,)
+            f = io.StringIO()
+            with redirect_stdout(f):
+                [test_results] = trainer.test(model, test_dl, verbose=False,)
             acc = test_results['test_y_accuracy']
             avg.append(acc)
             logging.debug(
@@ -656,8 +676,8 @@ def intervene_in_cbm(
                 f"{num_groups_intervened} groups (trial {trial + 1}) gives "
                 f"test task accuracy {acc * 100:.2f}%."
             )
-        logging.debug(
-            f"Test accuracy when intervening with {num_groups_intervened} "
+        print(
+            f"\tTest accuracy when intervening with {num_groups_intervened} "
             f"concept groups is "
             f"{np.mean(avg) * 100:.2f}% ± {np.std(avg)* 100:.2f}%."
         )
