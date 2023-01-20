@@ -481,6 +481,17 @@ def load_trained_model(
             f"{arch_name}"
         )
     selected_concepts = np.arange(n_concepts)
+    if sequential:
+        extra = "Sequential"
+    elif independent:
+        extra = "Independent"
+    else:
+        extra = ""
+    model_saved_path = os.path.join(
+        result_dir or ".",
+        f'{extra}{full_run_name}.pt'
+    )
+
     if (
         (intervention_idxs is not None) and
         (train_dl is not None) and
@@ -495,6 +506,7 @@ def load_trained_model(
             config=config,
             imbalance=imbalance,
         )
+        model.load_state_dict(torch.load(model_saved_path))
         trainer = pl.Trainer(
             gpus=gpu,
         )
@@ -556,16 +568,7 @@ def load_trained_model(
         inactive_intervention_values=inactive_intervention_values,
         c2y_model=c2y_model,
     )
-    if sequential:
-        extra = "Sequential"
-    elif independent:
-        extra = "Independent"
-    else:
-        extra = ""
-    model_saved_path = os.path.join(
-        result_dir or ".",
-        f'{extra}{full_run_name}.pt'
-    )
+
     model.load_state_dict(torch.load(model_saved_path))
     return model
 
@@ -630,7 +633,7 @@ def intervene_in_cbm(
             f"Intervening with {num_groups_intervened} out of "
             f"{len(concept_group_map)} concept groups"
         )
-        n_trials = config.get('intervention_trials', 5)
+        n_trials = config.get('intervention_trials', 3)
         avg = []
         for trial in range(n_trials):
             intervention_idxs = concept_selection_policy(
