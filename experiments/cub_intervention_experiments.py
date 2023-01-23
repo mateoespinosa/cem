@@ -29,6 +29,14 @@ CUB_DIR = 'cem/data/CUB200/'
 BASE_DIR = os.path.join(CUB_DIR, 'class_attr_data_10')
 
 
+def _filter_results(results, full_run_name):
+    output = {}
+    for key, val in results.items():
+        if full_run_name not in key:
+            continue
+        output[key] = val
+    return output
+
 ################################################################################
 ## MAIN FUNCTION
 ################################################################################
@@ -286,12 +294,12 @@ def main(
         )
 
     results = {}
-    for train_uncertain in set([False, include_uncertain_train]):
-        used_train_dl = train_dl_uncertain if train_uncertain else train_dl
-        used_val_dl = val_dl_uncertain if train_uncertain else val_dl
-        for split in range(og_config["cv"]):
+    for split in range(og_config["cv"]):
+        results[f'{split}'] = {}
+        for train_uncertain in set([False, include_uncertain_train]):
+            used_train_dl = train_dl_uncertain if train_uncertain else train_dl
+            used_val_dl = val_dl_uncertain if train_uncertain else val_dl
             print(f'Experiment {split+1}/{og_config["cv"]}')
-            results[f'{split}'] = {}
 
             config = copy.deepcopy(og_config)
             config["architecture"] = "ConceptEmbeddingModel"
@@ -355,31 +363,53 @@ def main(
                     ),
                 )
             if test_uncertain:
-                results[f'{split}'][f'test_acc_y_uncert_ints_{full_run_name}'] = \
-                    intervene_in_cbm(
-                        concept_selection_policy=random_int_policy,
-                        concept_group_map=CUB_CONCEPT_GROUP_MAP,
-                        intervened_groups=list(
-                            range(
-                                0,
-                                len(CUB_CONCEPT_GROUP_MAP) + 1,
-                                config.get('intervention_freq', 4),
-                            )
-                        ),
-                        gpu=gpu if gpu else None,
-                        config=config,
-                        test_dl=test_dl_uncertain,
-                        train_dl=used_train_dl,
-                        n_tasks=n_tasks,
-                        n_concepts=n_concepts,
-                        result_dir=result_dir,
-                        imbalance=imbalance,
-                        adversarial_intervention=False,
-                        rerun=rerun,
-                        old_results=old_results.get(str(split), {}).get(
-                            f'test_acc_y_uncert_ints_{full_run_name}'
-                        ),
+                for unc_value in [0.5, 0.6, 0.7, 0.8, 0.9]:
+                    unc_map = {0: 0.5, 1: 0.5, 2: 0.5, 3: unc_value, 4: 1.0}
+                    test_dl_uncertain_current = load_data(
+                        pkl_paths=[test_data_path],
+                        use_attr=True,
+                        no_img=False,
+                        batch_size=og_config['batch_size'],
+                        uncertain_label=True,
+                        n_class_attr=2,
+                        image_dir='images',
+                        resampling=False,
+                        root_dir=CUB_DIR,
+                        num_workers=og_config['num_workers'],
+                        unc_map=unc_map
                     )
+                    results[f'{split}'][f'test_acc_y_uncert_{unc_value}_ints_{full_run_name}'] = \
+                        intervene_in_cbm(
+                            concept_selection_policy=random_int_policy,
+                            concept_group_map=CUB_CONCEPT_GROUP_MAP,
+                            intervened_groups=list(
+                                range(
+                                    0,
+                                    len(CUB_CONCEPT_GROUP_MAP) + 1,
+                                    config.get('intervention_freq', 4),
+                                )
+                            ),
+                            gpu=gpu if gpu else None,
+                            config=config,
+                            test_dl=test_dl_uncertain_current,
+                            train_dl=used_train_dl,
+                            n_tasks=n_tasks,
+                            n_concepts=n_concepts,
+                            result_dir=result_dir,
+                            imbalance=imbalance,
+                            adversarial_intervention=False,
+                            rerun=rerun,
+                            old_results=old_results.get(str(split), {}).get(
+                                f'test_acc_y_uncert_{unc_value}_ints_{full_run_name}'
+                            ),
+                        )
+            print(f"\tResults for {full_run_name} in split {split}:")
+            for key, val in results[f'{split}'].items():
+                print(f"\t\t{key} -> {val}")
+            joblib.dump(
+                _filter_results(results[f'{split}'], full_run_name),
+                os.path.join(result_dir, f'{full_run_name}_split_{split}_results.joblib'),
+            )
             joblib.dump(results, os.path.join(result_dir, f'results.joblib'))
 
             # train vanilla CBM models with both logits and sigmoidal
@@ -387,14 +417,14 @@ def main(
             config = copy.deepcopy(og_config)
             config["architecture"] = "ConceptBottleneckModel"
             config["bool"] = False
-            config["extra_dims"] = (config['emb_size'] - 1) * n_concepts
+            config["extra_dims"] = 0
             config["extra_name"] = (
                 "Uncertain_Logit" if train_uncertain else f"Logit"
             )
             config["bottleneck_nonlinear"] = "leakyrelu"
             config["sigmoidal_extra_capacity"] = False
             config["sigmoidal_prob"] = False
-            extra_fuzzy_logit_model, extra_fuzzy_logit_test_results = \
+            cbm_logit_model, cbm_logit_test_results = \
                 training.train_model(
                     gpu=gpu if gpu else None,
                     n_concepts=n_concepts,
@@ -413,14 +443,12 @@ def main(
             training.update_statistics(
                 results[f'{split}'],
                 config,
-                extra_fuzzy_logit_model,
-                extra_fuzzy_logit_test_results,
+                cbm_logit_model,
+                cbm_logit_test_results,
             )
             full_run_name = (
                 f"{config['architecture']}{config.get('extra_name', '')}"
             )
-            # No uncertain interventions here as it is unclear how to do that
-            # when the bottleneck's activations are unconstrained
             results[f'{split}'][f'test_acc_y_ints_{full_run_name}'] = \
                 intervene_in_cbm(
                     concept_selection_policy=random_int_policy,
@@ -447,6 +475,57 @@ def main(
                         f'test_acc_y_ints_{full_run_name}'
                     ),
                 )
+
+            # No uncertain interventions here as it is unclear how to do that
+            # when the bottleneck's activations are unconstrained
+            if test_uncertain:
+                for unc_value in [0.5, 0.6, 0.7, 0.8, 0.9]:
+                    unc_map = {0: 0.5, 1: 0.5, 2: 0.5, 3: unc_value, 4: 1.0}
+                    test_dl_uncertain_current = load_data(
+                        pkl_paths=[test_data_path],
+                        use_attr=True,
+                        no_img=False,
+                        batch_size=og_config['batch_size'],
+                        uncertain_label=True,
+                        n_class_attr=2,
+                        image_dir='images',
+                        resampling=False,
+                        root_dir=CUB_DIR,
+                        num_workers=og_config['num_workers'],
+                        unc_map=unc_map
+                    )
+                    results[f'{split}'][f'test_acc_y_uncert_{unc_value}_ints_{full_run_name}'] = \
+                        intervene_in_cbm(
+                            concept_selection_policy=random_int_policy,
+                            concept_group_map=CUB_CONCEPT_GROUP_MAP,
+                            intervened_groups=list(
+                                range(
+                                    0,
+                                    len(CUB_CONCEPT_GROUP_MAP) + 1,
+                                    config.get('intervention_freq', 4),
+                                )
+                            ),
+                            gpu=gpu if gpu else None,
+                            config=config,
+                            test_dl=test_dl_uncertain_current,
+                            train_dl=used_train_dl,
+                            n_tasks=n_tasks,
+                            n_concepts=n_concepts,
+                            result_dir=result_dir,
+                            imbalance=imbalance,
+                            adversarial_intervention=False,
+                            rerun=rerun,
+                            old_results=old_results.get(str(split), {}).get(
+                                f'test_acc_y_uncert_{unc_value}_ints_{full_run_name}'
+                            ),
+                        )
+            print(f"\tResults for {full_run_name} in split {split}:")
+            for key, val in results[f'{split}'].items():
+                print(f"\t\t{key} -> {val}")
+            joblib.dump(
+                _filter_results(results[f'{split}'], full_run_name),
+                os.path.join(result_dir, f'{full_run_name}_split_{split}_results.joblib'),
+            )
             joblib.dump(results, os.path.join(result_dir, f'results.joblib'))
 
 
@@ -460,7 +539,7 @@ def main(
             config["extra_dims"] = 0
             config["sigmoidal_extra_capacity"] = False
             config["sigmoidal_prob"] = True
-            extra_fuzzy_logit_model, extra_fuzzy_logit_test_results = \
+            cbm_sigmoid_model, cbm_sigmoid_test_results = \
                 training.train_model(
                     gpu=gpu if gpu else None,
                     n_concepts=n_concepts,
@@ -479,8 +558,8 @@ def main(
             training.update_statistics(
                 results[f'{split}'],
                 config,
-                extra_fuzzy_logit_model,
-                extra_fuzzy_logit_test_results,
+                cbm_sigmoid_model,
+                cbm_sigmoid_test_results,
             )
             full_run_name = (
                 f"{config['architecture']}{config.get('extra_name', '')}"
@@ -512,34 +591,55 @@ def main(
                     ),
                 )
             if test_uncertain:
-                results[f'{split}'][f'test_acc_y_uncert_ints_{full_run_name}'] = \
-                    intervene_in_cbm(
-                        concept_selection_policy=random_int_policy,
-                        concept_group_map=CUB_CONCEPT_GROUP_MAP,
-                        intervened_groups=list(
-                            range(
-                                0,
-                                len(CUB_CONCEPT_GROUP_MAP) + 1,
-                                config.get('intervention_freq', 4),
-                            )
-                        ),
-                        gpu=gpu if gpu else None,
-                        config=config,
-                        test_dl=test_dl_uncertain,
-                        train_dl=used_train_dl,
-                        n_tasks=n_tasks,
-                        n_concepts=n_concepts,
-                        result_dir=result_dir,
-                        split=split,
-                        imbalance=imbalance,
-                        adversarial_intervention=False,
-                        rerun=rerun,
-                        old_results=old_results.get(int(split), {}).get(
-                            f'test_acc_y_uncert_ints_{full_run_name}'
-                        ),
+                for unc_value in [0.5, 0.6, 0.7, 0.8, 0.9]:
+                    unc_map = {0: 0.5, 1: 0.5, 2: 0.5, 3: unc_value, 4: 1.0}
+                    test_dl_uncertain_current = load_data(
+                        pkl_paths=[test_data_path],
+                        use_attr=True,
+                        no_img=False,
+                        batch_size=og_config['batch_size'],
+                        uncertain_label=True,
+                        n_class_attr=2,
+                        image_dir='images',
+                        resampling=False,
+                        root_dir=CUB_DIR,
+                        num_workers=og_config['num_workers'],
+                        unc_map=unc_map
                     )
+                    results[f'{split}'][f'test_acc_y_uncert_{unc_value}_ints_{full_run_name}'] = \
+                        intervene_in_cbm(
+                            concept_selection_policy=random_int_policy,
+                            concept_group_map=CUB_CONCEPT_GROUP_MAP,
+                            intervened_groups=list(
+                                range(
+                                    0,
+                                    len(CUB_CONCEPT_GROUP_MAP) + 1,
+                                    config.get('intervention_freq', 4),
+                                )
+                            ),
+                            gpu=gpu if gpu else None,
+                            config=config,
+                            test_dl=test_dl_uncertain_current,
+                            train_dl=used_train_dl,
+                            n_tasks=n_tasks,
+                            n_concepts=n_concepts,
+                            result_dir=result_dir,
+                            imbalance=imbalance,
+                            adversarial_intervention=False,
+                            rerun=rerun,
+                            old_results=old_results.get(str(split), {}).get(
+                                f'test_acc_y_uncert_{unc_value}_ints_{full_run_name}'
+                            ),
+                        )
 
             # save results
+            print(f"\tResults for {full_run_name} in split {split}:")
+            for key, val in results[f'{split}'].items():
+                print(f"\t\t{key} -> {val}")
+            joblib.dump(
+                _filter_results(results[f'{split}'], full_run_name),
+                os.path.join(result_dir, f'{full_run_name}_split_{split}_results.joblib'),
+            )
             joblib.dump(results, os.path.join(result_dir, f'results.joblib'))
 
     return results
@@ -642,6 +742,7 @@ if __name__ == '__main__':
         logging.basicConfig(level=logging.DEBUG)
     else:
         logging.basicConfig(level=logging.INFO)
+    logging.getLogger("pytorch_lightning").setLevel(logging.WARNING)
     main(
         rerun=args.rerun,
         result_dir=args.output_dir,
