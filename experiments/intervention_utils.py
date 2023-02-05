@@ -460,12 +460,12 @@ def load_trained_model(
     n_concepts,
     split=0,
     imbalance=None,
-    intervention_idxs=None,
-    adversarial_intervention=False,
     train_dl=None,
     sequential=False,
     independent=False,
     gpu=int(torch.cuda.is_available()),
+    intervention_policy=None,
+    intervene=False,
 ):
     arch_name = config['c_extractor_arch']
     if not isinstance(arch_name, str):
@@ -493,7 +493,7 @@ def load_trained_model(
     )
 
     if (
-        (intervention_idxs is not None) and
+        ((intervention_policy is not None) or intervene) and
         (train_dl is not None) and
         (config['architecture'] == "ConceptBottleneckModel") and
         (not config.get('sigmoidal_prob', True))
@@ -562,10 +562,9 @@ def load_trained_model(
         n_tasks=n_tasks,
         config=config,
         imbalance=imbalance,
-        intervention_idxs=intervention_idxs,
-        adversarial_intervention=adversarial_intervention,
         active_intervention_values=active_intervention_values,
         inactive_intervention_values=inactive_intervention_values,
+        intervention_policy=intervention_policy,
         c2y_model=c2y_model,
     )
 
@@ -589,6 +588,44 @@ def random_int_policy(num_groups_intervened, concept_group_map, config=None):
     return sorted(intervention_idxs)
 
 
+class InterventionPolicyWrapper(object):
+    
+    def __init__(self, policy_fn, num_groups_intervened, concept_group_map):
+        self.policy_fn = policy_fn
+        self.num_groups_intervened = num_groups_intervened
+        self.concept_group_map = concept_group_map
+
+    def __call__(self, x, y, c):
+        intervention_idxs = self.policy_fn(
+            num_groups_intervened=num_groups_intervened,
+            concept_group_map=concept_group_map,
+        )
+        return intervention_idxs, c
+
+
+class IndependentRandomMaskIntPolicy(object):
+    
+    def __init__(self, num_groups_intervened, concept_group_map):
+        self.num_groups_intervened = num_groups_intervened
+        self.concept_group_map = concept_group_map
+
+    def __call__(self, x, y, c):
+        # We have to split it into a list contraction due to the
+        # fact that we can't afford to run a np.random.choice
+        # that does not allow replacement between samples...
+        selected_groups_for_trial = np.array([
+            np.random.choice(
+                list(self.concept_group_map.keys()),
+                size=self.num_groups_intervened,
+                replace=False,
+            ) for _ in range(x.shape[0])
+        ])
+        mask = np.zeros((x.shape[0], c.shape[-1]), dtype=np.int64)
+        for sample_idx in range(selected_groups_for_trial.shape[0]):
+            for selected_group in selected_groups_for_trial[sample_idx, :]:
+                mask[sample_idx, self.concept_group_map[selected_group]] = 1
+        return mask, c
+
 ################################################################################
 ## MAIN INTERVENTION FUNCTION
 ################################################################################
@@ -611,7 +648,15 @@ def intervene_in_cbm(
     concept_selection_policy=random_int_policy,
     rerun=False,
     old_results=None,
+    batch_size=None,
 ):
+    if batch_size is not None:
+        # Then overwrite the config's batch size
+        test_dl = torch.utils.data.DataLoader(
+            dataset=test_dl.dataset,
+            batch_size=batch_size,
+            num_workers=test_dl.num_workers,
+        )
     intervention_accs = []
     # If no concept groups are given, then we assume that all concepts
     # represent a unitary group themselves
@@ -627,45 +672,55 @@ def intervene_in_cbm(
                 f"concept groups is {old_results[j] * 100:.2f}%."
             )
         return old_results
+    config["shared_prob_gen"] = config.get("shared_prob_gen", False)
+    config["per_concept_weight"] = config.get(
+        "per_concept_weight",
+        False,
+    )
+
+    model = load_trained_model(
+        config=config,
+        n_tasks=n_tasks,
+        n_concepts=n_concepts,
+        result_dir=result_dir,
+        split=split,
+        imbalance=imbalance,
+        intervene=True,
+        train_dl=train_dl,
+        sequential=sequential,
+        independent=independent,
+    )
 
     for j, num_groups_intervened in enumerate(groups):
         logging.debug(
             f"Intervening with {num_groups_intervened} out of "
             f"{len(concept_group_map)} concept groups"
         )
-        n_trials = config.get('intervention_trials', 3)
+        n_trials = config.get('intervention_trials', 1)
         avg = []
         for trial in range(n_trials):
-            intervention_idxs = concept_selection_policy(
-                num_groups_intervened=num_groups_intervened,
-                concept_group_map=concept_group_map,
-                config=config,
-            )
+            
             logging.debug(
                 f"\tFor trial {trial + 1}/{n_trials} for split {split} with "
                 f"{num_groups_intervened} groups intervened"
             )
-            logging.debug(
-                f"\t\tThis results in concepts {intervention_idxs} being "
-                f"modified"
+            
+            ####
+            # Set the model's intervention policy
+            ####
+            
+            # Example of how to use an index-generating policy!
+            #model.intervention_policy = InterventionPolicyWrapper(
+            #    policy_fn=concept_selection_policy,
+            #    num_groups_intervened=num_groups_intervened,
+            #    concept_group_map=concept_group_map,
+            #)
+            # Example of how to use a mask-generating policy!
+            model.intervention_policy = IndependentRandomMaskIntPolicy(
+                num_groups_intervened=num_groups_intervened,
+                concept_group_map=concept_group_map,
             )
-            config["shared_prob_gen"] = config.get("shared_prob_gen", False)
-            config["per_concept_weight"] = config.get(
-                "per_concept_weight",
-                False,
-            )
-            model = load_trained_model(
-                config=config,
-                n_tasks=n_tasks,
-                n_concepts=n_concepts,
-                result_dir=result_dir,
-                split=split,
-                imbalance=imbalance,
-                intervention_idxs=intervention_idxs,
-                train_dl=train_dl,
-                sequential=sequential,
-                independent=independent,
-            )
+            
             trainer = pl.Trainer(
                 gpus=gpu,
             )

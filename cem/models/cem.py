@@ -40,18 +40,19 @@ class ConceptEmbeddingModel(ConceptBottleneckModel):
         optimizer="adam",
         shared_prob_gen=True,
         top_k_accuracy=2,
-        intervention_idxs=None,
         sigmoidal_prob=True,
         sigmoidal_embedding=False,
-        adversarial_intervention=False,
         training_intervention_prob=0.25,
         active_intervention_values=None,
         inactive_intervention_values=None,
         embeding_activation="leakyrelu",
         concat_prob=False,
         gpu=int(torch.cuda.is_available()),
+        intervention_policy=None,
     ):
         pl.LightningModule.__init__(self)
+        self.n_concepts = n_concepts
+        self.intervention_policy = intervention_policy
         try:
             self.pre_concept_model = c_extractor_arch(
                 pretrained=pretrain_model
@@ -84,8 +85,6 @@ class ConceptEmbeddingModel(ConceptBottleneckModel):
         self.concept_prob_generators = torch.nn.ModuleList()
         self.shared_prob_gen = shared_prob_gen
         self.top_k_accuracy = top_k_accuracy
-        self.intervention_idxs = intervention_idxs
-        self.adversarial_intervention = adversarial_intervention
         for i in range(n_concepts):
             if embeding_activation is None:
                 self.concept_context_generators.append(
@@ -178,35 +177,61 @@ class ConceptEmbeddingModel(ConceptBottleneckModel):
         train=False,
     ):
         if train and (self.training_intervention_prob != 0) and (
-            intervention_idxs is None
+            (c_true is not None) and
+            (intervention_idxs is None)
         ):
             # Then we will probabilistically intervene in some concepts
-            mask = torch.bernoulli(self.ones * self.training_intervention_prob)
-            intervention_idxs = torch.nonzero(mask).reshape(-1)
+            mask = torch.bernoulli(
+                self.ones * self.training_intervention_prob,
+            )
+            intervention_idxs = torch.tile(
+                mask,
+                (c_true.shape[0], 1),
+            )
         if (c_true is None) or (intervention_idxs is None):
             return prob
-        if concept_idx not in intervention_idxs:
-            return prob
-        c_true = self._switch_concepts(c_true)
+        intervention_idxs = intervention_idxs.to(prob.device)
+        intervention_idxs = intervention_idxs.to(dtype=torch.bool)
         if self.sigmoidal_prob:
-            return c_true[:, concept_idx:concept_idx+1]
-        result = (
-            (
-                c_true[:, concept_idx:concept_idx+1] *
-                self.active_intervention_values[concept_idx]
-            ) +
-            (
-                (c_true[:, concept_idx:concept_idx+1] - 1) *
-                -self.inactive_intervention_values[concept_idx]
+            return torch.where(
+                intervention_idxs[:, concept_idx:concept_idx+1],
+                c_true[:, concept_idx:concept_idx+1],
+                prob,
             )
+        return torch.where(
+                intervention_idxs[:, concept_idx:concept_idx+1],
+                (
+                    c_true[:, concept_idx:concept_idx+1] *
+                    self.active_intervention_values[concept_idx]
+                ) +
+                (
+                    (c_true[:, concept_idx:concept_idx+1] - 1) *
+                    -self.inactive_intervention_values[concept_idx]
+                ),
+            prob,
         )
-        return result
 
-    def _forward(self, x, intervention_idxs=None, c=None, train=False):
+
+    def _forward(self, x, intervention_idxs=None, y=None, c=None, train=False):
         pre_c = self.pre_concept_model(x)
         probs = []
         full_vectors = []
         sem_probs = []
+        # Now include any interventions that we may want to include
+        if (intervention_idxs is None) and (
+            self.intervention_policy is not None
+        ):
+            intervention_idxs, c_int = self.intervention_policy(
+                x=x,
+                y=y,
+                c=c,
+            )
+        else:
+            c_int = c
+        intervention_idxs = self._standardize_indices(
+            intervention_idxs=intervention_idxs,
+            batch_size=x.shape[0],
+        )
         for i, context_gen in enumerate(self.concept_context_generators):
             if self.shared_prob_gen:
                 prob_gen = self.concept_prob_generators[0]
@@ -224,7 +249,7 @@ class ConceptEmbeddingModel(ConceptBottleneckModel):
                 prob,
                 concept_idx=i,
                 intervention_idxs=intervention_idxs,
-                c_true=c,
+                c_true=c_int,
                 train=train,
             )
             probs.append(prob)

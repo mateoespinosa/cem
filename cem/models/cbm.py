@@ -37,30 +37,34 @@ def compute_accuracy(
             c_true,
             y_true,
         )
-    c_pred = c_pred.reshape(-1).cpu().detach() > 0.5
+    c_pred = (c_pred.cpu().detach().numpy() >= 0.5).astype(np.int32)
+    # Doing the following transformation for when labels are not
+    # fully certain
+    c_true = (c_true.cpu().detach().numpy() > 0.5).astype(np.int32)
     y_probs = torch.nn.Softmax(dim=-1)(y_pred).cpu().detach()
-    used_classes = np.unique(y_true.reshape(-1).cpu().detach())
-    y_probs = y_probs[:, sorted(list(used_classes))]
+#     used_classes = np.unique(y_true.cpu().detach())
+#     y_probs = y_probs[:, sorted(list(used_classes))]
     y_pred = y_pred.argmax(dim=-1).cpu().detach()
-    c_true = c_true.reshape(-1).cpu().detach()
-    y_true = y_true.reshape(-1).cpu().detach()
-    c_accuracy = sklearn.metrics.accuracy_score(c_true, c_pred)
-    try:
-        c_auc = sklearn.metrics.roc_auc_score(
-            c_true,
-            c_pred,
-            multi_class='ovo',
-        )
-    except:
-        c_auc = 0.0
-    try:
-        c_f1 = sklearn.metrics.f1_score(
-            c_true,
-            c_pred,
+    y_true = y_true.cpu().detach()
+
+    c_accuracy = c_auc = c_f1 = 0
+    for i in range(c_true.shape[-1]):
+        true_vars = c_true[:, i]
+        pred_vars = c_pred[:, i]
+        c_accuracy += sklearn.metrics.accuracy_score(true_vars, pred_vars)/c_true.shape[-1]
+
+        if len(np.unique(true_vars)) == 1:
+            c_auc += np.mean(true_vars == pred_vars)/c_true.shape[-1]
+        else:
+            c_auc += sklearn.metrics.roc_auc_score(
+                true_vars,
+                pred_vars,
+            )/c_true.shape[-1]
+        c_f1 += sklearn.metrics.f1_score(
+            true_vars,
+            pred_vars,
             average='macro',
-        )
-    except:
-        c_f1 = 0
+        )/c_true.shape[-1]
     y_accuracy = sklearn.metrics.accuracy_score(y_true, y_pred)
     try:
         y_auc = sklearn.metrics.roc_auc_score(
@@ -68,7 +72,7 @@ def compute_accuracy(
             y_probs,
             multi_class='ovo',
         )
-    except:
+    except Exception as e:
         y_auc = 0.0
     try:
         y_f1 = sklearn.metrics.f1_score(y_true, y_pred, average='macro')
@@ -102,18 +106,18 @@ class ConceptBottleneckModel(pl.LightningModule):
         optimizer="adam",
         extra_dims=0,
         top_k_accuracy=None,
-        intervention_idxs=None,
         sigmoidal_prob=True,
         sigmoidal_extra_capacity=True,
         bottleneck_nonlinear=None,
-        adversarial_intervention=False,
         c2y_layers=None,
         active_intervention_values=None,
         inactive_intervention_values=None,
         gpu=int(torch.cuda.is_available()),
+        intervention_policy=None,
     ):
         super().__init__()
         self.n_concepts = n_concepts
+        self.intervention_policy = intervention_policy
         if x2c_model is not None:
             # Then this is assumed to be a module already provided as
             # the input to concepts method
@@ -211,8 +215,6 @@ class ConceptBottleneckModel(pl.LightningModule):
         self.extra_dims = extra_dims
         self.top_k_accuracy = top_k_accuracy
         self.n_tasks = n_tasks
-        self.intervention_idxs = intervention_idxs
-        self.adversarial_intervention = adversarial_intervention
         self.sigmoidal_prob = sigmoidal_prob
         self.sigmoidal_extra_capacity = sigmoidal_extra_capacity
 
@@ -224,10 +226,68 @@ class ConceptBottleneckModel(pl.LightningModule):
             y, c = batch[1], batch[2]
         return x, y, c
 
-    def _switch_concepts(self, c):
-        if self.adversarial_intervention:
-            return (c == 0.0).type_as(c)
-        return c
+    def _standardize_indices(self, intervention_idxs, batch_size):
+        if isinstance(intervention_idxs, list):
+            intervention_idxs = np.array(intervention_idxs)
+        if isinstance(intervention_idxs, np.ndarray):
+            intervention_idxs = torch.IntTensor(intervention_idxs)
+
+        if intervention_idxs is None or (
+            isinstance(intervention_idxs, torch.Tensor) and
+            ((len(intervention_idxs) == 0) or intervention_idxs.shape[-1] == 0)
+        ):
+            return None
+        if not isinstance(intervention_idxs, torch.Tensor):
+            raise ValueError(
+                f'Unsupported intervention indices {intervention_idxs}'
+            )
+        if len(intervention_idxs.shape) == 1:
+            # Then we will assume that we will do use the same
+            # intervention indices for the entire batch!
+            intervention_idxs = torch.tile(
+                torch.unsqueeze(intervention_idxs, 0),
+                (batch_size, 1),
+            )
+        elif len(intervention_idxs.shape) == 2:
+            assert intervention_idxs.shape[0] == batch_size, (
+                f'Expected intervention indices to have batch size {batch_size} '
+                f'but got intervention indices with shape {intervention_idxs.shape}.'
+            )
+        else:
+            raise ValueError(
+                f'Intervention indices should have 1 or 2 dimensions. Instead we got '
+                f'indices with shape {intervention_idxs.shape}.'
+            )
+        if intervention_idxs.shape[-1] == self.n_concepts:
+            # We still need to check the corner case here where all indices are
+            # given...
+            elems = torch.unique(intervention_idxs)
+            if len(elems) == 1:
+                is_binary = (0 in elems) or (1 in elems)
+            elif len(elems) == 2:
+                is_binary = (0 in elems) and (1 in elems)
+            else:
+                is_binary = False
+        else:
+            is_binary = False
+        if not is_binary:
+            # Then this is an array of indices rather than a binary array!
+            intervention_idxs = intervention_idxs.to(dtype=torch.long)
+            result = torch.zeros(
+                (batch_size, self.n_concepts),
+                dtype=torch.bool,
+                device=intervention_idxs.device,
+            )
+            result[:, intervention_idxs] = 1
+            intervention_idxs = result
+        assert intervention_idxs.shape[-1] == self.n_concepts, (
+                f'Unsupported intervention indices with shape {intervention_idxs.shape}.'
+            )
+        if isinstance(intervention_idxs, np.ndarray):
+            # Time to make it into a torch Tensor!
+            intervention_idxs = torch.BoolTensor(intervention_idxs)
+        intervention_idxs = intervention_idxs.to(dtype=torch.bool)
+        return intervention_idxs
 
     def _concept_intervention(
         self,
@@ -237,26 +297,39 @@ class ConceptBottleneckModel(pl.LightningModule):
     ):
         if (c_true is None) or (intervention_idxs is None):
             return c_pred
-        c_true = self._switch_concepts(c_true)
         c_pred_copy = c_pred.clone()
+        intervention_idxs = self._standardize_indices(
+            intervention_idxs=intervention_idxs,
+            batch_size=c_pred.shape[0],
+        )
+        intervention_idxs = intervention_idxs.to(c_pred.device)
         if self.sigmoidal_prob:
-            c_pred_copy[:, intervention_idxs] = c_true[:, intervention_idxs]
+            c_pred_copy[intervention_idxs] = c_true[intervention_idxs]
         else:
+            batched_active_intervention_values =  torch.tile(
+                torch.unsqueeze(self.active_intervention_values, 0),
+                (c_pred.shape[0], 1),
+            )
 
-            c_pred_copy[:, intervention_idxs] = (
+            batched_inactive_intervention_values =  torch.tile(
+                torch.unsqueeze(self.inactive_intervention_values, 0),
+                (c_pred.shape[0], 1),
+            )
+
+            c_pred_copy[intervention_idxs] = (
                 (
-                    c_true[:, intervention_idxs] *
-                    self.active_intervention_values[intervention_idxs]
+                    c_true[intervention_idxs] *
+                    batched_active_intervention_values[intervention_idxs]
                 ) +
                 (
-                    (c_true[:, intervention_idxs] - 1) *
-                    -self.inactive_intervention_values[intervention_idxs]
+                    (c_true[intervention_idxs] - 1) *
+                    -batched_inactive_intervention_values[intervention_idxs]
                 )
             )
 
         return c_pred_copy
 
-    def _forward(self, x, intervention_idxs=None, c=None, train=False):
+    def _forward(self, x, intervention_idxs=None, y=None, c=None, train=False):
         c_pred = self.x2c_model(x)
         if self.sigmoidal_prob or self.bool:
             if self.extra_dims:
@@ -280,10 +353,20 @@ class ConceptBottleneckModel(pl.LightningModule):
             else:
                 c_sem = self.sig(c_pred)
         # Now include any interventions that we may want to include
+        if (intervention_idxs is None) and (
+            self.intervention_policy is not None
+        ):
+            intervention_idxs, c_int = self.intervention_policy(
+                x=x,
+                y=y,
+                c=c,
+            )
+        else:
+            c_int = c
         c_pred = self._concept_intervention(
             c_pred=c_pred,
             intervention_idxs=intervention_idxs,
-            c_true=c,
+            c_true=c_int,
         )
         if self.bool:
             y = self.c2y_model((c_pred > 0.5).float())
@@ -291,40 +374,27 @@ class ConceptBottleneckModel(pl.LightningModule):
             y = self.c2y_model(c_pred)
         return c_sem, c_pred, y
 
-    def forward(self, x):
-        return self._forward(x, train=False)
+    def forward(self, x, c=None, intervention_idxs=None):
+        return self._forward(x, train=False, c=c, intervention_idxs=intervention_idxs)
 
-    def intervention_prediction_step(self, batch, batch_idx, dataloader_idx=0):
+    def predict_step(self, batch, batch_idx, intervention_idxs=None, dataloader_idx=0):
         x, y, c = self._unpack_batch(batch)
         return self._forward(
             x,
-            intervention_idxs=self.intervention_idxs,
+            intervention_idxs=intervention_idxs,
             c=c,
             train=False,
         )
 
-    def predict_step(self, batch, batch_idx, dataloader_idx=0):
-        if self.intervention_idxs is not None:
-            # Then we are initiating a concept intervention here
-            return self.intervention_prediction_step(
-                batch=batch,
-                batch_idx=batch_idx,
-                dataloader_idx=dataloader_idx,
-            )
+    def _run_step(self, batch, batch_idx, train=False, intervention_idxs=None):
         x, y, c = self._unpack_batch(batch)
-        return self(x)
-
-    def _run_step(self, batch, batch_idx, train=False):
-        x, y, c = self._unpack_batch(batch)
-        if self.intervention_idxs is not None:
-            c_sem, c_logits, y_logits = self._forward(
-                x,
-                intervention_idxs=self.intervention_idxs,
-                c=c,
-                train=train,
-            )
-        else:
-            c_sem, c_logits, y_logits = self._forward(x, c=c, train=train)
+        c_sem, c_logits, y_logits = self._forward(
+            x,
+            intervention_idxs=intervention_idxs,
+            y=y,
+            c=c,
+            train=train,
+        )
         if self.task_loss_weight != 0:
             task_loss = self.loss_task(
                 y_logits if y_logits.shape[-1] > 1 else y_logits.reshape(-1),

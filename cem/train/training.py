@@ -26,10 +26,7 @@ def construct_model(
     c2y_model=None,
     x2c_model=None,
     imbalance=None,
-    concept_edge_list=None,
-    concept_edge_weights=None,
-    intervention_idxs=None,
-    adversarial_intervention=False,
+    intervention_policy=None,
     active_intervention_values=None,
     inactive_intervention_values=None,
 ):
@@ -40,8 +37,7 @@ def construct_model(
             "shared_prob_gen": config["shared_prob_gen"],
             "sigmoidal_prob": config.get("sigmoidal_prob", False),
             "sigmoidal_embedding": config.get("sigmoidal_embedding", False),
-            "intervention_idxs": intervention_idxs,
-            "adversarial_intervention": adversarial_intervention,
+            "intervention_policy": intervention_policy,
             "training_intervention_prob": config.get(
                 'training_intervention_prob',
                 0.0,
@@ -59,8 +55,7 @@ def construct_model(
                 True,
             ),
             "sigmoidal_prob": config.get("sigmoidal_prob", True),
-            "intervention_idxs": intervention_idxs,
-            "adversarial_intervention": adversarial_intervention,
+            "intervention_policy": intervention_policy,
             "c2y_layers": config.get("c2y_layers", []),
             "bottleneck_nonlinear": config.get("bottleneck_nonlinear", None),
             "active_intervention_values": active_intervention_values,
@@ -197,8 +192,6 @@ def train_model(
     save_model=True,
     activation_freq=0,
     single_frequency_epochs=0,
-    concept_edge_list=None,
-    concept_edge_weights=None,
     gpu=int(torch.cuda.is_available()),
 ):
     if config['architecture'] in [
@@ -251,8 +244,6 @@ def train_model(
         n_tasks,
         config,
         imbalance=imbalance,
-        concept_edge_list=concept_edge_list,
-        concept_edge_weights=concept_edge_weights,
     )
     print(
         "[Number of parameters in model",
