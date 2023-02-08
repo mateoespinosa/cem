@@ -1,8 +1,8 @@
-# Concept Embedding Models
+# Concept Embedding Models (CEMs)
 
-This repository contains the official Pytorch implementation of our work
+This repository contains the official implementation of our work
 *"Concept Embedding Models: Beyond the Accuracy-Explainability Trade-Off"*
-accepted at **NeurIPS 2022**. For details on our
+accepted and presented at **NeurIPS 2022**. For details on our
 model and motivation, please refer to our official [paper](https://arxiv.org/abs/2209.09056).
 
 # Model
