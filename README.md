@@ -1,13 +1,60 @@
-# Concept Embedding Models
+# Concept Embedding Models: Beyond the Accuracy-Explainability Trade-Off
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/mateoespinosa/cem/blob/main/LICENSE) [![Python 3.7+](https://img.shields.io/badge/python-3.7+-green.svg)](https://www.python.org/downloads/release/python-370/) [![Paper](https://img.shields.io/badge/-Paper-red)](https://arxiv.org/abs/2209.09056) [![Poster](https://img.shields.io/badge/-Poster-yellow)](https://github.com/mateoespinosa/cem/blob/main/media/poster.pdf) [![Slides](https://img.shields.io/badge/-slides-lightblue)](https://github.com/mateoespinosa/cem/blob/main/media/slides.pptx)
 
-This repository contains the official Pytorch implementation of our work
-*"Concept Embedding Models: Beyond the Accuracy-Explainability Trade-Off"*
-accepted at **NeurIPS 2022**. For details on our
-model and motivation, please refer to our official [paper](https://arxiv.org/abs/2209.09056).
-
-# Model
 
 ![CEM Architecture](figures/cem_white_background.png)
+
+
+This repository contains the official Pytorch implementation of our paper
+[*"Concept Embedding Models: Beyond the Accuracy-Explainability Trade-Off"*](https://arxiv.org/abs/2209.09056)
+accepted and presented at **NeurIPS 2022**.
+
+This work was done by [Mateo Espinosa Zarlenga<sup>\*</sup>](https://mateoespinosa.github.io/),
+[Pietro Barbiero<sup>\*</sup>](https://www.pietrobarbiero.eu/),
+[Gabriele Ciravegna](https://sailab.diism.unisi.it/people/gabriele-ciravegna/),
+[Giuseppe Marra](https://www.giuseppemarra.com/),
+[Francesco Giannini](https://scholar.google.com/citations?user=KT3SRqgAAAAJ&hl=en),
+[Michelangelo Diligenti](https://scholar.google.com/citations?user=qI-LOjIAAAAJ&hl=en),
+[Zohreh Shams](https://zohrehshams.com/),
+[Frederic Precioso](https://www.i3s.unice.fr/~precioso/),
+[Stefano Melacci](https://scholar.google.com/citations?user=_HHu1MQAAAAJ&hl=en),
+[Adrian Weller](http://mlg.eng.cam.ac.uk/adrian/),
+[Pietro Lio](https://www.cl.cam.ac.uk/~pl219/),
+[Mateja Jamnik](https://www.cl.cam.ac.uk/~mj201/)
+
+
+#### TL;DR
+
+We propose **Concept Embedding Models (CEMs)**, a novel family of concept-based
+interpretable neural architectures that can achieve task high performance while
+being capable of producing concept-based explanations for their
+predictions. These models can be trained using a very limited number of concept
+annotations in the task of interest and allow effective test-time concept
+interventions, enabling CEMs to drastically improve their task performance in a
+human-in-the-loop setting.
+
+#### Abstract
+
+Deploying AI-powered systems requires trustworthy models supporting effective
+human interactions, going beyond raw prediction accuracy. Concept bottleneck
+models promote trustworthiness by conditioning classification tasks on an
+intermediate level of human-like concepts. This enables human interventions
+which can correct mispredicted concepts to improve the model's performance.
+However, existing concept bottleneck models are unable to find optimal
+compromises between high task accuracy, robust concept-based explanations,
+and effective interventions on concepts -- particularly in real-world conditions
+where complete and accurate concept supervisions are scarce. To address this, we
+propose Concept Embedding Models, a novel family of concept bottleneck models
+which goes beyond the current accuracy-vs-interpretability trade-off by learning
+interpretable high-dimensional concept representations. Our experiments
+demonstrate that Concept Embedding Models (1) attain better or competitive task
+accuracy w.r.t. standard neural models without concepts, (2) provide concept
+representations capturing meaningful semantics including and beyond their ground
+truth labels, (3) support test-time concept interventions whose effect in test
+accuracy surpasses that in standard concept bottleneck models, and (4) scale to
+real-world conditions where complete concept supervisions are scarce.
+
+# Model
 
 [Concept Bottleneck Models (CBMs)](https://arxiv.org/abs/2007.04612) have recently gained attention as
 high-performing and interpretable neural architectures that can explain their
@@ -21,7 +68,7 @@ applicability in real-world applications, where data rarely comes with
 concept annotations that are fully descriptive of any task of interest.
 
 
-In our work, we propose Concept Embedding Models (CEMs) to tackle these two big
+Concept Embedding Models (CEMs) tackle these two big
 challenges. Our neural architecture expands a CBM's bottleneck and allows the
 information related to unseen concepts to be flow as part of the model's
 bottleneck. We achieve this by learning a high-dimensional representation
