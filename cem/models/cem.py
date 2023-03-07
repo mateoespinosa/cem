@@ -34,6 +34,7 @@ class ConceptEmbeddingModel(ConceptBottleneckModel):
         learning_rate=0.01,
         weight_decay=4e-05,
         weight_loss=None,
+        task_class_weights=None,
         normalize_loss=False,
         pretrain_model=True,
         c_extractor_arch=resnet50,
@@ -154,8 +155,8 @@ class ConceptEmbeddingModel(ConceptBottleneckModel):
 
         self.loss_concept = torch.nn.BCELoss(weight=weight_loss)
         self.loss_task = (
-            torch.nn.CrossEntropyLoss()
-            if n_tasks > 1 else torch.nn.BCEWithLogitsLoss()
+            torch.nn.CrossEntropyLoss(weight=task_class_weights)
+            if n_tasks > 1 else torch.nn.BCEWithLogitsLoss(weight=task_class_weights)
         )
         self.concept_loss_weight = concept_loss_weight
         self.momentum = momentum

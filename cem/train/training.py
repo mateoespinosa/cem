@@ -26,6 +26,7 @@ def construct_model(
     c2y_model=None,
     x2c_model=None,
     imbalance=None,
+    task_class_weights=None,
     intervention_policy=None,
     active_intervention_values=None,
     inactive_intervention_values=None,
@@ -89,6 +90,11 @@ def construct_model(
             if config['weight_loss'] and (imbalance is not None)
             else None
         ),
+        task_class_weights=(
+            torch.FloatTensor(task_class_weights)
+            if (task_class_weights is not None)
+            else None
+        ),
         concept_loss_weight=config['concept_loss_weight'],
         task_loss_weight=config.get('task_loss_weight', 1.0),
         normalize_loss=config['normalize_loss'],
@@ -107,6 +113,7 @@ def construct_sequential_models(
     n_tasks,
     config,
     imbalance=None,
+    task_class_weights=None,
 ):
     assert config.get('extra_dims', 0) == 0, (
         "We can only train sequential/joint models if the extra "
@@ -147,6 +154,11 @@ def construct_sequential_models(
             if config['weight_loss'] and (imbalance is not None)
             else None
         ),
+        task_class_weights=(
+            torch.FloatTensor(task_class_weights)
+            if (task_class_weights is not None)
+            else None
+        ),
         learning_rate=config['learning_rate'],
         weight_decay=config['weight_decay'],
         optimizer=config['optimizer'],
@@ -185,6 +197,7 @@ def train_model(
     test_dl=None,
     split=None,
     imbalance=None,
+    task_class_weights=None,
     rerun=False,
     logger=None,
     project_name='',
@@ -208,6 +221,7 @@ def train_model(
             test_dl=test_dl,
             split=split,
             imbalance=imbalance,
+            task_class_weights=task_class_weights,
             rerun=rerun,
             logger=logger,
             project_name=project_name,
@@ -244,6 +258,7 @@ def train_model(
         n_tasks,
         config,
         imbalance=imbalance,
+        task_class_weights=task_class_weights,
     )
     print(
         "[Number of parameters in model",
@@ -457,6 +472,7 @@ def train_independent_and_sequential_model(
     test_dl=None,
     split=None,
     imbalance=None,
+    task_class_weights=None,
     rerun=False,
     logger=None,
     project_name='cub_concept_training',
@@ -502,6 +518,7 @@ def train_independent_and_sequential_model(
         n_tasks,
         config,
         imbalance=imbalance,
+        task_class_weights=task_class_weights,
     )
 
     _, seq_c2y_model = construct_sequential_models(
@@ -509,6 +526,7 @@ def train_independent_and_sequential_model(
         n_tasks,
         config,
         imbalance=imbalance,
+        task_class_weights=task_class_weights,
     )
 
     # As well as the wrapper CBM model we will use for serialization
@@ -523,6 +541,7 @@ def train_independent_and_sequential_model(
         n_tasks,
         config=model_config,
         imbalance=imbalance,
+        task_class_weights=task_class_weights,
     )
     print(
         "[Number of parameters in model",
@@ -655,6 +674,7 @@ def train_independent_and_sequential_model(
                 n_tasks=n_tasks,
                 config=config,
                 imbalance=imbalance,
+                task_class_weights=task_class_weights,
                 x2c_model=model.x2c_model,
                 c2y_model=ind_c2y_model,
             )
@@ -665,6 +685,7 @@ def train_independent_and_sequential_model(
                 n_tasks=n_tasks,
                 config=config,
                 imbalance=imbalance,
+                task_class_weights=task_class_weights,
                 x2c_model=model.x2c_model,
                 c2y_model=seq_c2y_model,
             )
@@ -878,6 +899,7 @@ def train_independent_and_sequential_model(
                 n_tasks=n_tasks,
                 config=config,
                 imbalance=imbalance,
+                task_class_weights=task_class_weights,
                 x2c_model=model.x2c_model,
                 c2y_model=ind_c2y_model,
             )
@@ -891,6 +913,7 @@ def train_independent_and_sequential_model(
                 n_tasks=n_tasks,
                 config=config,
                 imbalance=imbalance,
+                task_class_weights=task_class_weights,
                 x2c_model=model.x2c_model,
                 c2y_model=seq_c2y_model,
             )

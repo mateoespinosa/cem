@@ -114,6 +114,7 @@ class ConceptBottleneckModel(pl.LightningModule):
         inactive_intervention_values=None,
         gpu=int(torch.cuda.is_available()),
         intervention_policy=None,
+        task_class_weights=None,
     ):
         super().__init__()
         self.n_concepts = n_concepts
@@ -201,8 +202,8 @@ class ConceptBottleneckModel(pl.LightningModule):
 
         self.loss_concept = torch.nn.BCELoss(weight=weight_loss)
         self.loss_task = (
-            torch.nn.CrossEntropyLoss()
-            if n_tasks > 1 else torch.nn.BCEWithLogitsLoss()
+            torch.nn.CrossEntropyLoss(weight=task_class_weights)
+            if n_tasks > 1 else torch.nn.BCEWithLogitsLoss(weight=task_class_weights)
         )
         self.bool = bool
         self.concept_loss_weight = concept_loss_weight

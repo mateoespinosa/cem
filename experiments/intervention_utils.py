@@ -460,6 +460,7 @@ def load_trained_model(
     n_concepts,
     split=0,
     imbalance=None,
+    task_class_weights=None,
     train_dl=None,
     sequential=False,
     independent=False,
@@ -505,6 +506,7 @@ def load_trained_model(
             n_tasks=n_tasks,
             config=config,
             imbalance=imbalance,
+            task_class_weights=task_class_weights,
         )
         model.load_state_dict(torch.load(model_saved_path))
         trainer = pl.Trainer(
@@ -547,6 +549,7 @@ def load_trained_model(
             n_tasks=n_tasks,
             config=config,
             imbalance=imbalance,
+            task_class_weights=task_class_weights,
         )
     elif independent:
         _, c2y_model = cem_train.construct_sequential_models(
@@ -554,6 +557,7 @@ def load_trained_model(
             n_tasks=n_tasks,
             config=config,
             imbalance=imbalance,
+            task_class_weights=task_class_weights,
         )
     else:
         c2y_model = None
@@ -562,6 +566,7 @@ def load_trained_model(
         n_tasks=n_tasks,
         config=config,
         imbalance=imbalance,
+        task_class_weights=task_class_weights,
         active_intervention_values=active_intervention_values,
         inactive_intervention_values=inactive_intervention_values,
         intervention_policy=intervention_policy,
@@ -589,7 +594,7 @@ def random_int_policy(num_groups_intervened, concept_group_map, config=None):
 
 
 class InterventionPolicyWrapper(object):
-    
+
     def __init__(self, policy_fn, num_groups_intervened, concept_group_map):
         self.policy_fn = policy_fn
         self.num_groups_intervened = num_groups_intervened
@@ -604,7 +609,7 @@ class InterventionPolicyWrapper(object):
 
 
 class IndependentRandomMaskIntPolicy(object):
-    
+
     def __init__(self, num_groups_intervened, concept_group_map):
         self.num_groups_intervened = num_groups_intervened
         self.concept_group_map = concept_group_map
@@ -637,6 +642,7 @@ def intervene_in_cbm(
     n_concepts,
     result_dir,
     imbalance=None,
+    task_class_weights=None,
     adversarial_intervention=False,
     train_dl=None,
     sequential=False,
@@ -685,6 +691,7 @@ def intervene_in_cbm(
         result_dir=result_dir,
         split=split,
         imbalance=imbalance,
+        task_class_weights=task_class_weights,
         intervene=True,
         train_dl=train_dl,
         sequential=sequential,
@@ -699,16 +706,16 @@ def intervene_in_cbm(
         n_trials = config.get('intervention_trials', 1)
         avg = []
         for trial in range(n_trials):
-            
+
             logging.debug(
                 f"\tFor trial {trial + 1}/{n_trials} for split {split} with "
                 f"{num_groups_intervened} groups intervened"
             )
-            
+
             ####
             # Set the model's intervention policy
             ####
-            
+
             # Example of how to use an index-generating policy!
             #model.intervention_policy = InterventionPolicyWrapper(
             #    policy_fn=concept_selection_policy,
@@ -720,7 +727,7 @@ def intervene_in_cbm(
                 num_groups_intervened=num_groups_intervened,
                 concept_group_map=concept_group_map,
             )
-            
+
             trainer = pl.Trainer(
                 gpus=gpu,
             )
