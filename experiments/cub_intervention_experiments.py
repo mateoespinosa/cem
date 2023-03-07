@@ -380,8 +380,8 @@ def main(
                     imbalance=imbalance,
                     adversarial_intervention=False,
                     rerun=rerun,
-					batch_size=512,
-                    old_results=old_results.get(int(split), {}).get(
+                    batch_size=512,
+                    old_results=old_results.get(str(split), {}).get(
                         f'test_acc_y_ints_{full_run_name}'
                     ),
                 )
@@ -497,8 +497,8 @@ def main(
                     imbalance=imbalance,
                     adversarial_intervention=False,
                     rerun=rerun,
-					batch_size=512,
-                    old_results=old_results.get(int(split), {}).get(
+                    batch_size=512,
+                    old_results=old_results.get(str(split), {}).get(
                         f'test_acc_y_ints_{full_run_name}'
                     ),
                 )
