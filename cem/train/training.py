@@ -45,6 +45,8 @@ def construct_model(
             ),
             "concat_prob": config.get("concat_prob", False),
             "embeding_activation": config.get("embeding_activation", None),
+            "c2y_model": c2y_model,
+            "c2y_layers": config.get("c2y_layers", []),
         }
     elif "ConceptBottleneckModel" in config["architecture"]:
         model_cls = models_cbm.ConceptBottleneckModel
@@ -57,12 +59,12 @@ def construct_model(
             ),
             "sigmoidal_prob": config.get("sigmoidal_prob", True),
             "intervention_policy": intervention_policy,
-            "c2y_layers": config.get("c2y_layers", []),
             "bottleneck_nonlinear": config.get("bottleneck_nonlinear", None),
             "active_intervention_values": active_intervention_values,
             "inactive_intervention_values": inactive_intervention_values,
             "x2c_model": x2c_model,
             "c2y_model": c2y_model,
+            "c2y_layers": config.get("c2y_layers", []),
         }
     else:
         raise ValueError(f'Invalid architecture "{config["architecture"]}"')

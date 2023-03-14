@@ -50,6 +50,8 @@ class ConceptEmbeddingModel(ConceptBottleneckModel):
         concat_prob=False,
         gpu=int(torch.cuda.is_available()),
         intervention_policy=None,
+        c2y_model=None,
+        c2y_layers=None,
     ):
         pl.LightningModule.__init__(self)
         self.n_concepts = n_concepts
@@ -145,12 +147,17 @@ class ConceptEmbeddingModel(ConceptBottleneckModel):
                         1,
                     )
                 )
-        self.c2y_model = torch.nn.Sequential(*[
-            torch.nn.Linear(
-                n_concepts * (emb_size + int(concat_prob)),
-                n_tasks,
-            ),
-        ])
+        if c2y_model is None:
+            # Else we construct it here directly
+            units = [n_concepts * (emb_size + int(concat_prob))] + (c2y_layers or []) + [n_tasks]
+            layers = []
+            for i in range(1, len(units)):
+                layers.append(torch.nn.Linear(units[i-1], units[i]))
+                if i != len(units) - 1:
+                    layers.append(torch.nn.LeakyReLU())
+            self.c2y_model = torch.nn.Sequential(*layers)
+        else:
+            self.c2y_model = c2y_model
         self.sig = torch.nn.Sigmoid()
 
         self.loss_concept = torch.nn.BCELoss(weight=weight_loss)

@@ -146,10 +146,11 @@ class ConceptBottleneckModel(pl.LightningModule):
         else:
             # Else we construct it here directly
             units = [n_concepts + extra_dims] + (c2y_layers or []) + [n_tasks]
-            layers = [
-                torch.nn.Linear(units[i-1], units[i])
-                for i in range(1, len(units))
-            ]
+            layers = []
+            for i in range(1, len(units)):
+                layers.append(torch.nn.Linear(units[i-1], units[i]))
+                if i != len(units) - 1:
+                    layers.append(torch.nn.LeakyReLU())
             self.c2y_model = torch.nn.Sequential(*layers)
 
         # Intervention-specific fields/handlers:
