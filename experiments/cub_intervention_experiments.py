@@ -37,6 +37,90 @@ def _filter_results(results, full_run_name):
         output[key] = val
     return output
 
+def generate_cub_data(config, base_dir=BASE_DIR, root_dir=CUB_DIR, unc_map=None, seed=42):
+    seed_everything(seed)
+    train_data_path = os.path.join(base_dir, 'train.pkl')
+    if config.get('weight_loss', False):
+        imbalance = find_class_imbalance(train_data_path, True)
+    else:
+        imbalance = None
+
+    val_data_path = train_data_path.replace('train.pkl', 'val.pkl')
+    test_data_path = train_data_path.replace('train.pkl', 'test.pkl')
+    sampling_percent = config.get("sampling_percent", 1)
+
+    if sampling_percent != 1:
+        # Do the subsampling
+        new_n_concepts = int(np.ceil(n_concepts * sampling_percent))
+        selected_concepts_file = os.path.join(
+            result_dir,
+            f"selected_concepts_sampling_{sampling_percent}.npy",
+        )
+        if (not rerun) and os.path.exists(selected_concepts_file):
+            selected_concepts = np.load(selected_concepts_file)
+        else:
+            selected_concepts = sorted(
+                np.random.permutation(n_concepts)[:new_n_concepts]
+            )
+            np.save(selected_concepts_file, selected_concepts)
+        print("\t\tSelected concepts:", selected_concepts)
+        def concept_transform(sample):
+            if isinstance(sample, list):
+                sample = np.array(sample)
+            return sample[selected_concepts]
+
+        # And correct the weight imbalance
+        if config.get('weight_loss', False):
+            imbalance = np.array(imbalance)[selected_concepts]
+    else:
+        concept_transform = None
+
+
+    train_dl = load_data(
+        pkl_paths=[train_data_path],
+        use_attr=True,
+        no_img=False,
+        batch_size=config['batch_size'],
+        uncertain_label=unc_map is not None,
+        n_class_attr=2,
+        image_dir='images',
+        resampling=False,
+        root_dir=root_dir,
+        num_workers=config['num_workers'],
+        concept_transform=concept_transform,
+        unc_map=unc_map,
+    )
+    val_dl = load_data(
+        pkl_paths=[val_data_path],
+        use_attr=True,
+        no_img=False,
+        batch_size=config['batch_size'],
+        uncertain_label=unc_map is not None,
+        n_class_attr=2,
+        image_dir='images',
+        resampling=False,
+        root_dir=root_dir,
+        num_workers=config['num_workers'],
+        concept_transform=concept_transform,
+        unc_map=unc_map,
+    )
+
+    test_dl = load_data(
+        pkl_paths=[test_data_path],
+        use_attr=True,
+        no_img=False,
+        batch_size=config['batch_size'],
+        uncertain_label=unc_map is not None,
+        n_class_attr=2,
+        image_dir='images',
+        resampling=False,
+        root_dir=root_dir,
+        num_workers=config['num_workers'],
+        concept_transform=concept_transform,
+        unc_map=unc_map,
+    )
+    return train_dl, val_dl, test_dl, imbalance
+
 ################################################################################
 ## MAIN FUNCTION
 ################################################################################
@@ -87,198 +171,12 @@ def main(
     gpu = 1 if gpu else 0
     utils.extend_with_global_params(og_config, global_params or [])
 
-    train_data_path = os.path.join(BASE_DIR, 'train.pkl')
-    if og_config['weight_loss']:
-        imbalance = find_class_imbalance(train_data_path, True)
-    else:
-        imbalance = None
-
-    val_data_path = train_data_path.replace('train.pkl', 'val.pkl')
-    test_data_path = train_data_path.replace('train.pkl', 'test.pkl')
-    sampling_percent = og_config.get("sampling_percent", 1)
-    n_concepts, n_tasks = 112, 200
-    if sampling_percent != 1:
-        # Do the subsampling
-        new_n_concepts = int(np.ceil(n_concepts * sampling_percent))
-        selected_concepts_file = os.path.join(
-            result_dir,
-            f"selected_concepts_sampling_{sampling_percent}.npy",
-        )
-        if (not rerun) and os.path.exists(selected_concepts_file):
-            selected_concepts = np.load(selected_concepts_file)
-        else:
-            selected_concepts = sorted(
-                np.random.permutation(n_concepts)[:new_n_concepts]
-            )
-            np.save(selected_concepts_file, selected_concepts)
-        print("\t\tSelected concepts:", selected_concepts)
-        def subsample_transform(sample):
-            if isinstance(sample, list):
-                sample = np.array(sample)
-            return sample[selected_concepts]
-
-        if og_config['weight_loss']:
-            imbalance = np.array(imbalance)[selected_concepts]
-
-        train_dl = load_data(
-            pkl_paths=[train_data_path],
-            use_attr=True,
-            no_img=False,
-            batch_size=og_config['batch_size'],
-            uncertain_label=False,
-            n_class_attr=2,
-            image_dir='images',
-            resampling=False,
-            root_dir=CUB_DIR,
-            num_workers=og_config['num_workers'],
-            concept_transform=subsample_transform,
-        )
-        val_dl = load_data(
-            pkl_paths=[val_data_path],
-            use_attr=True,
-            no_img=False,
-            batch_size=og_config['batch_size'],
-            uncertain_label=False,
-            n_class_attr=2,
-            image_dir='images',
-            resampling=False,
-            root_dir=CUB_DIR,
-            num_workers=og_config['num_workers'],
-            concept_transform=subsample_transform,
-        )
-
-        train_dl_uncertain = load_data(
-            pkl_paths=[train_data_path],
-            use_attr=True,
-            no_img=False,
-            batch_size=og_config['batch_size'],
-            uncertain_label=True,
-            n_class_attr=2,
-            image_dir='images',
-            resampling=False,
-            root_dir=CUB_DIR,
-            num_workers=og_config['num_workers'],
-            concept_transform=subsample_transform,
-        )
-        val_dl_uncertain = load_data(
-            pkl_paths=[val_data_path],
-            use_attr=True,
-            no_img=False,
-            batch_size=og_config['batch_size'],
-            uncertain_label=True,
-            n_class_attr=2,
-            image_dir='images',
-            resampling=False,
-            root_dir=CUB_DIR,
-            num_workers=og_config['num_workers'],
-            concept_transform=subsample_transform,
-        )
-
-
-        test_dl = load_data(
-            pkl_paths=[test_data_path],
-            use_attr=True,
-            no_img=False,
-            batch_size=og_config['batch_size'],
-            uncertain_label=False,
-            n_class_attr=2,
-            image_dir='images',
-            resampling=False,
-            root_dir=CUB_DIR,
-            num_workers=og_config['num_workers'],
-            concept_transform=subsample_transform,
-        )
-        test_dl_uncertain = load_data(
-            pkl_paths=[test_data_path],
-            use_attr=True,
-            no_img=False,
-            batch_size=og_config['batch_size'],
-            uncertain_label=True,
-            n_class_attr=2,
-            image_dir='images',
-            resampling=False,
-            root_dir=CUB_DIR,
-            num_workers=og_config['num_workers'],
-            concept_transform=subsample_transform,
-        )
-
-        # And set the right number of concepts to be used
-        n_concepts = new_n_concepts
-    else:
-        train_dl = load_data(
-            pkl_paths=[train_data_path],
-            use_attr=True,
-            no_img=False,
-            batch_size=og_config['batch_size'],
-            uncertain_label=False,
-            n_class_attr=2,
-            image_dir='images',
-            resampling=False,
-            root_dir=CUB_DIR,
-            num_workers=og_config['num_workers'],
-        )
-        val_dl = load_data(
-            pkl_paths=[val_data_path],
-            use_attr=True,
-            no_img=False,
-            batch_size=og_config['batch_size'],
-            uncertain_label=False,
-            n_class_attr=2,
-            image_dir='images',
-            resampling=False,
-            root_dir=CUB_DIR,
-            num_workers=og_config['num_workers'],
-        )
-
-        train_dl_uncertain = load_data(
-            pkl_paths=[train_data_path],
-            use_attr=True,
-            no_img=False,
-            batch_size=og_config['batch_size'],
-            uncertain_label=True,
-            n_class_attr=2,
-            image_dir='images',
-            resampling=False,
-            root_dir=CUB_DIR,
-            num_workers=og_config['num_workers'],
-        )
-        val_dl_uncertain = load_data(
-            pkl_paths=[val_data_path],
-            use_attr=True,
-            no_img=False,
-            batch_size=og_config['batch_size'],
-            uncertain_label=True,
-            n_class_attr=2,
-            image_dir='images',
-            resampling=False,
-            root_dir=CUB_DIR,
-            num_workers=og_config['num_workers'],
-        )
-
-        test_dl = load_data(
-            pkl_paths=[test_data_path],
-            use_attr=True,
-            no_img=False,
-            batch_size=og_config['batch_size'],
-            uncertain_label=False,
-            n_class_attr=2,
-            image_dir='images',
-            resampling=False,
-            root_dir=CUB_DIR,
-            num_workers=og_config['num_workers'],
-        )
-        test_dl_uncertain = load_data(
-            pkl_paths=[test_data_path],
-            use_attr=True,
-            no_img=False,
-            batch_size=og_config['batch_size'],
-            uncertain_label=True,
-            n_class_attr=2,
-            image_dir='images',
-            resampling=False,
-            root_dir=CUB_DIR,
-            num_workers=og_config['num_workers'],
-        )
+    test_data_path = os.path.join(BASE_DIR, 'test.pkl')
+    train_dl, val_dl, test_dl, imbalance = generate_cub_data(
+        config=og_config,
+        unc_map=None,
+        seed=42,
+    )
 
     sample = next(iter(train_dl))
     n_concepts, n_tasks = sample[2].shape[-1], 200
@@ -294,16 +192,26 @@ def main(
         )
 
     results = {}
+	if include_uncertain_train:
+        train_uncertain_set = [None, 0.5, 0.7, 0.9]
+    else:
+        train_uncertain_set = [None]
     for split in range(og_config["cv"]):
         results[f'{split}'] = {}
-        for train_uncertain in set([False, include_uncertain_train]):
-            used_train_dl = train_dl_uncertain if train_uncertain else train_dl
-            used_val_dl = val_dl_uncertain if train_uncertain else val_dl
+		for train_uncertain in train_uncertain_set:
+            if train_uncertain is not None:
+                train_dl_uncertain, val_dl_uncertain, test_dl_uncertain, _ = generate_cub_data(
+                    config=og_config,
+                    unc_map={0: 0.5, 1: 0.5, 2: 0.5, 3: train_uncertain, 4: 1.0},
+                    seed=42,
+                )
+            used_train_dl = train_dl_uncertain if train_uncertain is not None else train_dl
+            used_val_dl = val_dl_uncertain if train_uncertain is not None else val_dl
             print(f'Experiment {split+1}/{og_config["cv"]}')
 
             config = copy.deepcopy(og_config)
             config["architecture"] = "ConceptEmbeddingModel"
-            config["extra_name"] = "Uncertain" if train_uncertain else ""
+			config["extra_name"] = f"Uncertain{train_uncertain}" if train_uncertain is not None else ""
             config["shared_prob_gen"] = True
             config["sigmoidal_prob"] = True
             config["sigmoidal_embedding"] = False
@@ -358,6 +266,7 @@ def main(
                     split=split,
                     adversarial_intervention=False,
                     rerun=rerun,
+					batch_size=512,
                     old_results=old_results.get(str(split), {}).get(
                         f'test_acc_y_ints_{full_run_name}'
                     ),
@@ -419,7 +328,7 @@ def main(
             config["bool"] = False
             config["extra_dims"] = 0
             config["extra_name"] = (
-                "Uncertain_Logit" if train_uncertain else f"Logit"
+				f"Uncertain_Logit{train_uncertain}" if train_uncertain is not None else f"Logit"
             )
             config["bottleneck_nonlinear"] = "leakyrelu"
             config["sigmoidal_extra_capacity"] = False
@@ -471,6 +380,7 @@ def main(
                     imbalance=imbalance,
                     adversarial_intervention=False,
                     rerun=rerun,
+					batch_size=512,
                     old_results=old_results.get(int(split), {}).get(
                         f'test_acc_y_ints_{full_run_name}'
                     ),
@@ -515,6 +425,7 @@ def main(
                             imbalance=imbalance,
                             adversarial_intervention=False,
                             rerun=rerun,
+							batch_size=512,
                             old_results=old_results.get(str(split), {}).get(
                                 f'test_acc_y_uncert_{unc_value}_ints_{full_run_name}'
                             ),
@@ -533,7 +444,7 @@ def main(
             config = copy.deepcopy(og_config)
             config["architecture"] = "ConceptBottleneckModel"
             config["extra_name"] = (
-                "Uncertain_Sigmoid" if train_uncertain else f"Sigmoid"
+				f"Uncertain_Sigmoid{train_uncertain}" if train_uncertain is not None else f"Sigmoid"
             )
             config["bool"] = False
             config["extra_dims"] = 0
@@ -586,6 +497,7 @@ def main(
                     imbalance=imbalance,
                     adversarial_intervention=False,
                     rerun=rerun,
+					batch_size=512,
                     old_results=old_results.get(int(split), {}).get(
                         f'test_acc_y_ints_{full_run_name}'
                     ),
@@ -627,6 +539,7 @@ def main(
                             imbalance=imbalance,
                             adversarial_intervention=False,
                             rerun=rerun,
+							batch_size=512,
                             old_results=old_results.get(str(split), {}).get(
                                 f'test_acc_y_uncert_{unc_value}_ints_{full_run_name}'
                             ),
