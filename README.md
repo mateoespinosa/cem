@@ -155,7 +155,7 @@ This should generate a summary of all the results after execution has
 terminated and dump all results/trained models/logs into the given
 output directory (`dot_results/` in this case).
 
-## IMPORTANT NOTE
+## IMPORTANT NOTE ABOUT DATA
 
 In order to be able to properly run our experiments, you will
 have to **download** the pre-processed *CUB dataset* found [here](https://worksheets.codalab.org/bundles/0xd013a7ba2e88481bbc07e787f73109f5) to
@@ -164,8 +164,14 @@ have to **download** the pre-processed *CUB dataset* found [here](https://worksh
 locations but their paths will have to be modified in the respective
 experiment scripts.
 
+You can also **overwrite the location of the dataset of interest** (either CUB or CELEBA) by providing a
+path to its data using the `DATASET_DIR` enviroment variable. Otherwise, we expect
+CUB's data to be stored at `cem/data/CUB200/` and CELEBA's data to be stored at `cem/data/celeba`.
+
+
 
 # Citation
+
 If you would like to cite this repository, or the accompanying paper, please
 use the following citation:
 ```
