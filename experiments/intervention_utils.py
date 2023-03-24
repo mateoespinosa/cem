@@ -28,7 +28,7 @@ def load_trained_model(
     intervention_policy=None,
     intervene=False,
 ):
-    arch_name = config['c_extractor_arch']
+    arch_name = config.get('c_extractor_arch', "")
     if not isinstance(arch_name, str):
         arch_name = "lambda"
     if split is not None:

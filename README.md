@@ -87,27 +87,44 @@ between these two produced embeddings at test-time to then intervene in a
 concept and improve downstream performance. Our entire architecture is
 visualized in the figure above and formally described in our paper.
 
-# Usage
+# Installation
 
-In this repository, we include a standalone Pytorch implementation of CEM
-which can be easily trained from scratch given a set of samples annotated with
-a downstream task and a set of binary concepts. In order to use our implementation,
-however, you first need to install all our code's requirements (listed in
-`requirements.txt`). We provide an automatic mechanism for this installation using
+You can locally install this package by first cloning this repository:
+```bash
+$ git clone https://github.com/mateoespinosa/cem
+```
+We provide an automatic mechanism for this installation using
 Python's setup process with our standalone `setup.py`. To install our package,
-therefore, you only need to run:
+therefore, you only need to move into the cloned directoru (`cd cem`) and run:
 ```bash
 $ python setup.py install
 ```
+After running this, you should by able to import our package locally
+using
+```python
+import cem
+```
 
-After this command has terminated successfully, you should be able to import
-`cem` as a package and use it to train a CEM object as follows:
+# Usage
+
+## High-level Usage
+In this repository, we include a standalone Pytorch implementation of Concept
+Embedding Models (CEMs) and Concept Bottleneck Models (CBMs)
+which can be easily trained from scratch given a set of samples annotated with
+a downstream task and a set of binary concepts. In order to use our
+implementation, however, you first need to install all our code's requirements
+(listed in `requirements.txt`) by following the installation instructions
+above,
+
+After installation has been completed, you should be able to import
+`cem` as a package and use it to train a CEM as follows:
+
 ```python
 import pytorch_lightning as pl
 from cem.models.cem import ConceptEmbeddingModel
 
 #####
-# Define your dataset
+# Define your pytorch dataset objects
 #####
 
 train_dl = ...
@@ -141,12 +158,114 @@ trainer = pl.Trainer(
 trainer.fit(cem_model, train_dl, val_dl)
 ```
 
+## Included Models
+Besides CEMs, this repository also includes a PyTorch implementation of
+Concept Bottleneck Models (CBMs), which should be trainable out of the box.
+You can import CBMs by including
+```python
+from cem.models.cbm import ConceptBottleneckModel
+```
+in your python source file.
+
+---
+
+Our **CEM module** takes the following initialization arguments:
+- `n_concepts` (int): The number of concepts given at training time.
+- `n_tasks` (int): The number of output classes of the CEM.
+- `emb_size` (int): The size of each concept embedding. Defaults to 16.
+- `training_intervention_prob` (float): RandInt probability. Defaults
+    to 0.25.
+- `embeding_activation` (str): A valid nonlinearity name to use for the
+    generated embeddings. It must be one of [None, "sigmoid", "relu",
+    "leakyrelu"] and defaults to "leakyrelu".
+- `shared_prob_gen` (Bool): Whether or not weights are shared across
+    all probability generators. Defaults to True.
+- `concept_loss_weight` (float): Weight to be used for the final loss'
+    component corresponding to the concept classification loss. Default
+    is 0.01.
+- `task_loss_weight` (float): Weight to be used for the final loss'
+    component corresponding to the output task classification loss. Default
+    is 1.
+
+- `c2y_model` (Pytorch.Module):  A valid pytorch Module used to map the
+    CEM's bottleneck (with size n_concepts * emb_size) to `n_tasks`
+    output activations (i.e., the output of the CEM).
+    If not given, then a simple leaky-ReLU MLP, whose hidden
+    layers have sizes `c2y_layers`, will be used.
+- `c2y_layers` (List[int]): List of integers defining the size of the
+    hidden layers to be used in the MLP to predict classes from the
+    bottleneck if c2y_model was NOT provided. If not given, then we will
+    use a simple linear layer to map the bottleneck to the output classes.
+- `c_extractor_arch` (Fun[(int), Pytorch.Module]): A generator function for
+    the latent code generator model that takes as an input the size of the
+    latent code before the concept embedding generators act (using an
+    argument called `output_dim`) and returns a valid Pytorch Module
+    that maps this CEM's inputs to the latent space of the requested size.
+
+- `optimizer` (str):  The name of the optimizer to use. Must be one of
+    `adam` or `sgd`. Default is `adam`.
+- `momentum` (float): Momentum used for optimization. Default is 0.9.
+- `learning_rate` (float):  Learning rate used for optimization. Default is
+    0.01.
+- `weight_decay` (float): The weight decay factor used during optimization.
+    Default is 4e-05.
+- `weight_loss` (List[float]): Either None or a list with n_concepts
+    elements indicating the weights assigned to each predicted concept
+    during the loss computation. Could be used to improve
+    performance/fairness in imbalanced datasets.
+- `task_class_weights` (List[float]): Either None or a list with n_tasks
+    elements indicating the weights assigned to each output class
+    during the loss computation. Could be used to improve
+    performance/fairness in imbalanced datasets.
+
+- `active_intervention_values` (List[float]): A list of n_concepts values
+    to use when positively intervening in a given concept (i.e., setting
+    concept c_i to 1 would imply setting its corresponding
+    predicted concept to active_intervention_values[i]). If not given, then
+    we will assume that we use `1` for all concepts. This parameter is
+    important when intervening in CEMs that do not have sigmoidal concepts,
+    as the intervention thresholds must then be inferred from their
+    empirical training distribution.
+- `inactive_intervention_values` (List[float]): A list of n_concepts values
+    to use when negatively intervening in a given concept (i.e., setting
+    concept c_i to 0 would imply setting its corresponding
+    predicted concept to inactive_intervention_values[i]). If not given,
+    then we will assume that we use `0` for all concepts.
+- `intervention_policy` (Callable[(np.ndarray, np.ndarray, np.ndarray), np.ndarray]):
+    An optional intervention policy to be used when intervening on a test
+    batch sample x (first argument), with corresponding true concepts c
+    (second argument), and true labels y (third argument). The policy must
+    produce as an output a list of concept indices to intervene (in batch
+    form) or a batch of binary masks indicating which concepts we will
+    intervene on.
+- `top_k_accuracy` (List[int]): List of top k values to report accuracy
+    for during training/testing when the number of tasks is high.
+- `gpu` (Bool): whether or not to use a GPU device or not.
+
+
+Notice that our **[CBM module](https://github.com/mateoespinosa/cem/blob/main/cem/models/cbm.py) takes similar arguments**, albeit some extra ones
+and some with slightly different semantics (e.g., x2c_model goes directly
+from the input to the bottleneck).
+
+
 # Experiment Reproducibility
 
+## Downloading the Datasets
+
+In order to be able to properly run our experiments, you will
+have to **download** the pre-processed *CUB dataset* found [here](https://worksheets.codalab.org/bundles/0xd013a7ba2e88481bbc07e787f73109f5) to
+`cem/data/CUB200/` and the *CelebA dataset* found
+[here](https://mmlab.ie.cuhk.edu.hk/projects/CelebA.html) to `cem/data/celeba`. You may opt to download them to
+different locations but their paths will have to be modified in the respective
+experiment scripts or via the `DATASET_DIR` environment variable.
+
+
+## Running Experiments
+
 To reproduce the experiments discussed in our paper, please use the scripts
-in the `experiments` directory after installing the `cem` package as indicated
-above. For example, to run our experiments on the DOT dataset (see our paper),
-you can execute the following command:
+in the `experiments` directory after installing the `cem` package as
+indicated above. For example, to run our experiments on the DOT dataset
+(see our paper), you can execute the following command:
 
 ```bash
 $ python experiments/synthetic_datasets_experiments.py dot -o dot_results/
@@ -155,18 +274,20 @@ This should generate a summary of all the results after execution has
 terminated and dump all results/trained models/logs into the given
 output directory (`dot_results/` in this case).
 
-## IMPORTANT NOTE ABOUT DATA
+Similarly, you can recreate our `CUB` and `CelebA` experiments by running
 
-In order to be able to properly run our experiments, you will
-have to **download** the pre-processed *CUB dataset* found [here](https://worksheets.codalab.org/bundles/0xd013a7ba2e88481bbc07e787f73109f5) to
-`cenm/data/CUB200/CUB_200_2011` and the *CelebA dataset* found
-[here](https://mmlab.ie.cuhk.edu.hk/projects/CelebA.html) to `data/celeba`. You may opt to download them to different
-locations but their paths will have to be modified in the respective
-experiment scripts.
+```bash
+$ python experiments/run_experiments.py dot {cub/celeba}
+```
 
-You can also **overwrite the location of the dataset of interest** (either CUB or CELEBA) by providing a
-path to its data using the `DATASET_DIR` enviroment variable. Otherwise, we expect
-CUB's data to be stored at `cem/data/CUB200/` and CELEBA's data to be stored at `cem/data/celeba`.
+Our intervention experiments can be further recreated by running
+```bash
+$ python experiments/intervention_experiments.py dot {cub/celeba}
+```
+
+All of these scripts will dump all testing results/statistics summarized over
+5 random initializations in a single `results.joblib` dictionary which
+you can then analyze.
 
 
 

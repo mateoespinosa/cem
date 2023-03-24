@@ -20,7 +20,6 @@ from intervention_utils import (
 from run_experiments import CUB_CONFIG, CELEBA_CONFIG
 
 
-
 ################################################################################
 ## HELPER FUNCTIONS
 ################################################################################
@@ -56,15 +55,16 @@ def main(
         og_config = CUB_CONFIG
     og_config = copy.deepcopy(og_config)
     og_config['num_workers'] = num_workers
-    
+
     gpu = 1 if gpu else 0
     utils.extend_with_global_params(og_config, global_params or [])
 
-    train_dl, val_dl, test_dl, imbalance, (n_concepts, n_tasks) = data_module.generate_data(
-        config=og_config,
-        seed=42,
-        output_dataset_vars=True,
-    )
+    train_dl, val_dl, test_dl, imbalance, (n_concepts, n_tasks) = \
+        data_module.generate_data(
+            config=og_config,
+            seed=42,
+            output_dataset_vars=True,
+        )
     concept_map = None
     if hasattr(data_module, 'CONCEPT_MAP'):
         concept_map = data_module.CONCEPT_MAP
@@ -84,7 +84,7 @@ def main(
                 og_config.get('intervention_freq', 1),
             )
         )
-    
+
     sample = next(iter(train_dl))
     real_sample = []
     for x in sample:
@@ -173,7 +173,10 @@ def main(
             print(f"\t\t{key} -> {val}")
         joblib.dump(
             _filter_results(results[f'{split}'], full_run_name),
-            os.path.join(result_dir, f'{full_run_name}_split_{split}_results.joblib'),
+            os.path.join(
+                result_dir,
+                f'{full_run_name}_split_{split}_results.joblib'
+            ),
         )
         joblib.dump(results, os.path.join(result_dir, f'results.joblib'))
 
@@ -239,7 +242,10 @@ def main(
             print(f"\t\t{key} -> {val}")
         joblib.dump(
             _filter_results(results[f'{split}'], full_run_name),
-            os.path.join(result_dir, f'{full_run_name}_split_{split}_results.joblib'),
+            os.path.join(
+                result_dir,
+                f'{full_run_name}_split_{split}_results.joblib'
+            ),
         )
         joblib.dump(results, os.path.join(result_dir, f'results.joblib'))
 
@@ -305,7 +311,10 @@ def main(
             print(f"\t\t{key} -> {val}")
         joblib.dump(
             _filter_results(results[f'{split}'], full_run_name),
-            os.path.join(result_dir, f'{full_run_name}_split_{split}_results.joblib'),
+            os.path.join(
+                result_dir,
+                f'{full_run_name}_split_{split}_results.joblib'
+            ),
         )
         joblib.dump(results, os.path.join(result_dir, f'results.joblib'))
 
@@ -332,7 +341,8 @@ if __name__ == '__main__':
         'dataset',
         choices=['cub', 'celeba'],
         help=(
-            "Dataset to run experiments for. Must be a supported dataset with a loader."
+            "Dataset to run experiments for. Must be a supported dataset with "
+            "a loader."
         ),
         metavar="ds_name",
 
@@ -379,7 +389,7 @@ if __name__ == '__main__':
         default=False,
         help="starts debug mode in our program.",
     )
-    
+
     parser.add_argument(
         "--force_cpu",
         action="store_true",
@@ -407,7 +417,7 @@ if __name__ == '__main__':
     else:
         logging.basicConfig(level=logging.INFO)
     logging.getLogger("pytorch_lightning").setLevel(logging.WARNING)
-    
+
     if args.dataset == "cub":
         data_module = cub_data_module
         og_config = CUB_CONFIG

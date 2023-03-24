@@ -5,7 +5,7 @@ import numpy as np
 import os
 import torch
 
-from CUB200.cub_loader import load_data, find_class_imbalance
+from cem.data.CUB200.cub_loader import load_data, find_class_imbalance
 from pathlib import Path
 from pytorch_lightning import seed_everything
 
@@ -33,12 +33,10 @@ def main(
         emb_size=16,
         extra_dims=0,
         concept_loss_weight=5,
-        normalize_loss=False,
         learning_rate=0.01,
         weight_decay=4e-05,
         scheduler_step=20,
         weight_loss=True,
-        pretrain_model=True,
         c_extractor_arch="resnet34",
         optimizer="sgd",
         bool=False,

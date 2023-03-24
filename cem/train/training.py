@@ -14,6 +14,9 @@ import cem.models.cem as models_cem
 import cem.models.cbm as models_cbm
 import cem.train.utils as utils
 
+
+
+
 ################################################################################
 ## MODEL CONSTRUCTION
 ################################################################################
@@ -36,8 +39,6 @@ def construct_model(
         extra_params = {
             "emb_size": config["emb_size"],
             "shared_prob_gen": config["shared_prob_gen"],
-            "sigmoidal_prob": config.get("sigmoidal_prob", False),
-            "sigmoidal_embedding": config.get("sigmoidal_embedding", False),
             "intervention_policy": intervention_policy,
             "training_intervention_prob": config.get(
                 'training_intervention_prob',
@@ -99,11 +100,10 @@ def construct_model(
         ),
         concept_loss_weight=config['concept_loss_weight'],
         task_loss_weight=config.get('task_loss_weight', 1.0),
-        normalize_loss=config['normalize_loss'],
         learning_rate=config['learning_rate'],
         weight_decay=config['weight_decay'],
         pretrain_model=config.get('pretrain_model', False),
-        c_extractor_arch=c_extractor_arch,
+        c_extractor_arch=utils.wrap_pretrained_model(c_extractor_arch),
         optimizer=config['optimizer'],
         top_k_accuracy=config.get('top_k_accuracy'),
         **extra_params,

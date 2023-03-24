@@ -51,7 +51,9 @@ def compute_accuracy(
     for i in range(c_true.shape[-1]):
         true_vars = c_true[:, i]
         pred_vars = c_pred[:, i]
-        c_accuracy += sklearn.metrics.accuracy_score(true_vars, pred_vars)/c_true.shape[-1]
+        c_accuracy += sklearn.metrics.accuracy_score(
+            true_vars, pred_vars
+        ) / c_true.shape[-1]
 
         if len(np.unique(true_vars)) == 1:
             c_auc += np.mean(true_vars == pred_vars)/c_true.shape[-1]
@@ -91,31 +93,131 @@ class ConceptBottleneckModel(pl.LightningModule):
         self,
         n_concepts,
         n_tasks,
-        bool,
-        x2c_model=None,
-        c2y_model=None,
         concept_loss_weight=0.01,
         task_loss_weight=1,
+
+        extra_dims=0,
+        bool=False,
+        sigmoidal_prob=True,
+        sigmoidal_extra_capacity=True,
+        bottleneck_nonlinear=None,
+
+        x2c_model=None,
+        c_extractor_arch=utils.wrap_pretrained_model(resnet50),
+        c2y_model=None,
+        c2y_layers=None,
+
+        optimizer="adam",
         momentum=0.9,
         learning_rate=0.01,
         weight_decay=4e-05,
         weight_loss=None,
-        normalize_loss=False,
-        pretrain_model=True,
-        c_extractor_arch=resnet50,
-        optimizer="adam",
-        extra_dims=0,
-        top_k_accuracy=None,
-        sigmoidal_prob=True,
-        sigmoidal_extra_capacity=True,
-        bottleneck_nonlinear=None,
-        c2y_layers=None,
+        task_class_weights=None,
+
         active_intervention_values=None,
         inactive_intervention_values=None,
-        gpu=int(torch.cuda.is_available()),
         intervention_policy=None,
-        task_class_weights=None,
+
+        top_k_accuracy=None,
+        gpu=int(torch.cuda.is_available()),
     ):
+    """
+    Constructs a joint Concept Bottleneck Model (CBM) as defined by
+    Koh et al. 2020.
+
+    :param int n_concepts: The number of concepts given at training time.
+    :param int n_tasks: The number of output classes of the CBM.
+    :param float concept_loss_weight: Weight to be used for the final loss'
+        component corresponding to the concept classification loss. Default
+        is 0.01.
+    :param float task_loss_weight: Weight to be used for the final loss'
+        component corresponding to the output task classification loss. Default
+        is 1.
+
+    :param int extra_dims: The number of extra unsupervised dimensions to
+        include in the bottleneck. Defaults to 0.
+    :param Bool bool: Whether or not we threshold concepts in the bottleneck
+        to be binary. Only relevant if the bottleneck uses a sigmoidal
+        activation. Defaults to False.
+    :param Bool sigmoidal_prob: Whether or not to use a sigmoidal activation
+        for the bottleneck's activations that are aligned with training
+        concepts. Defaults to True.
+    :param Bool sigmoidal_extra_capacity:  Whether or not to use a sigmoidal
+        activation for the bottleneck's unsupervised activations (when
+        extra_dims > 0). Defaults to True.
+    :param str bottleneck_nonlinear: A valid nonlinearity name to use for any
+        unsupervised extra capacity in this model (when extra_dims > 0). It may
+        overwrite `sigmoidal_extra_capacity` if sigmoidal_extra_capacity is
+        True. If None, then no activation will be used. Will be soon deprecated.
+        It must be one of [None, "sigmoid", "relu", "leakyrelu"] and defaults
+        to None.
+
+    :param Pytorch.Module x2c_model: A valid pytorch Module used to map the
+        CBM's inputs to its bottleneck layer with `n_concepts + extra_dims`
+        activations. If not given, then one may provide a generator
+        function via the c_extractor_arch argument.
+    :param Fun[(int), Pytorch.Module] c_extractor_arch: If x2c_model is None,
+        then one may provide a generator function for the input to concept
+        model that takes as an input the size of the bottleneck (using
+        an argument called `output_dim`) and returns a valid Pytorch Module
+        that maps this CBM's inputs to the bottleneck of the requested size.
+    :param Pytorch.Module c2y_model:  A valid pytorch Module used to map the
+        CBM's bottleneck (with size n_concepts + extra_dims`) to `n_tasks`
+        output activations (i.e., the output of the CBM).
+        If not given, then a simple leaky-ReLU MLP, whose hidden
+        layers have sizes `c2y_layers`, will be used.
+    :param List[int] c2y_layers: List of integers defining the size of the
+        hidden layers to be used in the MLP to predict classes from the
+        bottleneck if c2y_model was NOT provided. If not given, then we will
+        use a simple linear layer to map the bottleneck to the output classes.
+
+
+    :param str optimizer:  The name of the optimizer to use. Must be one of
+        `adam` or `sgd`. Default is `adam`.
+    :param float momentum: Momentum used for optimization. Default is 0.9.
+    :param float learning_rate:  Learning rate used for optimization. Default is
+        0.01.
+    :param float weight_decay: The weight decay factor used during optimization.
+        Default is 4e-05.
+    :param List[float] weight_loss: Either None or a list with n_concepts
+        elements indicating the weights assigned to each predicted concept
+        during the loss computation. Could be used to improve
+        performance/fairness in imbalanced datasets.
+    :param List[float] task_class_weights: Either None or a list with n_tasks
+        elements indicating the weights assigned to each output class
+        during the loss computation. Could be used to improve
+        performance/fairness in imbalanced datasets.
+
+
+    :param List[float] active_intervention_values: A list of n_concepts values
+        to use when positively intervening in a given concept (i.e., setting
+        concept c_i to 1 would imply setting its corresponding
+        predicted concept to active_intervention_values[i]). If not given, then
+        we will assume that we use `1` for all concepts. This parameter is
+        important when intervening in CBMs that do not have sigmoidal concepts,
+        as the intervention thresholds must then be inferred from their
+        empirical training distribution.
+    :param List[float] inactive_intervention_values: A list of n_concepts values
+        to use when negatively intervening in a given concept (i.e., setting
+        concept c_i to 0 would imply setting its corresponding
+        predicted concept to inactive_intervention_values[i]). If not given,
+        then we will assume that we use `0` for all concepts. This parameter is
+        important when intervening in CBMs that do not have sigmoidal concepts,
+        as the intervention thresholds must then be inferred from their
+        empirical training distribution.
+    :param Callable[(np.ndarray, np.ndarray, np.ndarray), np.ndarray] intervention_policy:
+        An optional intervention policy to be used when intervening on a test
+        batch sample x (first argument), with corresponding true concepts c
+        (second argument), and true labels y (third argument). The policy must
+        produce as an output a list of concept indices to intervene (in batch
+        form) or a batch of binary masks indicating which concepts we will
+        intervene on.
+
+    :param List[int] top_k_accuracy: List of top k values to report accuracy
+        for during training/testing when the number of tasks is high.
+    :param Bool gpu: whether or not to use a GPU device or not.
+    """
+        gpu = int(gpu)
         super().__init__()
         self.n_concepts = n_concepts
         self.intervention_policy = intervention_policy
@@ -124,20 +226,9 @@ class ConceptBottleneckModel(pl.LightningModule):
             # the input to concepts method
             self.x2c_model = x2c_model
         else:
-            # Else we assume that it is a callable function which we will
-            # need to instantiate here
-            try:
-                model = c_extractor_arch(pretrained=pretrain_model)
-                if c_extractor_arch == densenet121:
-                    model.classifier = torch.nn.Linear(
-                        1024,
-                        n_concepts + extra_dims,
-                    )
-                elif hasattr(model, 'fc'):
-                    model.fc = torch.nn.Linear(512, n_concepts + extra_dims)
-            except Exception as e:
-                model = c_extractor_arch(output_dim=(n_concepts + extra_dims))
-            self.x2c_model = model
+            self.x2c_model = c_extractor_arch(
+                output_dim=(n_concepts + extra_dims)
+            )
 
         # Now construct the label prediction model
         if c2y_model is not None:
@@ -181,7 +272,9 @@ class ConceptBottleneckModel(pl.LightningModule):
             ) * (
                 -5.0 if not sigmoidal_prob else 0.0
             )
-        # For legacy purposes, we wrap the model around a torch.nn.Sequential module
+
+        # For legacy purposes, we wrap the model around a torch.nn.Sequential
+        # module
         self.sig = torch.nn.Sigmoid()
         if sigmoidal_extra_capacity:
             # Keeping this for backwards compatability
@@ -204,7 +297,9 @@ class ConceptBottleneckModel(pl.LightningModule):
         self.loss_concept = torch.nn.BCELoss(weight=weight_loss)
         self.loss_task = (
             torch.nn.CrossEntropyLoss(weight=task_class_weights)
-            if n_tasks > 1 else torch.nn.BCEWithLogitsLoss(weight=task_class_weights)
+            if n_tasks > 1 else torch.nn.BCEWithLogitsLoss(
+                weight=task_class_weights
+            )
         )
         self.bool = bool
         self.concept_loss_weight = concept_loss_weight
@@ -212,7 +307,6 @@ class ConceptBottleneckModel(pl.LightningModule):
         self.momentum = momentum
         self.learning_rate = learning_rate
         self.weight_decay = weight_decay
-        self.normalize_loss = normalize_loss
         self.optimizer_name = optimizer
         self.extra_dims = extra_dims
         self.top_k_accuracy = top_k_accuracy
@@ -416,8 +510,6 @@ class ConceptBottleneckModel(pl.LightningModule):
         else:
             loss = task_loss
             concept_loss_scalar = 0.0
-        if self.normalize_loss:
-            loss = loss / (1 + self.concept_loss_weight * c.shape[-1])
         # compute accuracy
         (c_accuracy, c_auc, c_f1), (y_accuracy, y_auc, y_f1) = compute_accuracy(
             c_sem,

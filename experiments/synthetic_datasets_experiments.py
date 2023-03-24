@@ -108,7 +108,6 @@ def main(
         emb_size=128,
         extra_dims=0,
         concept_loss_weight=1,
-        normalize_loss=False,
         learning_rate=0.01,
         weight_decay=0,
         scheduler_step=20,

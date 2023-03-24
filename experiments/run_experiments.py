@@ -27,11 +27,9 @@ CUB_CONFIG = dict(
     emb_size=16,
     extra_dims=0,
     concept_loss_weight=5,
-    normalize_loss=False,
     learning_rate=0.01,
     weight_decay=4e-05,
     weight_loss=True,
-    pretrain_model=True,
     c_extractor_arch="resnet34",
     optimizer="sgd",
     bool=False,
@@ -41,12 +39,9 @@ CUB_CONFIG = dict(
     sampling_percent=1,
 
     momentum=0.9,
-    shared_prob_gen=False,
     sigmoidal_prob=False,
-    sigmoidal_embedding=False,
     training_intervention_prob=0.0,
     embeding_activation=None,
-    concat_prob=False,
     intervention_freq=4,
 )
 
@@ -59,11 +54,9 @@ CELEBA_CONFIG = dict(
     emb_size=16,
     extra_dims=0,
     concept_loss_weight=1,
-    normalize_loss=False,
     learning_rate=0.005,
     weight_decay=4e-05,
     weight_loss=False,
-    pretrain_model=True,
     c_extractor_arch="resnet34",
     optimizer="sgd",
     bool=False,
@@ -85,12 +78,9 @@ CELEBA_CONFIG = dict(
     selected_concepts=False,
 
     momentum=0.9,
-    shared_prob_gen=False,
     sigmoidal_prob=False,
-    sigmoidal_embedding=False,
     training_intervention_prob=0.0,
     embeding_activation=None,
-    concat_prob=False,
 )
 
 
@@ -176,11 +166,8 @@ def main(
         config = copy.deepcopy(og_config)
         config["architecture"] = "ConceptEmbeddingModel"
         config["extra_name"] = f""
-        config["shared_prob_gen"] = True
         config["sigmoidal_prob"] = True
-        config["sigmoidal_embedding"] = False
         config['training_intervention_prob'] = 0.25
-        config['concat_prob'] = False
         config['emb_size'] = config['emb_size']
         config["embeding_activation"] = "leakyrelu"
         mixed_emb_shared_prob_model,  mixed_emb_shared_prob_test_results = \
@@ -210,11 +197,8 @@ def main(
         config = copy.deepcopy(og_config)
         config["architecture"] = "ConceptEmbeddingModel"
         config["extra_name"] = f"NoRandInt"
-        config["shared_prob_gen"] = True
         config["sigmoidal_prob"] = True
-        config["sigmoidal_embedding"] = False
         config['training_intervention_prob'] = 0.0  # TURN OFF RandInt
-        config['concat_prob'] = False
         config['emb_size'] = config['emb_size']
         config["embeding_activation"] = "leakyrelu"
         mixed_emb_shared_prob_model,  mixed_emb_shared_prob_test_results = \
