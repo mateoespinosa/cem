@@ -95,15 +95,14 @@ def compute_accuracy(
 
 def wrap_pretrained_model(c_extractor_arch):
     def _result_x2c_fun(output_dim):
-        model = c_extractor_arch(pretrained=pretrain_model)
-        if c_extractor_arch == densenet121:
-            model.classifier = torch.nn.Linear(
-                1024,
-                output_dims,
-            )
-        elif hasattr(model, 'fc'):
-            model.fc = torch.nn.Linear(512, output_dims)
-        return model
+        if output_dim:
+            if c_extractor_arch == densenet121:
+                model.classifier = torch.nn.Linear(
+                    1024,
+                    output_dim,
+                )
+            elif hasattr(model, 'fc'):
+                model.fc = torch.nn.Linear(512, output_dim)
     return _result_x2c_fun
 
 ################################################################################

@@ -121,102 +121,103 @@ class ConceptBottleneckModel(pl.LightningModule):
         top_k_accuracy=None,
         gpu=int(torch.cuda.is_available()),
     ):
-    """
-    Constructs a joint Concept Bottleneck Model (CBM) as defined by
-    Koh et al. 2020.
+        """
+        Constructs a joint Concept Bottleneck Model (CBM) as defined by
+        Koh et al. 2020.
 
-    :param int n_concepts: The number of concepts given at training time.
-    :param int n_tasks: The number of output classes of the CBM.
-    :param float concept_loss_weight: Weight to be used for the final loss'
-        component corresponding to the concept classification loss. Default
-        is 0.01.
-    :param float task_loss_weight: Weight to be used for the final loss'
-        component corresponding to the output task classification loss. Default
-        is 1.
+        :param int n_concepts: The number of concepts given at training time.
+        :param int n_tasks: The number of output classes of the CBM.
+        :param float concept_loss_weight: Weight to be used for the final loss'
+            component corresponding to the concept classification loss. Default
+            is 0.01.
+        :param float task_loss_weight: Weight to be used for the final loss'
+            component corresponding to the output task classification loss.
+            Default is 1.
 
-    :param int extra_dims: The number of extra unsupervised dimensions to
-        include in the bottleneck. Defaults to 0.
-    :param Bool bool: Whether or not we threshold concepts in the bottleneck
-        to be binary. Only relevant if the bottleneck uses a sigmoidal
-        activation. Defaults to False.
-    :param Bool sigmoidal_prob: Whether or not to use a sigmoidal activation
-        for the bottleneck's activations that are aligned with training
-        concepts. Defaults to True.
-    :param Bool sigmoidal_extra_capacity:  Whether or not to use a sigmoidal
-        activation for the bottleneck's unsupervised activations (when
-        extra_dims > 0). Defaults to True.
-    :param str bottleneck_nonlinear: A valid nonlinearity name to use for any
-        unsupervised extra capacity in this model (when extra_dims > 0). It may
-        overwrite `sigmoidal_extra_capacity` if sigmoidal_extra_capacity is
-        True. If None, then no activation will be used. Will be soon deprecated.
-        It must be one of [None, "sigmoid", "relu", "leakyrelu"] and defaults
-        to None.
+        :param int extra_dims: The number of extra unsupervised dimensions to
+            include in the bottleneck. Defaults to 0.
+        :param Bool bool: Whether or not we threshold concepts in the bottleneck
+            to be binary. Only relevant if the bottleneck uses a sigmoidal
+            activation. Defaults to False.
+        :param Bool sigmoidal_prob: Whether or not to use a sigmoidal activation
+            for the bottleneck's activations that are aligned with training
+            concepts. Defaults to True.
+        :param Bool sigmoidal_extra_capacity:  Whether or not to use a sigmoidal
+            activation for the bottleneck's unsupervised activations (when
+            extra_dims > 0). Defaults to True.
+        :param str bottleneck_nonlinear: A valid nonlinearity name to use for
+            any unsupervised extra capacity in this model (when extra_dims > 0).
+            It may overwrite `sigmoidal_extra_capacity` if
+            sigmoidal_extra_capacity is True. If None, then no activation will
+            be used. Will be soon deprecated. It must be one of [None,
+            "sigmoid", "relu", "leakyrelu"] and defaults to None.
 
-    :param Pytorch.Module x2c_model: A valid pytorch Module used to map the
-        CBM's inputs to its bottleneck layer with `n_concepts + extra_dims`
-        activations. If not given, then one may provide a generator
-        function via the c_extractor_arch argument.
-    :param Fun[(int), Pytorch.Module] c_extractor_arch: If x2c_model is None,
-        then one may provide a generator function for the input to concept
-        model that takes as an input the size of the bottleneck (using
-        an argument called `output_dim`) and returns a valid Pytorch Module
-        that maps this CBM's inputs to the bottleneck of the requested size.
-    :param Pytorch.Module c2y_model:  A valid pytorch Module used to map the
-        CBM's bottleneck (with size n_concepts + extra_dims`) to `n_tasks`
-        output activations (i.e., the output of the CBM).
-        If not given, then a simple leaky-ReLU MLP, whose hidden
-        layers have sizes `c2y_layers`, will be used.
-    :param List[int] c2y_layers: List of integers defining the size of the
-        hidden layers to be used in the MLP to predict classes from the
-        bottleneck if c2y_model was NOT provided. If not given, then we will
-        use a simple linear layer to map the bottleneck to the output classes.
-
-
-    :param str optimizer:  The name of the optimizer to use. Must be one of
-        `adam` or `sgd`. Default is `adam`.
-    :param float momentum: Momentum used for optimization. Default is 0.9.
-    :param float learning_rate:  Learning rate used for optimization. Default is
-        0.01.
-    :param float weight_decay: The weight decay factor used during optimization.
-        Default is 4e-05.
-    :param List[float] weight_loss: Either None or a list with n_concepts
-        elements indicating the weights assigned to each predicted concept
-        during the loss computation. Could be used to improve
-        performance/fairness in imbalanced datasets.
-    :param List[float] task_class_weights: Either None or a list with n_tasks
-        elements indicating the weights assigned to each output class
-        during the loss computation. Could be used to improve
-        performance/fairness in imbalanced datasets.
+        :param Pytorch.Module x2c_model: A valid pytorch Module used to map the
+            CBM's inputs to its bottleneck layer with `n_concepts + extra_dims`
+            activations. If not given, then one may provide a generator
+            function via the c_extractor_arch argument.
+        :param Fun[(int), Pytorch.Module] c_extractor_arch: If x2c_model is None,
+            then one may provide a generator function for the input to concept
+            model that takes as an input the size of the bottleneck (using
+            an argument called `output_dim`) and returns a valid Pytorch Module
+            that maps this CBM's inputs to the bottleneck of the requested size.
+        :param Pytorch.Module c2y_model:  A valid pytorch Module used to map the
+            CBM's bottleneck (with size n_concepts + extra_dims`) to `n_tasks`
+            output activations (i.e., the output of the CBM).
+            If not given, then a simple leaky-ReLU MLP, whose hidden
+            layers have sizes `c2y_layers`, will be used.
+        :param List[int] c2y_layers: List of integers defining the size of the
+            hidden layers to be used in the MLP to predict classes from the
+            bottleneck if c2y_model was NOT provided. If not given, then we will
+            use a simple linear layer to map the bottleneck to the output
+            classes.
 
 
-    :param List[float] active_intervention_values: A list of n_concepts values
-        to use when positively intervening in a given concept (i.e., setting
-        concept c_i to 1 would imply setting its corresponding
-        predicted concept to active_intervention_values[i]). If not given, then
-        we will assume that we use `1` for all concepts. This parameter is
-        important when intervening in CBMs that do not have sigmoidal concepts,
-        as the intervention thresholds must then be inferred from their
-        empirical training distribution.
-    :param List[float] inactive_intervention_values: A list of n_concepts values
-        to use when negatively intervening in a given concept (i.e., setting
-        concept c_i to 0 would imply setting its corresponding
-        predicted concept to inactive_intervention_values[i]). If not given,
-        then we will assume that we use `0` for all concepts. This parameter is
-        important when intervening in CBMs that do not have sigmoidal concepts,
-        as the intervention thresholds must then be inferred from their
-        empirical training distribution.
-    :param Callable[(np.ndarray, np.ndarray, np.ndarray), np.ndarray] intervention_policy:
-        An optional intervention policy to be used when intervening on a test
-        batch sample x (first argument), with corresponding true concepts c
-        (second argument), and true labels y (third argument). The policy must
-        produce as an output a list of concept indices to intervene (in batch
-        form) or a batch of binary masks indicating which concepts we will
-        intervene on.
+        :param str optimizer:  The name of the optimizer to use. Must be one of
+            `adam` or `sgd`. Default is `adam`.
+        :param float momentum: Momentum used for optimization. Default is 0.9.
+        :param float learning_rate:  Learning rate used for optimization.
+            Default is 0.01.
+        :param float weight_decay: The weight decay factor used during
+            optimization. Default is 4e-05.
+        :param List[float] weight_loss: Either None or a list with n_concepts
+            elements indicating the weights assigned to each predicted concept
+            during the loss computation. Could be used to improve
+            performance/fairness in imbalanced datasets.
+        :param List[float] task_class_weights: Either None or a list with
+            n_tasks elements indicating the weights assigned to each output
+            class during the loss computation. Could be used to improve
+            performance/fairness in imbalanced datasets.
 
-    :param List[int] top_k_accuracy: List of top k values to report accuracy
-        for during training/testing when the number of tasks is high.
-    :param Bool gpu: whether or not to use a GPU device or not.
-    """
+
+        :param List[float] active_intervention_values: A list of n_concepts
+            values to use when positively intervening in a given concept (i.e.,
+            setting concept c_i to 1 would imply setting its corresponding
+            predicted concept to active_intervention_values[i]). If not given,
+            then we will assume that we use `1` for all concepts. This
+            parameter is important when intervening in CBMs that do not have
+            sigmoidal concepts, as the intervention thresholds must then be
+            inferred from their empirical training distribution.
+        :param List[float] inactive_intervention_values: A list of n_concepts
+            values to use when negatively intervening in a given concept (i.e.,
+            setting concept c_i to 0 would imply setting its corresponding
+            predicted concept to inactive_intervention_values[i]). If not given,
+            then we will assume that we use `0` for all concepts. This
+            parameter is important when intervening in CBMs that do not have
+            sigmoidal concepts, as the intervention thresholds must then be
+            inferred from their empirical training distribution.
+        :param Callable[(np.ndarray, np.ndarray, np.ndarray), np.ndarray] intervention_policy:
+            An optional intervention policy to be used when intervening on a
+            test batch sample x (first argument), with corresponding true
+            concepts c (second argument), and true labels y (third argument).
+            The policy must produce as an output a list of concept indices to
+            intervene (in batch form) or a batch of binary masks indicating
+            which concepts we will intervene on.
+
+        :param List[int] top_k_accuracy: List of top k values to report accuracy
+            for during training/testing when the number of tasks is high.
+        :param Bool gpu: whether or not to use a GPU device or not.
+        """
         gpu = int(gpu)
         super().__init__()
         self.n_concepts = n_concepts

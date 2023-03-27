@@ -102,7 +102,6 @@ def construct_model(
         task_loss_weight=config.get('task_loss_weight', 1.0),
         learning_rate=config['learning_rate'],
         weight_decay=config['weight_decay'],
-        pretrain_model=config.get('pretrain_model', False),
         c_extractor_arch=utils.wrap_pretrained_model(c_extractor_arch),
         optimizer=config['optimizer'],
         top_k_accuracy=config.get('top_k_accuracy'),
@@ -140,7 +139,7 @@ def construct_sequential_models(
     # need to instantiate here
     try:
         x2c_model = c_extractor_arch(
-            pretrained=config.get('pretrain_model', False),
+            pretrained=config.get('pretrain_model', True),
         )
         if c_extractor_arch == densenet121:
             x2c_model.classifier = torch.nn.Linear(1024, n_concepts)

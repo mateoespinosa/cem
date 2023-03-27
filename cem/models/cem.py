@@ -55,83 +55,84 @@ class ConceptEmbeddingModel(ConceptBottleneckModel):
         sigmoidal_prob=True,  # DEPRECATED
         concat_prob=False,  # DEPRECATED
     ):
-    """
-    Constructs a Concept Embedding Model (CEM) as defined by
-    Espinosa Zarlenga et al. 2022.
+        """
+        Constructs a Concept Embedding Model (CEM) as defined by
+        Espinosa Zarlenga et al. 2022.
 
-    :param int n_concepts: The number of concepts given at training time.
-    :param int n_tasks: The number of output classes of the CEM.
-    :param int emb_size: The size of each concept embedding. Defaults to 16.
-    :param float training_intervention_prob: RandInt probability. Defaults
-        to 0.25.
-    :param str embeding_activation: A valid nonlinearity name to use for the
-        generated embeddings. It must be one of [None, "sigmoid", "relu",
-        "leakyrelu"] and defaults to "leakyrelu".
-    :param Bool shared_prob_gen: Whether or not weights are shared across
-        all probability generators. Defaults to True.
-    :param float concept_loss_weight: Weight to be used for the final loss'
-        component corresponding to the concept classification loss. Default
-        is 0.01.
-    :param float task_loss_weight: Weight to be used for the final loss'
-        component corresponding to the output task classification loss. Default
-        is 1.
+        :param int n_concepts: The number of concepts given at training time.
+        :param int n_tasks: The number of output classes of the CEM.
+        :param int emb_size: The size of each concept embedding. Defaults to 16.
+        :param float training_intervention_prob: RandInt probability. Defaults
+            to 0.25.
+        :param str embeding_activation: A valid nonlinearity name to use for the
+            generated embeddings. It must be one of [None, "sigmoid", "relu",
+            "leakyrelu"] and defaults to "leakyrelu".
+        :param Bool shared_prob_gen: Whether or not weights are shared across
+            all probability generators. Defaults to True.
+        :param float concept_loss_weight: Weight to be used for the final loss'
+            component corresponding to the concept classification loss. Default
+            is 0.01.
+        :param float task_loss_weight: Weight to be used for the final loss'
+            component corresponding to the output task classification loss.
+            Default is 1.
 
-    :param Pytorch.Module c2y_model:  A valid pytorch Module used to map the
-        CEM's bottleneck (with size n_concepts * emb_size) to `n_tasks`
-        output activations (i.e., the output of the CEM).
-        If not given, then a simple leaky-ReLU MLP, whose hidden
-        layers have sizes `c2y_layers`, will be used.
-    :param List[int] c2y_layers: List of integers defining the size of the
-        hidden layers to be used in the MLP to predict classes from the
-        bottleneck if c2y_model was NOT provided. If not given, then we will
-        use a simple linear layer to map the bottleneck to the output classes.
-    :param Fun[(int), Pytorch.Module] c_extractor_arch: A generator function for
-        the latent code generator model that takes as an input the size of the
-        latent code before the concept embedding generators act (using an
-        argument called `output_dim`) and returns a valid Pytorch Module
-        that maps this CEM's inputs to the latent space of the requested size.
+        :param Pytorch.Module c2y_model:  A valid pytorch Module used to map the
+            CEM's bottleneck (with size n_concepts * emb_size) to `n_tasks`
+            output activations (i.e., the output of the CEM).
+            If not given, then a simple leaky-ReLU MLP, whose hidden
+            layers have sizes `c2y_layers`, will be used.
+        :param List[int] c2y_layers: List of integers defining the size of the
+            hidden layers to be used in the MLP to predict classes from the
+            bottleneck if c2y_model was NOT provided. If not given, then we will
+            use a simple linear layer to map the bottleneck to the output classes.
+        :param Fun[(int), Pytorch.Module] c_extractor_arch: A generator function
+            for the latent code generator model that takes as an input the size
+            of the latent code before the concept embedding generators act (
+            using an argument called `output_dim`) and returns a valid Pytorch
+            Module that maps this CEM's inputs to the latent space of the
+            requested size.
 
-    :param str optimizer:  The name of the optimizer to use. Must be one of
-        `adam` or `sgd`. Default is `adam`.
-    :param float momentum: Momentum used for optimization. Default is 0.9.
-    :param float learning_rate:  Learning rate used for optimization. Default is
-        0.01.
-    :param float weight_decay: The weight decay factor used during optimization.
-        Default is 4e-05.
-    :param List[float] weight_loss: Either None or a list with n_concepts
-        elements indicating the weights assigned to each predicted concept
-        during the loss computation. Could be used to improve
-        performance/fairness in imbalanced datasets.
-    :param List[float] task_class_weights: Either None or a list with n_tasks
-        elements indicating the weights assigned to each output class
-        during the loss computation. Could be used to improve
-        performance/fairness in imbalanced datasets.
+        :param str optimizer:  The name of the optimizer to use. Must be one of
+            `adam` or `sgd`. Default is `adam`.
+        :param float momentum: Momentum used for optimization. Default is 0.9.
+        :param float learning_rate:  Learning rate used for optimization.
+            Default is 0.01.
+        :param float weight_decay: The weight decay factor used during
+            optimization. Default is 4e-05.
+        :param List[float] weight_loss: Either None or a list with n_concepts
+            elements indicating the weights assigned to each predicted concept
+            during the loss computation. Could be used to improve
+            performance/fairness in imbalanced datasets.
+        :param List[float] task_class_weights: Either None or a list with
+            n_tasks elements indicating the weights assigned to each output
+            class during the loss computation. Could be used to improve
+            performance/fairness in imbalanced datasets.
 
-    :param List[float] active_intervention_values: A list of n_concepts values
-        to use when positively intervening in a given concept (i.e., setting
-        concept c_i to 1 would imply setting its corresponding
-        predicted concept to active_intervention_values[i]). If not given, then
-        we will assume that we use `1` for all concepts. This parameter is
-        important when intervening in CEMs that do not have sigmoidal concepts,
-        as the intervention thresholds must then be inferred from their
-        empirical training distribution.
-    :param List[float] inactive_intervention_values: A list of n_concepts values
-        to use when negatively intervening in a given concept (i.e., setting
-        concept c_i to 0 would imply setting its corresponding
-        predicted concept to inactive_intervention_values[i]). If not given,
-        then we will assume that we use `0` for all concepts.
-    :param Callable[(np.ndarray, np.ndarray, np.ndarray), np.ndarray] intervention_policy:
-        An optional intervention policy to be used when intervening on a test
-        batch sample x (first argument), with corresponding true concepts c
-        (second argument), and true labels y (third argument). The policy must
-        produce as an output a list of concept indices to intervene (in batch
-        form) or a batch of binary masks indicating which concepts we will
-        intervene on.
+        :param List[float] active_intervention_values: A list of n_concepts
+            values to use when positively intervening in a given concept (i.e.,
+            setting concept c_i to 1 would imply setting its corresponding
+            predicted concept to active_intervention_values[i]). If not given,
+            then we will assume that we use `1` for all concepts. This
+            parameter is important when intervening in CEMs that do not have
+            sigmoidal concepts, as the intervention thresholds must then be
+            inferred from their empirical training distribution.
+        :param List[float] inactive_intervention_values: A list of n_concepts
+            values to use when negatively intervening in a given concept (i.e.,
+            setting concept c_i to 0 would imply setting its corresponding
+            predicted concept to inactive_intervention_values[i]). If not given,
+            then we will assume that we use `0` for all concepts.
+        :param Callable[(np.ndarray, np.ndarray, np.ndarray), np.ndarray] intervention_policy:
+            An optional intervention policy to be used when intervening on a
+            test batch sample x (first argument), with corresponding true
+            concepts c (second argument), and true labels y (third argument).
+            The policy must produce as an output a list of concept indices to
+            intervene (in batch form) or a batch of binary masks indicating
+            which concepts we will intervene on.
 
-    :param List[int] top_k_accuracy: List of top k values to report accuracy
-        for during training/testing when the number of tasks is high.
-    :param Bool gpu: whether or not to use a GPU device or not.
-    """
+        :param List[int] top_k_accuracy: List of top k values to report accuracy
+            for during training/testing when the number of tasks is high.
+        :param Bool gpu: whether or not to use a GPU device or not.
+        """
         pl.LightningModule.__init__(self)
         self.n_concepts = n_concepts
         self.intervention_policy = intervention_policy
