@@ -316,7 +316,7 @@ class ConceptEmbeddingModel(ConceptBottleneckModel):
             contexts, c_sem = latent
         
         # Now include any interventions that we may want to perform!
-        if (intervention_idxs is None) and (
+        if (intervention_idxs is None) and (c is not None) and (
             self.intervention_policy is not None
         ):
             intervention_idxs, c_int = self.intervention_policy(
