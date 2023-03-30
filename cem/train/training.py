@@ -189,6 +189,143 @@ def construct_sequential_models(
     return x2c_model, c2y_model
 
 
+################################################################################
+## MODEL LOADING
+################################################################################
+
+
+def load_trained_model(
+    config,
+    n_tasks,
+    result_dir,
+    n_concepts,
+    split=0,
+    imbalance=None,
+    task_class_weights=None,
+    train_dl=None,
+    sequential=False,
+    independent=False,
+    gpu=int(torch.cuda.is_available()),
+    intervention_policy=None,
+    intervene=False,
+    output_latent=False,
+):
+    arch_name = config.get('c_extractor_arch', "")
+    if not isinstance(arch_name, str):
+        arch_name = "lambda"
+    if split is not None:
+        full_run_name = (
+            f"{config['architecture']}{config.get('extra_name', '')}_"
+            f"{arch_name}_fold_{split + 1}"
+        )
+    else:
+        full_run_name = (
+            f"{config['architecture']}{config.get('extra_name', '')}_"
+            f"{arch_name}"
+        )
+    selected_concepts = np.arange(n_concepts)
+    if sequential:
+        extra = "Sequential"
+    elif independent:
+        extra = "Independent"
+    else:
+        extra = ""
+    model_saved_path = os.path.join(
+        result_dir or ".",
+        f'{extra}{full_run_name}.pt'
+    )
+
+    if (
+        ((intervention_policy is not None) or intervene) and
+        (train_dl is not None) and
+        (config['architecture'] == "ConceptBottleneckModel") and
+        (not config.get('sigmoidal_prob', True))
+    ):
+        # Then let's look at the empirical distribution of the logits in order
+        # to be able to intervene
+        model = construct_model(
+            n_concepts=n_concepts,
+            n_tasks=n_tasks,
+            config=config,
+            imbalance=imbalance,
+            task_class_weights=task_class_weights,
+            output_latent=output_latent,
+        )
+        model.load_state_dict(torch.load(model_saved_path))
+        trainer = pl.Trainer(
+            gpus=gpu,
+        )
+        batch_results = trainer.predict(model, train_dl)
+        out_embs = np.concatenate(
+            list(map(lambda x: x[1], batch_results)),
+            axis=0,
+        )
+        active_intervention_values = []
+        inactive_intervention_values = []
+        for idx in range(n_concepts):
+            active_intervention_values.append(
+                np.percentile(out_embs[:, idx], 95)
+            )
+            inactive_intervention_values.append(
+                np.percentile(out_embs[:, idx], 5)
+            )
+        if gpu:
+            active_intervention_values = torch.cuda.FloatTensor(
+                active_intervention_values
+            )
+            inactive_intervention_values = torch.cuda.FloatTensor(
+                inactive_intervention_values
+            )
+        else:
+            active_intervention_values = torch.FloatTensor(
+                active_intervention_values
+            )
+            inactive_intervention_values = torch.FloatTensor(
+                inactive_intervention_values
+            )
+    else:
+        active_intervention_values = inactive_intervention_values = None
+
+    if sequential:
+        _, c2y_model = construct_sequential_models(
+            n_concepts=n_concepts,
+            n_tasks=n_tasks,
+            config=config,
+            imbalance=imbalance,
+            task_class_weights=task_class_weights,
+        )
+    elif independent:
+        _, c2y_model = construct_sequential_models(
+            n_concepts=n_concepts,
+            n_tasks=n_tasks,
+            config=config,
+            imbalance=imbalance,
+            task_class_weights=task_class_weights,
+        )
+    else:
+        c2y_model = None
+    model = construct_model(
+        n_concepts=n_concepts,
+        n_tasks=n_tasks,
+        config=config,
+        imbalance=imbalance,
+        task_class_weights=task_class_weights,
+        active_intervention_values=active_intervention_values,
+        inactive_intervention_values=inactive_intervention_values,
+        intervention_policy=intervention_policy,
+        c2y_model=c2y_model,
+        output_latent=output_latent,
+    )
+
+    model.load_state_dict(torch.load(model_saved_path))
+    return model
+
+
+
+################################################################################
+## MODEL TRAINING
+################################################################################
+
 def train_model(
     n_concepts,
     n_tasks,
