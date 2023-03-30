@@ -296,7 +296,6 @@ class ConceptEmbeddingModel(ConceptBottleneckModel):
         if latent is None:
             pre_c = self.pre_concept_model(x)
             contexts = []
-            full_vectors = []
             c_sem = []
 
             # First predict all the concept probabilities
@@ -314,7 +313,7 @@ class ConceptEmbeddingModel(ConceptBottleneckModel):
             latent = contexts, c_sem
         else:
             contexts, c_sem = latent
-        
+
         # Now include any interventions that we may want to perform!
         if (intervention_idxs is None) and (c is not None) and (
             self.intervention_policy is not None
@@ -325,14 +324,14 @@ class ConceptEmbeddingModel(ConceptBottleneckModel):
                 pred_c=c_sem,
                 y=y,
             )
-            
+
         else:
             c_int = c
         intervention_idxs = self._standardize_indices(
             intervention_idxs=intervention_idxs,
             batch_size=x.shape[0],
         )
-        
+
         # Then, time to do the mixing between the positive and the
         # negative embeddings
         probs = self._after_interventions(
@@ -342,7 +341,8 @@ class ConceptEmbeddingModel(ConceptBottleneckModel):
             train=train,
         )
         # Then time to mix!
-        c_pred = contexts[:, :, :self.emb_size] * torch.unsqueeze(probs, dim=-1) + (
+        c_pred = (
+            contexts[:, :, :self.emb_size] * torch.unsqueeze(probs, dim=-1) +
             contexts[:, :, self.emb_size:] * (1 - torch.unsqueeze(probs, dim=-1))
         )
         c_pred = c_pred.view((-1, self.emb_size * self.n_concepts))
