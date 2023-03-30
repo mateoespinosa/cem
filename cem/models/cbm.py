@@ -447,22 +447,20 @@ class ConceptBottleneckModel(pl.LightningModule):
                 c_pred_probs = self.sig(latent[:, :-self.extra_dims])
                 c_others = self.bottleneck_nonlin(latent[:,-self.extra_dims:])
                 c_pred =  torch.cat([c_pred_probs, c_others], axis=-1)
+                c_sem = c_pred_probs
             else:
                 c_pred = self.sig(latent)
-            # And the semantics vector is just the predictions
-            if self.extra_dims:
-                c_sem = latent[:, :-self.extra_dims]
-            else:
-                c_sem = latent
+                c_sem = c_pred
         else:
             # Otherwise, the concept vector itself is not sigmoided
             # but the semantics
+            c_pred = latent
             if self.extra_dims:
                 c_sem = self.sig(latent[:, :-self.extra_dims])
             else:
                 c_sem = self.sig(latent)
         # Now include any interventions that we may want to include
-        if (intervention_idxs is None) and (
+        if (intervention_idxs is None) and (c is not None) and (
             self.intervention_policy is not None
         ):
             intervention_idxs, c_int = self.intervention_policy(
@@ -474,7 +472,7 @@ class ConceptBottleneckModel(pl.LightningModule):
         else:
             c_int = c
         c_pred = self._concept_intervention(
-            c_pred=latent,
+            c_pred=c_pred,
             intervention_idxs=intervention_idxs,
             c_true=c_int,
         )
