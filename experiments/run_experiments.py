@@ -113,7 +113,7 @@ def main(
     gpu = 1 if gpu else 0
     utils.extend_with_global_params(og_config, global_params or [])
 
-    train_dl, val_dl, test_dl, imbalance, (n_concepts, n_tasks) = data_module.generate_data(
+    train_dl, val_dl, test_dl, imbalance, (n_concepts, n_tasks, _) = data_module.generate_data(
         config=og_config,
         seed=42,
         output_dataset_vars=True,

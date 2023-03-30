@@ -575,13 +575,18 @@ class CUBDataset(Dataset):
         )
         # Trim unnecessary paths
         try:
+            attempts = 0
             idx = img_path.split('/').index('CUB_200_2011')
-            # if self.image_dir != 'images':
-            #     img_path = '/'.join([self.image_dir] + img_path.split('/')[idx+1:])
-            #     img_path = img_path.replace('images/', '')
-            # else:
             img_path = self.root_dir + '/' + '/'.join(img_path.split('/')[idx:])
-            img = Image.open(img_path).convert('RGB')
+            while attempts < 5:
+                # We try a few times as concurrency can lead to issues
+                try:
+                    img = Image.open(img_path).convert('RGB')
+                    break
+                except:
+                    attempts += 1
+            if attempts == 5:
+                raise ValueError()
         except:
             img_path_split = img_path.split('/')
             split = 'train' if self.is_train else 'test'
@@ -763,7 +768,13 @@ def find_class_imbalance(pkl_file, multiple_attr=False, attr_idx=-1):
 ##########################################################
 
 
-def generate_data(config, root_dir=DATASET_DIR, seed=42, output_dataset_vars=False):
+def generate_data(
+    config,
+    root_dir=DATASET_DIR,
+    seed=42,
+    output_dataset_vars=False,
+    rerun=False,
+):
     if root_dir is None:
         root_dir = DATASET_DIR
     base_dir = os.path.join(root_dir, 'class_attr_data_10')
@@ -778,11 +789,13 @@ def generate_data(config, root_dir=DATASET_DIR, seed=42, output_dataset_vars=Fal
     test_data_path = train_data_path.replace('train.pkl', 'test.pkl')
     sampling_percent = config.get("sampling_percent", 1)
 
+    concept_group_map = CONCEPT_GROUP_MAP.copy()
+    n_concepts = len(SELECTED_CONCEPTS)
     if sampling_percent != 1:
         # Do the subsampling
         new_n_concepts = int(np.ceil(n_concepts * sampling_percent))
         selected_concepts_file = os.path.join(
-            result_dir,
+            DATASET_DIR,
             f"selected_concepts_sampling_{sampling_percent}.npy",
         )
         if (not rerun) and os.path.exists(selected_concepts_file):
@@ -792,7 +805,34 @@ def generate_data(config, root_dir=DATASET_DIR, seed=42, output_dataset_vars=Fal
                 np.random.permutation(n_concepts)[:new_n_concepts]
             )
             np.save(selected_concepts_file, selected_concepts)
+        # Then we also have to update the concept group map so that
+        # selected concepts that were previously in the same concept
+        # group are maintained in the same concept group
+        new_concept_group = {}
+        remap = dict((y, x) for (x, y) in enumerate(selected_concepts))
+        selected_concepts_set = set(selected_concepts)
+        for selected_concept in selected_concepts:
+            for concept_group_name, group_concepts in concept_group_map.items():
+                if selected_concept in group_concepts:
+                    if concept_group_name in new_concept_group:
+                        # Then we have already added this group
+                        continue
+                    # Then time to add this group!
+                    new_concept_group[concept_group_name] = []
+                    for other_concept in group_concepts:
+                        if other_concept in selected_concepts_set:
+                            # Add the remapped version of this concept
+                            # into the concept group
+                            new_concept_group[concept_group_name].append(
+                                remap[other_concept]
+                            )
+        # And update the concept group map accordingly
+        concept_group_map = new_concept_group
         print("\t\tSelected concepts:", selected_concepts)
+        print(f"\t\tUpdated concept group map (with {len(concept_group_map)} groups):")
+        for k, v in concept_group_map.items():
+            print(f"\t\t\t{k} -> {v}")
+
         def concept_transform(sample):
             if isinstance(sample, list):
                 sample = np.array(sample)
@@ -801,6 +841,7 @@ def generate_data(config, root_dir=DATASET_DIR, seed=42, output_dataset_vars=Fal
         # And correct the weight imbalance
         if config.get('weight_loss', False):
             imbalance = np.array(imbalance)[selected_concepts]
+        n_concepts = len(selected_concepts)
     else:
         concept_transform = None
 
@@ -847,4 +888,4 @@ def generate_data(config, root_dir=DATASET_DIR, seed=42, output_dataset_vars=Fal
     )
     if not output_dataset_vars:
         return train_dl, val_dl, test_dl, imbalance
-    return train_dl, val_dl, test_dl, imbalance, (len(SELECTED_CONCEPTS), N_CLASSES)
+    return train_dl, val_dl, test_dl, imbalance, (n_concepts, N_CLASSES, concept_group_map)

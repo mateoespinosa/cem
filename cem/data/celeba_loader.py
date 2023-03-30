@@ -109,6 +109,7 @@ CONCEPT_SEMANTICS = [
 def generate_data(config, root_dir=DATASET_DIR, seed=42, output_dataset_vars=False):
     if root_dir is None:
         root_dir = DATASET_DIR
+    concept_group_map = None
     seed_everything(seed)
     use_binary_vector_class = config.get('use_binary_vector_class', False)
     if use_binary_vector_class:
@@ -362,4 +363,4 @@ def generate_data(config, root_dir=DATASET_DIR, seed=42, output_dataset_vars=Fal
         imbalance = None
     if not output_dataset_vars:
         return train_dl, val_dl, test_dl, imbalance
-    return train_dl, val_dl, test_dl, imbalance, (num_concepts, len(label_remap))
+    return train_dl, val_dl, test_dl, imbalance, (num_concepts, len(label_remap), concept_group_map)
