@@ -537,7 +537,7 @@ class CUBDataset(Dataset):
     Returns a compatible Torch Dataset object customized for the CUB dataset
     """
 
-    def __init__(self, pkl_file_paths, use_attr, no_img, uncertain_label, image_dir, n_class_attr, root_dir='../data/CUB200/', transform=None, concept_transform=None):
+    def __init__(self, pkl_file_paths, use_attr, no_img, uncertain_label, image_dir, n_class_attr, root_dir='../data/CUB200/', path_transform=None, transform=None, concept_transform=None, label_transform=None):
         """
         Arguments:
         pkl_file_paths: list of full path to all the pkl data
@@ -556,12 +556,14 @@ class CUBDataset(Dataset):
             self.data.extend(pickle.load(open(file_path, 'rb')))
         self.transform = transform
         self.concept_transform = concept_transform
+        self.label_transform = label_transform
         self.use_attr = use_attr
         self.no_img = no_img
         self.uncertain_label = uncertain_label
         self.image_dir = image_dir
         self.n_class_attr = n_class_attr
         self.root_dir = root_dir
+        self.path_transform = path_transform
 
     def __len__(self):
         return len(self.data)
@@ -569,31 +571,41 @@ class CUBDataset(Dataset):
     def __getitem__(self, idx):
         img_data = self.data[idx]
         img_path = img_data['img_path']
-        img_path = img_path.replace(
-            '/juice/scr/scr102/scr/thaonguyen/CUB_supervision/datasets/',
-            '../data/CUB200/'
-        )
-        # Trim unnecessary paths
-        try:
-            attempts = 0
-            idx = img_path.split('/').index('CUB_200_2011')
-            img_path = self.root_dir + '/' + '/'.join(img_path.split('/')[idx:])
-            while attempts < 5:
-                # We try a few times as concurrency can lead to issues
-                try:
-                    img = Image.open(img_path).convert('RGB')
-                    break
-                except:
-                    attempts += 1
-            if attempts == 5:
-                raise ValueError()
-        except:
-            img_path_split = img_path.split('/')
-            split = 'train' if self.is_train else 'test'
-            img_path = '/'.join(img_path_split[:2] + [split] + img_path_split[2:])
+        if self.path_transform == None:
+            img_path = img_path.replace(
+                '/juice/scr/scr102/scr/thaonguyen/CUB_supervision/datasets/',
+                '../data/CUB200/'
+            )
+            # Trim unnecessary paths
+            try:
+                idx = img_path.split('/').index('CUB_200_2011')
+                # if self.image_dir != 'images':
+                #     img_path = '/'.join([self.image_dir] + img_path.split('/')[idx+1:])
+                #     img_path = img_path.replace('images/', '')
+                # else:
+                # img_path = self.root_dir + '/' + '/'.join(img_path.split('/')[idx:])
+                img_path = self.root_dir + '/'.join(img_path.split('/')[idx:])
+                img = None
+                for _ in range(5):
+                    try:
+                        img = Image.open(img_path).convert('RGB')
+                        break
+                    except:
+                        pass
+                if img is None:
+                    raise ValueError(f"Failed to fetch {img_path} after 5 trials!")
+            except:
+                img_path_split = img_path.split('/')
+                split = 'train' if self.is_train else 'test'
+                img_path = '/'.join(img_path_split[:2] + [split] + img_path_split[2:])
+                img = Image.open(img_path).convert('RGB')
+        else:
+            img_path = self.path_transform(img_path)
             img = Image.open(img_path).convert('RGB')
 
         class_label = img_data['class_label']
+        if self.label_transform:
+            class_label = self.label_transform(class_label)
         if self.transform:
             img = self.transform(img)
 
@@ -673,6 +685,8 @@ def load_data(
     root_dir='../data/CUB200/',
     num_workers=1,
     concept_transform=None,
+    label_transform=None,
+    path_transform=None,
 ):
     """
     Note: Inception needs (299,299,3) images with inputs scaled between -1 and 1
@@ -711,6 +725,8 @@ def load_data(
         transform=transform,
         root_dir=root_dir,
         concept_transform=concept_transform,
+        label_transform=label_transform,
+        path_transform=path_transform,
     )
     if is_training:
         drop_last = True
@@ -788,23 +804,43 @@ def generate_data(
     val_data_path = train_data_path.replace('train.pkl', 'val.pkl')
     test_data_path = train_data_path.replace('train.pkl', 'test.pkl')
     sampling_percent = config.get("sampling_percent", 1)
+    sampling_groups = config.get("sampling_groups", False)
 
     concept_group_map = CONCEPT_GROUP_MAP.copy()
     n_concepts = len(SELECTED_CONCEPTS)
     if sampling_percent != 1:
         # Do the subsampling
-        new_n_concepts = int(np.ceil(n_concepts * sampling_percent))
-        selected_concepts_file = os.path.join(
-            DATASET_DIR,
-            f"selected_concepts_sampling_{sampling_percent}.npy",
-        )
-        if (not rerun) and os.path.exists(selected_concepts_file):
-            selected_concepts = np.load(selected_concepts_file)
-        else:
-            selected_concepts = sorted(
-                np.random.permutation(n_concepts)[:new_n_concepts]
+        if sampling_groups:
+            new_n_groups = int(np.ceil(len(concept_group_map) * sampling_percent))
+            selected_groups_file = os.path.join(
+                DATASET_DIR,
+                f"selected_groups_sampling_{sampling_percent}.npy",
             )
-            np.save(selected_concepts_file, selected_concepts)
+            if (not rerun) and os.path.exists(selected_groups_file):
+                selected_groups = np.load(selected_groups_file)
+            else:
+                selected_groups = sorted(
+                    np.random.permutation(len(concept_group_map))[:new_n_groups]
+                )
+                np.save(selected_groups_file, selected_groups)
+            selected_concepts = []
+            group_concepts = [x[1] for x in concept_group_map.items()]
+            for group_idx in selected_groups:
+                selected_concepts.extend(group_concepts[group_idx])
+            selected_concepts = sorted(set(selected_concepts))
+        else:
+            new_n_concepts = int(np.ceil(n_concepts * sampling_percent))
+            selected_concepts_file = os.path.join(
+                DATASET_DIR,
+                f"selected_concepts_sampling_{sampling_percent}.npy",
+            )
+            if (not rerun) and os.path.exists(selected_concepts_file):
+                selected_concepts = np.load(selected_concepts_file)
+            else:
+                selected_concepts = sorted(
+                    np.random.permutation(n_concepts)[:new_n_concepts]
+                )
+                np.save(selected_concepts_file, selected_concepts)
         # Then we also have to update the concept group map so that
         # selected concepts that were previously in the same concept
         # group are maintained in the same concept group

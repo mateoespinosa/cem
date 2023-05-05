@@ -264,6 +264,7 @@ def generate_data(config, root_dir=DATASET_DIR, seed=42, output_dataset_vars=Fal
             sorted(zip(vals, counts), key=lambda x: -x[1])
         ))
         logging.debug(f"Selecting {config['num_classes']} out of {len(vals)} classes")
+        result_dir = config.get('result_dir', None)
         if result_dir:
             Path(result_dir).mkdir(parents=True, exist_ok=True)
             np.save(
@@ -346,7 +347,7 @@ def generate_data(config, root_dir=DATASET_DIR, seed=42, output_dataset_vars=Fal
         shuffle=False,
         num_workers=config['num_workers'],
     )
-    
+
 
     # Finally, determine whether or not we will need to compute the imbalance factors
     if config.get('weight_loss', False):
@@ -356,8 +357,6 @@ def generate_data(config, root_dir=DATASET_DIR, seed=42, output_dataset_vars=Fal
             c = c.cpu().detach().numpy()
             attribute_count += np.sum(c, axis=0)
             samples_seen += c.shape[0]
-            for l in y.reshape(-1).cpu().detach():
-                label_set.add(l.item())
         imbalance = samples_seen / attribute_count - 1
     else:
         imbalance = None
