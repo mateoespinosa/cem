@@ -1,9 +1,11 @@
-import sklearn.metrics
-import numpy as np
 import torch
+import sklearn.metrics
 import pytorch_lightning as pl
-from torchvision.models import densenet121
+import os
+import numpy as np
 
+from torchvision.models import densenet121
+from pathlib import Path
 
 ################################################################################
 ## HELPER FUNCTIONS
@@ -12,8 +14,7 @@ from torchvision.models import densenet121
 
 def _to_val(x):
     if len(x) >= 2 and (x[0] == "[") and (x[-1] == "]"):
-        vals = list(map(lambda x: x.strip(), x[1:-1].split(",")))
-        return list(map(_to_val, vals))
+        return eval(x)
     try:
         return int(x)
     except ValueError:
@@ -26,9 +27,9 @@ def _to_val(x):
         # Then this is not an float
         pass
 
-    if x.lower() in ["true"]:
+    if x.lower().strip() in ["true"]:
         return True
-    if x.lower() in ["false"]:
+    if x.lower().strip() in ["false"]:
         return False
 
     return x
@@ -95,15 +96,20 @@ def compute_accuracy(
 
 def wrap_pretrained_model(c_extractor_arch, pretrain_model=True):
     def _result_x2c_fun(output_dim):
-        model = c_extractor_arch(pretrained=pretrain_model)
-        if output_dim:
-            if c_extractor_arch == densenet121:
-                model.classifier = torch.nn.Linear(
-                    1024,
-                    output_dim,
-                )
-            elif hasattr(model, 'fc'):
-                model.fc = torch.nn.Linear(512, output_dim)
+        try:
+            model = c_extractor_arch(pretrained=pretrain_model)
+            if output_dim:
+                if c_extractor_arch == densenet121:
+                    model.classifier = torch.nn.Linear(
+                        1024,
+                        output_dim,
+                    )
+                elif hasattr(model, 'fc'):
+                    model.fc = torch.nn.Linear(512, output_dim)
+        except:
+            model = c_extractor_arch(
+                output_dim=output_dim,
+            )
         return model
     return _result_x2c_fun
 
@@ -229,6 +235,8 @@ class WrapperModule(pl.LightningModule):
         self.learning_rate = learning_rate
         self.optimizer_name = optimizer
         self.weight_decay = weight_decay
+        if (not isinstance(top_k_accuracy, list)) and top_k_accuracy:
+            top_k_accuracy = [top_k_accuracy]
         self.top_k_accuracy = top_k_accuracy
         if sigmoidal_output:
             self.sig = torch.nn.Sigmoid()
@@ -274,12 +282,13 @@ class WrapperModule(pl.LightningModule):
             y_pred = y_logits.cpu().detach()
             labels = list(range(self.n_tasks))
             for top_k_val in self.top_k_accuracy:
-                y_top_k_accuracy = sklearn.metrics.top_k_accuracy_score(
-                    y_true,
-                    y_pred,
-                    k=top_k_val,
-                    labels=labels,
-                )
+                if top_k_val:
+                    y_top_k_accuracy = sklearn.metrics.top_k_accuracy_score(
+                        y_true,
+                        y_pred,
+                        k=top_k_val,
+                        labels=labels,
+                    )
                 result[f'y_top_{top_k_val}_accuracy'] = y_top_k_accuracy
         return loss, result
 
