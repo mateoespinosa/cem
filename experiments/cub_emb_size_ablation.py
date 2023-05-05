@@ -9,7 +9,7 @@ from cem.data.CUB200.cub_loader import load_data, find_class_imbalance
 from pathlib import Path
 from pytorch_lightning import seed_everything
 
-import cem.experiments.cub_experiments as cub
+import experiments.cub_experiments as cub
 import cem.train.training as training
 import cem.train.utils as utils
 
@@ -51,7 +51,7 @@ def main(
         sigmoidal_prob=False,
         sigmoidal_embedding=False,
         training_intervention_prob=0.0,
-        embeding_activation=None,
+        embedding_activation=None,
         concat_prob=False,
     )
 
@@ -228,7 +228,7 @@ def main(
             config['training_intervention_prob'] = 0.25
             config['concat_prob'] = False
             config['emb_size'] = emb_size
-            config["embeding_activation"] = "leakyrelu"
+            config["embedding_activation"] = "leakyrelu"
             mixed_emb_shared_prob_model,  mixed_emb_shared_prob_test_results = \
                 training.train_model(
                     n_concepts=n_concepts,

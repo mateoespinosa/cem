@@ -120,7 +120,7 @@ def main(
         masked=False,
         check_val_every_n_epoch=30,
         linear_c2y=True,
-        embeding_activation="leakyrelu",
+        embedding_activation="leakyrelu",
 
         momentum=0.9,
         shared_prob_gen=False,

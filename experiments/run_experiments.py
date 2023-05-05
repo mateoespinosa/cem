@@ -3,10 +3,15 @@ import copy
 import joblib
 import numpy as np
 import os
+import logging
 import torch
 
 import cem.data.CUB200.cub_loader as cub_data_module
 import cem.data.celeba_loader as celeba_data_module
+from cem.data.synthetic_loaders import (
+    get_synthetic_data_loader,
+    get_synthetic_num_features,
+)
 
 from pathlib import Path
 from pytorch_lightning import seed_everything
@@ -23,7 +28,7 @@ CUB_CONFIG = dict(
     cv=5,
     max_epochs=300,
     patience=15,
-    batch_size=128,
+    batch_size=256, #128,
     emb_size=16,
     extra_dims=0,
     concept_loss_weight=5,
@@ -40,8 +45,8 @@ CUB_CONFIG = dict(
 
     momentum=0.9,
     sigmoidal_prob=False,
-    training_intervention_prob=0.0,
-    embeding_activation=None,
+    training_intervention_prob=0.25,
+    embedding_activation=None,
     intervention_freq=4,
 )
 
@@ -79,8 +84,41 @@ CELEBA_CONFIG = dict(
 
     momentum=0.9,
     sigmoidal_prob=False,
-    training_intervention_prob=0.0,
-    embeding_activation=None,
+    training_intervention_prob=0.25,
+    embedding_activation=None,
+)
+
+SYNTH_CONFIG = dict(
+    cv=5,
+    dataset_size=3000,
+    max_epochs=500,
+    patience=15,
+    batch_size=256,
+    num_workers=8,
+    emb_size=128,
+    extra_dims=0,
+    concept_loss_weight=1,
+    learning_rate=0.01,
+    weight_decay=0,
+    scheduler_step=20,
+    weight_loss=False,
+    optimizer="adam",
+    bool=False,
+    early_stopping_monitor="val_loss",
+    early_stopping_mode="min",
+    early_stopping_delta=0.0,
+    masked=False,
+    check_val_every_n_epoch=30,
+    linear_c2y=True,
+    embedding_activation="leakyrelu",
+
+    momentum=0.9,
+    shared_prob_gen=False,
+    sigmoidal_prob=False,
+    sigmoidal_embedding=False,
+    training_intervention_prob=0.25,
+    concat_prob=False,
+    c_extractor_arch=None,
 )
 
 
@@ -130,7 +168,11 @@ def main(
             x_total = []
             y_total = []
             c_total = []
-            for x, y, c in ds:
+            for ds_data in ds:
+                if len(ds_data) == 2:
+                    x, (y, c) = ds_data
+                else:
+                    (x, y, c) = ds_data
                 x_total.append(x.cpu().detach())
                 y_total.append(y.cpu().detach())
                 c_total.append(c.cpu().detach())
@@ -169,7 +211,7 @@ def main(
         config["sigmoidal_prob"] = True
         config['training_intervention_prob'] = 0.25
         config['emb_size'] = config['emb_size']
-        config["embeding_activation"] = "leakyrelu"
+        config["embedding_activation"] = "leakyrelu"
         mixed_emb_shared_prob_model,  mixed_emb_shared_prob_test_results = \
             training.train_model(
                 n_concepts=n_concepts,
@@ -200,7 +242,7 @@ def main(
         config["sigmoidal_prob"] = True
         config['training_intervention_prob'] = 0.0  # TURN OFF RandInt
         config['emb_size'] = config['emb_size']
-        config["embeding_activation"] = "leakyrelu"
+        config["embedding_activation"] = "leakyrelu"
         mixed_emb_shared_prob_model,  mixed_emb_shared_prob_test_results = \
             training.train_model(
                 n_concepts=n_concepts,
@@ -404,6 +446,16 @@ if __name__ == '__main__':
         ),
     )
     parser.add_argument(
+        'dataset',
+        choices=['cub', 'celeba', 'xor', 'vector', 'dot', 'trig'],
+        help=(
+            "Dataset to run experiments for. Must be a supported dataset with "
+            "a loader."
+        ),
+        metavar="ds_name",
+
+    )
+    parser.add_argument(
         '--project_name',
         default='',
         help=(
@@ -504,6 +556,26 @@ if __name__ == '__main__':
         og_config = CELEBA_CONFIG
         args.output_dir = args.output_dir.format(ds_name="celeba")
         args.project_name = args.project_name.format(ds_name="celeba")
+    elif args.dataset in ["xor", "vector", "dot", "trig"]:
+        data_module = get_synthetic_data_loader(args.dataset)
+        og_config = SYNTH_CONFIG.copy()
+        args.output_dir = args.output_dir.format(ds_name=args.dataset)
+        args.project_name = args.project_name.format(ds_name=args.dataset)
+        input_features = get_synthetic_num_features(args.dataset)
+        def synth_c_extractor_arch(
+            output_dim,
+            pretrained=False,
+        ):
+            if output_dim is None:
+                output_dim = 128
+            return torch.nn.Sequential(*[
+                torch.nn.Linear(input_features, 128),
+                torch.nn.LeakyReLU(),
+                torch.nn.Linear(128, 128),
+                torch.nn.LeakyReLU(),
+                torch.nn.Linear(128, output_dim),
+            ])
+        og_config["c_extractor_arch"] = synth_c_extractor_arch
     else:
         raise ValueError(f"Unsupported dataset {args.dataset}!")
     main(
