@@ -3,8 +3,9 @@ import torch
 import io
 from contextlib import redirect_stdout
 import pytorch_lightning as pl
+from cem.interventions.intervention_policy import InterventionPolicy
 
-class ConstantMaskPolicy(object):
+class ConstantMaskPolicy(InterventionPolicy):
     def __init__(
         self,
         mask,
@@ -37,8 +38,8 @@ class ConstantMaskPolicy(object):
             ),
             (c.shape[0], 1),
         ), c
-        
-class GlobalValidationPolicy(object):
+
+class GlobalValidationPolicy(InterventionPolicy):
     # Intervenes first on concepts with the highest uncertainty (measured by their
     # predicted distribution's entropy)
     # Adapted from the ideas in https://openreview.net/pdf?id=PUspzfGsgY
@@ -81,12 +82,12 @@ class GlobalValidationPolicy(object):
             prior_distribution = None
         elif prior_distribution is not None:
             prior_distribution = prior_distribution.detach().cpu().numpy()
-        
+
         scores = np.tile(
             np.expand_dims(self.scores, 0),
             (c.shape[0], 1),
         )
-        
+
         if prior_distribution is not None:
             # Then rescale the scores based on the prior
             scores *= prior_distribution
@@ -97,7 +98,7 @@ class GlobalValidationPolicy(object):
                 -float("inf"),
                 scores,
             )
-            
+
         best_concepts = np.argsort(-scores, axis=-1)
         for sample_idx in range(c.shape[0]):
             if self.group_based:
@@ -112,7 +113,7 @@ class GlobalValidationPolicy(object):
                 best_group_scores = np.argsort(-group_scores, axis=-1)
                 for selected_group in best_group_scores[: self.num_groups_intervened]:
                     mask[sample_idx, self.concept_group_map[group_names[selected_group]]] = 1
-                    
+
             else:
                 # Else, previous interventions do not affect future ones
                 mask[sample_idx, best_concepts[sample_idx, : self.num_groups_intervened]] = 1
@@ -139,7 +140,7 @@ class GlobalValidationImprovementPolicy(GlobalValidationPolicy):
         self.eps = eps
         self.group_based = group_based
         self.include_prior = include_prior
-       
+
         prev_policy = cbm.intervention_policy
         cbm.intervention_policy = None
         self.scores = np.zeros((n_concepts,))
@@ -157,4 +158,4 @@ class GlobalValidationImprovementPolicy(GlobalValidationPolicy):
             with redirect_stdout(f):
                 [val_results] = trainer.test(cbm, val_ds)
             self.scores[concept_idx] = val_results["test_y_accuracy"]
-        cbm.intervention_policy = prev_policy        
+        cbm.intervention_policy = prev_policy

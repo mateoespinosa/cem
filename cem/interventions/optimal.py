@@ -2,6 +2,7 @@ import numpy as np
 import itertools
 import torch
 from .coop import CooP
+from cem.interventions.intervention_policy import InterventionPolicy
 
 class GreedyOptimal(CooP):
     def __init__(
@@ -35,7 +36,7 @@ class GreedyOptimal(CooP):
         )
         self._optimal = True
 
-class TrueOptimal(object):
+class TrueOptimal(InterventionPolicy):
     def __init__(
         self,
         concept_group_map,
@@ -59,7 +60,7 @@ class TrueOptimal(object):
         self.acquisition_weight = acquisition_weight
         self.importance_weight = importance_weight
         self.include_prior = include_prior
-    
+
     def _importance_scores(
         self,
         x,
@@ -80,7 +81,7 @@ class TrueOptimal(object):
         return np.array([
             y_pred_logits[i, label].detach().cpu().numpy() for i, label in enumerate(y)
         ])
-        
+
 
     def _opt_score(
         self,
@@ -99,10 +100,10 @@ class TrueOptimal(object):
             latent=latent,
         )
         scores = self.importance_weight * importance_scores
-        
+
         # Finally include the aquisition cost
         if self.acquisition_costs is not None:
-            scores += self.acquisition_costs[concept_idx] * self.acquisition_weight
+            scores += self.acquisition_costs * self.acquisition_weight
         return scores
 
     def __call__(

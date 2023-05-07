@@ -5,16 +5,16 @@ import pytorch_lightning as pl
 import os
 from tqdm import tqdm
 
+from cem.interventions.intervention_policy import InterventionPolicy
 from cem.interventions.optimal import GreedyOptimal
 from cem.train.utils import WrapperModule
 
 
-    
 ##########################
 ## Behavioral Cloning Policy Definition
 ##########################
 
-class BehavioralLearningPolicy(object):
+class BehavioralLearningPolicy(InterventionPolicy):
     # Behavioral Learning Policy
     def __init__(
         self,
@@ -104,7 +104,7 @@ class BehavioralLearningPolicy(object):
             )
         else:
             self.behavior_cloner.load_state_dict(torch.load(model_saved_path))
-    
+
     def _compute_model_input(
         self,
         prob,
@@ -135,7 +135,7 @@ class BehavioralLearningPolicy(object):
                 ))
         else:
             available_groups = (1 - prev_interventions)
-        
+
         emb_size = pos_embeddings.shape[-1]
         return np.concatenate(
             [
@@ -147,7 +147,7 @@ class BehavioralLearningPolicy(object):
             axis=-1,
         )
 
-    
+
     def _generate_behavioral_cloning_dataset(
         self,
         x_train,
@@ -164,7 +164,7 @@ class BehavioralLearningPolicy(object):
         inputs = []
         targets = []
         horizon_limit = 1
-        
+
         prev_policy = self.cbm.intervention_policy
         self.cbm.intervention_policy = teacher_policy(
             cbm=self.cbm,
@@ -197,8 +197,8 @@ class BehavioralLearningPolicy(object):
             prev_interventions = np.zeros((len(selected_samples), self.n_concepts))
             for sample_idx in range(prev_interventions.shape[0]):
                 prev_interventions[sample_idx, np.random.choice(self.n_concepts, size=initially_selected, replace=False)] = 1
-                
-            
+
+
             outputs = self.cbm._forward(
                 x_train[selected_samples],
                 intervention_idxs=None,
@@ -239,7 +239,7 @@ class BehavioralLearningPolicy(object):
             data,
             batch_size=batch_size,
         )
-    
+
     def _next_intervention(
         self,
         x,
@@ -271,8 +271,8 @@ class BehavioralLearningPolicy(object):
 #             prior_distribution = None
 #         elif prior_distribution is not None:
 #             prior_distribution = prior_distribution.detach().cpu().numpy()
-        
-        
+
+
         scores = torch.softmax(
              self.behavior_cloner(torch.FloatTensor(
                  self._compute_model_input(
@@ -288,7 +288,7 @@ class BehavioralLearningPolicy(object):
              )),
             dim=-1
         ).detach().cpu().numpy()
-        
+
 #         if prior_distribution is not None:
 #             # Then rescale the scores based on the prior
 #             if not isinstance(prior_distribution, np.ndarray):
@@ -301,7 +301,7 @@ class BehavioralLearningPolicy(object):
                 -float("inf"),
                 scores,
             )
-            
+
         best_concepts = np.argsort(-scores, axis=-1)
         for sample_idx in range(c.shape[0]):
             if self.group_based:
@@ -316,12 +316,12 @@ class BehavioralLearningPolicy(object):
                 best_group_scores = np.argsort(-group_scores, axis=-1)
                 for selected_group in best_group_scores[: self.num_groups_intervened]:
                     mask[sample_idx, self.concept_group_map[group_names[selected_group]]] = 1
-                    
+
             else:
                 # Else, previous interventions do not affect future ones
                 mask[sample_idx, best_concepts[sample_idx, : self.num_groups_intervened]] = 1
         return mask
-    
+
     def __call__(
         self,
         x,

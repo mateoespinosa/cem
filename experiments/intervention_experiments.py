@@ -1145,6 +1145,7 @@ def main(
             ind_old_results = joblib.load(ind_current_results_path)
         ind_model, ind_test_results, seq_model, seq_test_results = \
             training.train_independent_and_sequential_model(
+                task_class_weights=task_class_weights,
                 n_concepts=n_concepts,
                 n_tasks=n_tasks,
                 config=config,

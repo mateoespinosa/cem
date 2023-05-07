@@ -1,7 +1,8 @@
 import numpy as np
 import torch
+from cem.interventions.intervention_policy import InterventionPolicy
 
-class IndependentRandomMaskIntPolicy(object):
+class IndependentRandomMaskIntPolicy(InterventionPolicy):
 
     def __init__(
         self,

@@ -1,12 +1,13 @@
 import numpy as np
 import torch
 import logging
+from cem.interventions.intervention_policy import InterventionPolicy
 
 ##########################
 ## CooP Policy Definition
 ##########################
 
-class CooP(object):
+class CooP(InterventionPolicy):
     # CooP Intervention Policy
     def __init__(
         self,
