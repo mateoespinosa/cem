@@ -4,11 +4,13 @@ import numpy as np
 import os
 import pytorch_lightning as pl
 import torch
+import logging
 
 from pytorch_lightning import seed_everything
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 from pytorch_lightning.loggers import WandbLogger
 from torchvision.models import resnet18, resnet34, resnet50, densenet121
+import multiprocessing
 
 import cem.models.cem as models_cem
 import cem.models.cbm as models_cbm
@@ -17,6 +19,42 @@ import cem.train.utils as utils
 import cem.metrics.homogeneity as homogeneity
 import cem.metrics.oracle as oracle
 import cem.metrics.niching as niching
+
+def _save_result(fun, kwargs, output_filepath):
+    result = fun(**kwargs)
+    joblib.dump(result, output_filepath)
+    return result
+
+def _execute_and_save(
+    fun,
+    kwargs,
+    result_dir,
+    filename,
+    rerun=False,
+):
+    output_filepath = os.path.join(
+        result_dir,
+        filename,
+    )
+    if (not rerun) and os.path.exists(output_filepath):
+        return joblib.load(output_filepath)
+    context = multiprocessing.get_context('spawn')
+    p = context.Process(
+        target=_save_result,
+        kwargs=dict(
+            fun=fun,
+            kwargs=kwargs,
+            output_filepath=output_filepath,
+        ),
+    )
+    p.start()
+    p.join()
+    if p.exitcode:
+        raise ValueError(
+            f'Subprocess failed!'
+        )
+    p.kill()
+    return joblib.load(output_filepath)
 
 def load_call(
     function,
@@ -46,6 +84,9 @@ def load_call(
             outputs.append(old_results[search_key])
         else:
             rerun = True
+            logging.debug(
+                f"Restarting run because we could not find {search_key} in old results."
+            )
             break
     if not rerun:
         return outputs, True
@@ -134,6 +175,7 @@ def construct_model(
             "include_probs": config.get("include_probs", False),
             "propagate_target_gradients": config.get("propagate_target_gradients", False),
             "num_rollouts": config.get("num_rollouts", 1),
+            "legacy_mode": config.get("legacy_mode", False),
             "include_certainty": config.get("include_certainty", True),
         }
     elif config["architecture"] in ["IntAwareConceptEmbeddingModel", "IntCEM"]:
@@ -175,6 +217,7 @@ def construct_model(
             "include_probs": config.get("include_probs", False),
             "propagate_target_gradients": config.get("propagate_target_gradients", False),
             "num_rollouts": config.get("num_rollouts", 1),
+            "legacy_mode": config.get("legacy_mode", False),
             "include_certainty": config.get("include_certainty", True),
         }
     elif "ConceptBottleneckModel" in config["architecture"]:
@@ -346,15 +389,16 @@ def load_trained_model(
     arch_name = config.get('c_extractor_arch', "")
     if not isinstance(arch_name, str):
         arch_name = "lambda"
+    key_full_run_name = (
+        f"{config['architecture']}{config.get('extra_name', '')}"
+    )
     if split is not None:
         full_run_name = (
-            f"{config['architecture']}{config.get('extra_name', '')}_"
-            f"{arch_name}_fold_{split + 1}"
+            f"{key_full_run_name}_{arch_name}_fold_{split + 1}"
         )
     else:
         full_run_name = (
-            f"{config['architecture']}{config.get('extra_name', '')}_"
-            f"{arch_name}"
+            f"{key_full_run_name}_{arch_name}"
         )
     selected_concepts = np.arange(n_concepts)
     if sequential and not (config['architecture'].startswith("Sequential")):
@@ -543,15 +587,16 @@ def train_model(
     extr_name = config['c_extractor_arch']
     if not isinstance(extr_name, str):
         extr_name = "lambda"
+    key_full_run_name = (
+        f"{config['architecture']}{config.get('extra_name', '')}"
+    )
     if split is not None:
         full_run_name = (
-            f"{config['architecture']}{config.get('extra_name', '')}_"
-            f"{extr_name}_fold_{split + 1}"
+            f"{key_full_run_name}_{extr_name}_fold_{split + 1}"
         )
     else:
         full_run_name = (
-            f"{config['architecture']}{config.get('extra_name', '')}_"
-            f"{extr_name}"
+            f"{key_full_run_name}_{extr_name}"
         )
     print(f"[Training {full_run_name}]")
     print("config:")
@@ -672,7 +717,6 @@ def train_model(
                     output = [
                         test_results["test_c_accuracy"],
                         test_results["test_y_accuracy"],
-                        test_results["test_thresh_y_acc"],
                         test_results["test_c_auc"],
                         test_results["test_y_auc"],
                         test_results["test_c_f1"],
@@ -692,7 +736,6 @@ def train_model(
                 keys = [
                     "test_acc_c",
                     "test_acc_y",
-                    "test_thresh_y_acc",
                     "test_auc_c",
                     "test_auc_y",
                     "test_f1_c",
@@ -709,7 +752,7 @@ def train_model(
                 values, _ = load_call(
                     function=_inner_call,
                     keys=keys,
-                    full_run_name=f"{config['architecture']}{config.get('extra_name', '')}",
+                    full_run_name=key_full_run_name,
                     old_results=old_results,
                     rerun=rerun,
                     kwargs={},
@@ -721,7 +764,6 @@ def train_model(
                 print(
                     f'c_acc: {test_results["test_acc_c"]*100:.2f}%, '
                     f'y_acc: {test_results["test_acc_y"]*100:.2f}%, '
-                    f'thresh_y_acc: {test_results["test_thresh_y_acc"]*100:.2f}%, '
                     f'c_auc: {test_results["test_auc_c"]*100:.2f}%, '
                     f'y_auc: {test_results["test_auc_y"]*100:.2f}%'
                 )
@@ -807,7 +849,6 @@ def train_model(
                 output = [
                     test_results["test_c_accuracy"],
                     test_results["test_y_accuracy"],
-                    test_results["test_thresh_y_acc"],
                     test_results["test_c_auc"],
                     test_results["test_y_auc"],
                     test_results["test_c_f1"],
@@ -827,7 +868,6 @@ def train_model(
             keys = [
                 "test_acc_c",
                 "test_acc_y",
-                "test_thresh_y_acc",
                 "test_auc_c",
                 "test_auc_y",
                 "test_f1_c",
@@ -844,7 +884,7 @@ def train_model(
             values, _ = load_call(
                 function=_inner_call,
                 keys=keys,
-                full_run_name=f"{config['architecture']}{config.get('extra_name', '')}",
+                full_run_name=key_full_run_name,
                 old_results=old_results,
                 rerun=rerun,
                 kwargs={},
@@ -856,7 +896,6 @@ def train_model(
             print(
                 f'c_acc: {test_results["test_acc_c"]*100:.2f}%, '
                 f'y_acc: {test_results["test_acc_y"]*100:.2f}%, '
-                f'thresh_y_acc: {test_results["test_thresh_y_acc"]*100:.2f}%, '
                 f'c_auc: {test_results["test_auc_c"]*100:.2f}%, '
                 f'y_auc: {test_results["test_auc_y"]*100:.2f}%'
             )
@@ -1344,7 +1383,6 @@ def train_independent_and_sequential_model(
             output = [
                 test_results["test_c_accuracy"],
                 test_results["test_y_accuracy"],
-                test_results["test_thresh_y_acc"],
                 test_results["test_c_auc"],
                 test_results["test_y_auc"],
                 test_results["test_c_f1"],
@@ -1364,7 +1402,6 @@ def train_independent_and_sequential_model(
         keys = [
             "test_acc_c",
             "test_acc_y",
-            "test_thresh_y_acc",
             "test_auc_c",
             "test_auc_y",
             "test_f1_c",
@@ -1481,6 +1518,8 @@ def evaluate_representation_metrics(
     old_results=None,
     test_subsampling=1,
 ):
+    if config.get("rerun_repr_evaluation", False):
+        rerun = True
     if config.get("skip_repr_evaluation", False):
         return {}
     test_subsampling = config.get(
@@ -1526,7 +1565,6 @@ def evaluate_representation_metrics(
             num_workers=test_dl.num_workers,
         )
 
-
     cbm = load_trained_model(
         config=config,
         n_tasks=n_tasks,
@@ -1554,8 +1592,7 @@ def evaluate_representation_metrics(
     )
 
     c_pred = np.reshape(c_pred, (c_test.shape[0], n_concepts, -1))
-
-      # We now need to reshuffle the c_pred matrix to recover is concept
+    # We now need to reshuffle the c_pred matrix to recover is concept
     # structure
     ois_key = f'test_ois_{full_run_name}'
     print(f"Computing OIS score...")
@@ -1564,24 +1601,30 @@ def evaluate_representation_metrics(
         os.path.join(result_dir, f'oracle_matrix.npy')
     ):
         oracle_matrix = np.load(os.path.join(result_dir, f'oracle_matrix.npy'))
-    ois, loaded = load_call(
-        keys=[ois_key],
-        old_results=old_results,
-        rerun=rerun,
-        function=oracle.oracle_impurity_score,
-        full_run_name=full_run_name,
+    ois, loaded = _execute_and_save(
+        fun=load_call,
         kwargs=dict(
-            c_soft=np.transpose(c_pred, (0, 2, 1)),
-            c_true=c_test,
-            predictor_train_kwags={
-                'epochs': config.get("ois_epochs", 20),
-                'batch_size': min(2048, c_test.shape[0]),
-                'verbose': 0,
-            },
-            test_size=0.2,
-            oracle_matrix=oracle_matrix,
-            jointly_learnt=True,
-        )
+            keys=[ois_key],
+            old_results=old_results,
+            rerun=rerun,
+            function=oracle.oracle_impurity_score,
+            full_run_name=full_run_name,
+            kwargs=dict(
+                c_soft=np.transpose(c_pred, (0, 2, 1)),
+                c_true=c_test,
+                predictor_train_kwags={
+                    'epochs': config.get("ois_epochs", 50),
+                    'batch_size': min(2048, c_test.shape[0]),
+                    'verbose': 0,
+                },
+                test_size=0.2,
+                oracle_matrix=oracle_matrix,
+                jointly_learnt=True,
+            )
+        ),
+        result_dir=result_dir,
+        filename=f'{ois_key}_split_{split}.joblib',
+        rerun=rerun,
     )
     if isinstance(ois, (tuple, list)):
         if len(ois) == 3:
@@ -1597,20 +1640,25 @@ def evaluate_representation_metrics(
             oracle_matrix,
         )
 
-
     nis_key = f'test_nis_{full_run_name}'
     print(f"Computing NIS score...")
-    nis, loaded = load_call(
-        keys=[nis_key],
-        old_results=old_results,
-        rerun=rerun,
-        function=niching.niche_impurity_score,
-        full_run_name=full_run_name,
+    nis, loaded = _execute_and_save(
+        fun=load_call,
         kwargs=dict(
-            c_soft=np.transpose(c_pred, (0, 2, 1)),
-            c_true=c_test,
-            test_size=0.2,
-        )
+            keys=[ois_key],
+            old_results=old_results,
+            rerun=rerun,
+            function=niching.niche_impurity_score,
+            full_run_name=full_run_name,
+            kwargs=dict(
+                c_soft=np.transpose(c_pred, (0, 2, 1)),
+                c_true=c_test,
+                test_size=0.2,
+            ),
+        ),
+        result_dir=result_dir,
+        filename=f'{nis_key}_split_{split}.joblib',
+        rerun=rerun,
     )
     if isinstance(nis, (tuple, list)):
         assert len(nis) == 1
@@ -1621,18 +1669,24 @@ def evaluate_representation_metrics(
 
     cas_key = f'test_cas_{full_run_name}'
     print(f"Computing entire representation CAS score with c_pred.shape =", c_pred.shape, "...")
-    cas, loaded = load_call(
-        keys=[cas_key],
-        old_results=old_results,
-        rerun=rerun,
-        function=homogeneity.embedding_homogeneity,
-        full_run_name=full_run_name,
+    cas, loaded = _execute_and_save(
+        fun=load_call,
         kwargs=dict(
-            c_vec=c_pred,
-            c_test=c_test,
-            y_test=y_test,
-            step=config.get('cas_step', 2),
+            keys=[cas_key],
+            old_results=old_results,
+            rerun=rerun,
+            function=homogeneity.embedding_homogeneity,
+            full_run_name=full_run_name,
+            kwargs=dict(
+                c_vec=c_pred,
+                c_test=c_test,
+                y_test=y_test,
+                step=config.get('cas_step', 2),
+            ),
         ),
+        result_dir=result_dir,
+        filename=f'{cas_key}_split_{split}.joblib',
+        rerun=rerun,
     )
     if isinstance(cas, (tuple, list)):
         cas = cas[0]
@@ -1640,26 +1694,58 @@ def evaluate_representation_metrics(
 
     prob_cas_key = f'test_cas_probs_only_{full_run_name}'
     print(f"Computing probability only CAS score with c_sem.shape =", c_sem.shape, "...")
-    prob_cas, loaded = load_call(
-        keys=[prob_cas_key],
-        old_results=old_results,
-        rerun=rerun,
-        function=homogeneity.embedding_homogeneity,
-        full_run_name=full_run_name,
+    prob_cas, loaded = _execute_and_save(
+        fun=load_call,
         kwargs=dict(
-            c_vec=c_sem,
-            c_test=c_test,
-            y_test=y_test,
-            step=config.get('cas_step', 2),
+            keys=[prob_cas_key],
+            old_results=old_results,
+            rerun=rerun,
+            function=homogeneity.embedding_homogeneity,
+            full_run_name=full_run_name,
+            kwargs=dict(
+                c_vec=c_sem,
+                c_test=c_test,
+                y_test=y_test,
+                step=config.get('cas_step', 2),
+            ),
         ),
+        result_dir=result_dir,
+        filename=f'{prob_cas_key}_split_{split}.joblib',
+        rerun=rerun,
     )
     if isinstance(prob_cas, (tuple, list)):
         prob_cas = prob_cas[0]
-    print(f"\tDone....CAS score is {prob_cas*100:.2f}%")
+    print(f"\tDone....Probability CAS score is {prob_cas*100:.2f}%")
+
+    comb_cas_key = f'test_cas_comb_{full_run_name}'
+    print(f"Computing combined CAS score with c_sem.shape =", c_sem.shape, "...")
+    comb_cas, loaded = _execute_and_save(
+        fun=load_call,
+        kwargs=dict(
+            keys=[comb_cas_key],
+            old_results=old_results,
+            rerun=rerun,
+            function=homogeneity.embedding_homogeneity,
+            full_run_name=full_run_name,
+            kwargs=dict(
+                c_vec=np.concatenate([c_pred, np.expand_dims(c_sem, axis=-1)], axis=-1),
+                c_test=c_test,
+                y_test=y_test,
+                step=config.get('cas_step', 2),
+            ),
+        ),
+        result_dir=result_dir,
+        filename=f'{comb_cas_key}_split_{split}.joblib',
+        rerun=rerun,
+    )
+    if isinstance(comb_cas, (tuple, list)):
+        comb_cas = comb_cas[0]
+    print(f"\tDone....combined CAS score is {comb_cas*100:.2f}%")
 
     return {
         cas_key: cas,
         prob_cas_key: prob_cas,
+        comb_cas_key: comb_cas,
         nis_key: nis,
         ois_key: ois,
     }
