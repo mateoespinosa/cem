@@ -152,7 +152,6 @@ class ConceptBottleneckModel(pl.LightningModule):
         output_interventions=False,
         use_concept_groups=False,
         include_certainty=True,
-        intervene_on_uncertain_concepts=False,
 
         top_k_accuracy=None,
         gpu=int(torch.cuda.is_available()),

@@ -68,9 +68,11 @@ class IntAwareConceptBottleneckModel(ConceptBottleneckModel):
         propagate_target_gradients=False,
         top_k_accuracy=None,
         num_rollouts=1,
+        legacy_mode=False,
 
         gpu=int(torch.cuda.is_available()),
     ):
+        self.legacy_mode = legacy_mode
         self.num_rollouts = num_rollouts
         self.propagate_target_gradients = propagate_target_gradients
         self.initialize_discount = initialize_discount
@@ -142,10 +144,11 @@ class IntAwareConceptBottleneckModel(ConceptBottleneckModel):
             torch.FloatTensor([initial_horizon]),
             requires_grad=False,
         )
-        self.current_steps = torch.nn.Parameter(
-            torch.IntTensor([0]),
-            requires_grad=False,
-        )
+        if not legacy_mode:
+            self.current_steps = torch.nn.Parameter(
+                torch.IntTensor([0]),
+                requires_grad=False,
+            )
         self.rollout_init_steps = rollout_init_steps
         self.tau = tau
         self.intervention_weight = intervention_weight
@@ -497,7 +500,9 @@ class IntAwareConceptBottleneckModel(ConceptBottleneckModel):
                 # END OF ADDITION!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
             # print("'tInitial intervention_task_loss is", intervention_task_loss)
             int_mask_accuracy = 0.0 if current_horizon else -1
-            if (self.current_steps.detach().cpu().numpy()[0] < self.rollout_init_steps):
+            if (not self.legacy_mode) and (
+                (self.current_steps.detach().cpu().numpy()[0] < self.rollout_init_steps)
+            ):
                 current_horizon = 0
             for _ in range(self.num_rollouts):
                 for i in range(current_horizon):
@@ -661,7 +666,10 @@ class IntAwareConceptBottleneckModel(ConceptBottleneckModel):
                             intervention_task_loss += task_discount * rollout_y_loss
                         # print("\t\t\tWith the adjusted rollout predictive loss", intervention_task_loss, "and current discount", task_discount)
 
-                if (self.current_steps.detach().cpu().numpy()[0] >= self.rollout_init_steps) and (
+                if (
+                    self.legacy_mode or
+                    (self.current_steps.detach().cpu().numpy()[0] >= self.rollout_init_steps)
+                ) and (
                     self.horizon_limit.detach().cpu().numpy()[0] < int_basis_lim + 1
                 ):
                     self.horizon_limit *= self.horizon_rate
@@ -673,7 +681,8 @@ class IntAwareConceptBottleneckModel(ConceptBottleneckModel):
             intervention_loss = 0.0
             intervention_loss_scalar = 0.0
 
-        self.current_steps += 1
+        if not self.legacy_mode:
+            self.current_steps += 1
 
         if self.include_task_trajectory_loss and (self.intervention_task_loss_weight != 0):
             if isinstance(intervention_task_loss, float):
@@ -744,8 +753,10 @@ class IntAwareConceptBottleneckModel(ConceptBottleneckModel):
             "loss": loss.detach() if not isinstance(loss, float) else loss,
             "avg_c_y_acc": (c_accuracy + y_accuracy) / 2,
             "horizon_limit": self.horizon_limit.detach().cpu().numpy()[0],
-            "current_steps": self.current_steps.detach().cpu().numpy()[0],
         }
+        if not self.legacy_mode:
+            result["current_steps"] = self.current_steps.detach().cpu().numpy()[0]
+
         if self.top_k_accuracy is not None:
             y_true = y.reshape(-1).cpu().detach()
             y_pred = y_logits.cpu().detach()
@@ -820,9 +831,11 @@ class IntAwareConceptEmbeddingModel(
         initialize_discount=False,
         propagate_target_gradients=False,
         num_rollouts=1,
+        legacy_mode=False,
 
         gpu=int(torch.cuda.is_available()),
     ):
+        self.legacy_mode = legacy_mode
         self.num_rollouts = num_rollouts
         self.propagate_target_gradients = propagate_target_gradients
         self.initialize_discount = initialize_discount
@@ -938,10 +951,11 @@ class IntAwareConceptEmbeddingModel(
             torch.FloatTensor([initial_horizon]),
             requires_grad=False,
         )
-        self.current_steps = torch.nn.Parameter(
-            torch.IntTensor([0]),
-            requires_grad=False,
-        )
+        if not legacy_mode:
+            self.current_steps = torch.nn.Parameter(
+                torch.IntTensor([0]),
+                requires_grad=False,
+            )
         self.rollout_init_steps = rollout_init_steps
         self.tau = tau
         self.intervention_weight = intervention_weight
