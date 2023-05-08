@@ -80,7 +80,7 @@ runs:
       initialize_discount: True
       training_intervention_prob: 0.25
       propagate_target_gradients: True
-      num_rollouts: [1, 10, 100]
+      num_rollouts: [1, 10, 20]
       grid_variables:
           - intervention_weight
           - num_rollouts

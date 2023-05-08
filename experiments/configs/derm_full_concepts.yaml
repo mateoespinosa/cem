@@ -1,48 +1,41 @@
+trials: 5
+results_dir: "results/derm_full_concepts_interventions/"
+use_full_concepts: True
+# DATASET VARIABLES
+dataset: "derm"
+image_size: 64
+num_classes: 1000
+batch_size: 64
+root_dir: /anfs/bigdisc/me466/derm7pt/
+num_workers: 8
+
+# Intervention Parameters
+intervention_freq: 1
+intervention_batch_size: 1024
+intervention_policies:
+    - "intcem_policy"
+    - "group_random"
+    - "group_random_no_prior"
+    - "group_coop_no_prior"
+    - "behavioural_cloning_no_prior"
+    - "group_uncertainty_no_prior"
+    - "optimal_greedy_no_prior"
+    - "global_val_error_no_prior"
+    - "global_val_improvement_no_prior"
+
+
 shared_params:
-    trials: 5
-    results_dir: /local/scratch-2/me466/intervention_experiment_results/chexpert_interventions_quarter_longer/
-    dataset: "chexpert"
-    num_workers: 8
-    batch_size: 256
-
-    # Intervention Parameters
-    intervention_freq: 1
-    intervention_batch_size: 1024
-    intervention_policies:
-        - "intcem_policy"
-        - "group_random"
-        - "group_random_no_prior"
-        - "group_coop_no_prior"
-        - "behavioural_cloning_no_prior"
-        - "group_uncertainty_no_prior"
-        - "optimal_greedy_no_prior"
-        - "global_val_error_no_prior"
-        - "global_val_improvement_no_prior"
-
-    # DATASET VARIABLES
-    root_dir: /anfs/bigdisc/me466/chexpert_small/
-    sampling_percent: 1
-    test_subsampling: 1
-    train_subsampling: 0.2
-    ignore_intervention_global_val_error_no_prior: True
-    ignore_intervention_global_val_improvement_no_prior: True
-    ignore_intervention_behavioural_cloning_no_prior: False
-    no_coop_finetune: True
-    skip_repr_evaluation: True
-    use_task_class_weights: True
-    check_val_every_n_epoch: 2
-    weight_loss: True
-
-    max_epochs: 150
-    top_k_accuracy: null
+    top_k_accuracy: [3, 5, 10]
     save_model: True
+    max_epochs: 200
     patience: 15
     emb_size: 16
     extra_dims: 0
-    concept_loss_weight: 10
-    learning_rate: 0.001
+    concept_loss_weight: 5
+    learning_rate: 0.005
     weight_decay: 0.000004
-    c_extractor_arch: resnet18
+    weight_loss: False
+    c_extractor_arch: resnet34
     optimizer: sgd
     bool: False
     early_stopping_monitor: val_loss
@@ -51,6 +44,8 @@ shared_params:
     momentum: 0.9
     sigmoidal_prob: False
     training_intervention_prob: 0.25
+
+
 runs:
     - architecture: 'ConceptEmbeddingModel'
       extra_name: ""
@@ -62,7 +57,7 @@ runs:
       embedding_activation: "leakyrelu"
 
     - architecture: "IntAwareConceptEmbeddingModel"
-      extra_name: "LastOnly_intervention_weight_{intervention_weight}_horizon_rate_{horizon_rate}_intervention_discount_{intervention_discount}__tau_{tau}_max_horizon_{max_horizon}_task_discount_{intervention_task_discount}_uniform_distr_{uniform_distr}_no_horizon"
+      extra_name: "Rollouts_intervention_weight_{intervention_weight}_horizon_rate_{horizon_rate}_intervention_discount_{intervention_discount}_task_discount_{intervention_task_discount}_rollout_{num_rollouts}"
       horizon_binary_representation:  True
       include_task_trajectory_loss: True
       include_only_last_trajectory_loss: True
@@ -71,7 +66,7 @@ runs:
       use_concept_groups: True
       embedding_activation: "leakyrelu"
       tau: 1
-      max_horizon: 28
+      max_horizon: 6
       uniform_distr: True
       beta_a: 1
       beta_b: 3
@@ -92,7 +87,8 @@ runs:
       initialize_discount: True
       training_intervention_prob: 0.25
       propagate_target_gradients: True
-      num_rollouts: [1]
+      num_rollouts: [1, 10]
+      use_rollouts_random: True
       grid_variables:
           - intervention_weight
           - num_rollouts
@@ -138,3 +134,42 @@ runs:
       extra_dims: 0
       sigmoidal_extra_capacity: False
       sigmoidal_prob: True
+
+    - architecture: "IntAwareConceptEmbeddingModel"
+      extra_name: "Rollouts_concept_loss_weight_{concept_loss_weight}_intervention_weight_{intervention_weight}_horizon_rate_{horizon_rate}_intervention_discount_{intervention_discount}_task_discount_{intervention_task_discount}_rollout_{num_rollouts}"
+      horizon_binary_representation:  True
+      include_task_trajectory_loss: True
+      include_only_last_trajectory_loss: True
+      average_trajectory: True
+      task_loss_weight: 0
+      use_concept_groups: True
+      embedding_activation: "leakyrelu"
+      concept_loss_weight: 10
+      tau: 1
+      max_horizon: 6
+      uniform_distr: True
+      beta_a: 1
+      beta_b: 3
+      use_horizon: False
+      model_pretrain_path: null
+      pretrain_intcem: False
+      intervention_weight: [5,1,0.1]
+      initial_horizon: 2
+      include_probs: False
+      use_full_mask_distr: True
+      int_model_use_bn: True
+      int_model_layers: [128,128,64,64]
+      intervention_discount: 1.05
+      horizon_rate: 1
+      intcem_task_loss_weight: 0
+      intervention_task_discount: 1.05
+      intervention_task_loss_weight: 1
+      initialize_discount: True
+      training_intervention_prob: 0.25
+      propagate_target_gradients: True
+      num_rollouts: [1, 10]
+      use_rollouts_random: True
+      grid_variables:
+          - intervention_weight
+          - num_rollouts
+      grid_search_mode: exhaustive

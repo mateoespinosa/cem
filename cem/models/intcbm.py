@@ -677,6 +677,7 @@ class IntAwareConceptBottleneckModel(ConceptBottleneckModel):
             intervention_loss_scalar = self.intervention_weight * intervention_loss
             intervention_loss = intervention_loss/self.num_rollouts
             intervention_task_loss = intervention_task_loss/self.num_rollouts
+            int_mask_accuracy = int_mask_accuracy/self.num_rollouts
         else:
             intervention_loss = 0.0
             intervention_loss_scalar = 0.0

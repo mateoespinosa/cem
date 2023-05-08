@@ -15,6 +15,7 @@ import cem.data.CUB200.cub_loader as cub_data_module
 import cem.data.mnist_add as mnist_data_module
 import cem.data.celeba_loader as celeba_data_module
 import cem.data.chexpert_loader as chexpert_data_module
+import cem.data.derm_loader as derm_data_module
 from cem.data.synthetic_loaders import (
     get_synthetic_data_loader,
     get_synthetic_num_features,
@@ -27,7 +28,6 @@ from datetime import datetime
 import cem.train.training as training
 import cem.train.utils as utils
 import cem.interventions.utils as intervention_utils
-from run_experiments import CUB_CONFIG, CELEBA_CONFIG, SYNTH_CONFIG
 from experiment_utils import (
     evaluate_expressions,
     generate_hyperatemer_configs, filter_results,
@@ -565,7 +565,7 @@ if __name__ == '__main__':
     )
     parser.add_argument(
         '--dataset',
-        choices=['cub', 'celeba', 'xor', 'vector', 'dot', 'trig', 'mnist_add', 'chexpert'],
+        choices=['cub', 'celeba', 'xor', 'vector', 'dot', 'trig', 'mnist_add', 'chexpert', 'derma'],
         help=(
             "Dataset to run experiments for. Must be a supported dataset with "
             "a loader."
@@ -663,6 +663,9 @@ if __name__ == '__main__':
     if loaded_config["dataset"] == "cub":
         data_module = cub_data_module
         args.project_name = args.project_name.format(ds_name="cub")
+    elif loaded_config["dataset"] == "derm":
+        data_module = derm_data_module
+        args.project_name = args.project_name.format(ds_name="derma")
     elif loaded_config["dataset"] == "celeba":
         data_module = celeba_data_module
         args.project_name = args.project_name.format(ds_name="celeba")
@@ -700,7 +703,7 @@ if __name__ == '__main__':
             num_operands=num_operands,
         )
     else:
-        raise ValueError(f"Unsupported dataset {args.dataset}!")
+        raise ValueError(f"Unsupported dataset {loaded_config['dataset']}!")
 
     if args.output_dir is not None:
         loaded_config['results_dir'] = args.output_dir

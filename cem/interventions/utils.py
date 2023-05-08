@@ -1365,6 +1365,7 @@ def test_interventions(
             results[int_time_key] = avg_time
             results[construction_times_key] = constr_time
             if loaded:
+                print("int results", int_results)
                 if avg_time:
                     extra = f" (avg int time is {avg_time:.5f}s and construction time is {constr_time:.5f}s)"
                 else:
