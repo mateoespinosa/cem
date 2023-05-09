@@ -1383,7 +1383,8 @@ def test_interventions(
                         )
 
             if policy in ["group_random", "individual_random"] and (
-                "IntAware" in config["architecture"]
+                "IntAware" in config["architecture"] and
+                config.get("include_budgeted_ints", False)
             ):
                 # Then we will also attempt some rollouts where we give the model an actual boundary
                 # budget

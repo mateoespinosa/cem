@@ -239,6 +239,9 @@ def main(
     task_class_weights = None
 
     if experiment_config['shared_params'].get('use_task_class_weights', False):
+        logging.info(
+            f"Computing task class weights in the training dataset with size {len(train_dl)}..."
+        )
         attribute_count = np.zeros((max(n_tasks, 2),))
         samples_seen = 0
         for i, data in enumerate(train_dl):
@@ -690,7 +693,7 @@ if __name__ == '__main__':
                 torch.nn.Linear(128, output_dim),
             ])
         loaded_config["c_extractor_arch"] = synth_c_extractor_arch
-    elif args.dataset == "mnist_add":
+    elif loaded_config["dataset"] == "mnist_add":
         data_module = mnist_data_module
         args.project_name = args.project_name.format(ds_name=args.dataset)
         utils.extend_with_global_params(

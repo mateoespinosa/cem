@@ -48,7 +48,7 @@ def compute_bin_accuracy(c_pred, y_pred, c_true, y_true):
     c_f1 = c_f1/num_seen
     y_accuracy = sklearn.metrics.accuracy_score(y_true, y_pred)
     if len(np.unique(y_true)) == 1:
-        y_auc = sklearn.metrics.accuracy_score(y_true,  y_probs)
+        y_auc = sklearn.metrics.accuracy_score(y_true,  y_pred)
     else:
         y_auc = sklearn.metrics.roc_auc_score(y_true, y_probs)
     y_f1 = sklearn.metrics.f1_score(y_true, y_pred)

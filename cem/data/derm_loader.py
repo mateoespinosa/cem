@@ -34,6 +34,7 @@ class Derm7ptDataset(object):
         label_transform=None,
         concept_transform=None,
         label_key="diagnosis",
+        label_generating_fn=None,
     ):
         self.use_full_concepts = use_full_concepts
         self.concept_transform = concept_transform
@@ -48,8 +49,111 @@ class Derm7ptDataset(object):
         self.posible_concept_vals = {}
         self.concept_map = {}
         self.meta = pd.read_csv(os.path.join(base_dir, "meta", "meta.csv"))
+        # current_index = 0
+        # self.posible_concept_vals["TypicalPigmentNetwork"] = [0, 1, unc_value]
+        # if self.use_full_concepts:
+        #     self.concept_map["TypicalPigmentNetwork"] = [current_index, current_index + 1, current_index + 2]
+        #     current_index += 3
+        # else:
+        #     self.concept_map["TypicalPigmentNetwork"] = [current_index]
+        #     current_index += 1
+        # self.meta["TypicalPigmentNetwork"] = self.meta.apply(
+        #     lambda row: {"absent": 0, "typical": 1, "atypical": unc_value}[row["pigment_network"]],
+        #     axis=1,
+        # )
+
+        # self.posible_concept_vals["AtypicalPigmentNetwork"] = [0, 1, unc_value]
+        # if self.use_full_concepts:
+        #     self.concept_map["AtypicalPigmentNetwork"] = [current_index, current_index + 1, current_index + 2]
+        #     current_index += 3
+        # else:
+        #     self.concept_map["AtypicalPigmentNetwork"] = [current_index]
+        #     current_index += 1
+        # self.meta["AtypicalPigmentNetwork"] = self.meta.apply(
+        #     lambda row: {"absent": 0, "typical": unc_value, "atypical": 1}[row["pigment_network"]],
+        #     axis=1,
+        # )
+
+
+        # self.posible_concept_vals["RegularStreaks"] = [0, 1, unc_value]
+        # if self.use_full_concepts:
+        #     self.concept_map["RegularStreaks"] = [current_index, current_index + 1, current_index + 2]
+        #     current_index += 3
+        # else:
+        #     self.concept_map["RegularStreaks"] = [current_index]
+        #     current_index += 1
+        # self.meta["RegularStreaks"] = self.meta.apply(
+        #     lambda row: {"absent": 0, "regular": 1, "irregular": unc_value}[row["streaks"]],
+        #     axis=1,
+        # )
+
+
+        # self.posible_concept_vals["IrregularStreaks"] = [0, 1, unc_value]
+        # if self.use_full_concepts:
+        #     self.concept_map["IrregularStreaks"] = [current_index, current_index + 1, current_index + 2]
+        #     current_index += 3
+        # else:
+        #     self.concept_map["IrregularStreaks"] = [current_index]
+        #     current_index += 1
+        # self.meta["IrregularStreaks"] = self.meta.apply(
+        #     lambda row: {"absent": 0, "regular": unc_value, "irregular": 1}[row["streaks"]],
+        #     axis=1,
+        # )
+
+
+        # self.posible_concept_vals["RegressionStructures"] = [0, 1]
+        # if self.use_full_concepts:
+        #     self.concept_map["RegressionStructures"] = [current_index, current_index + 1]
+        #     current_index += 2
+        # else:
+        #     self.concept_map["RegressionStructures"] = [current_index]
+        #     current_index += 1
+        # self.meta["RegressionStructures"] = self.meta.apply(
+        #     lambda row: (1-int(row["regression_structures"] == "absent")),
+        #     axis=1,
+        # )
+
+
+        # self.posible_concept_vals["RegularDG"] = [0, 1, unc_value]
+        # if self.use_full_concepts:
+        #     self.concept_map["RegularDG"] = [current_index, current_index + 1, current_index + 2]
+        #     current_index += 3
+        # else:
+        #     self.concept_map["RegularDG"] = [current_index]
+        #     current_index += 1
+        # self.meta["RegularDG"] = self.meta.apply(
+        #     lambda row: {"absent": 0, "regular": 1, "irregular": unc_value}[row["dots_and_globules"]],
+        #     axis=1,
+        # )
+
+
+        # self.posible_concept_vals["IrregularDG"] = [0, 1, unc_value]
+        # if self.use_full_concepts:
+        #     self.concept_map["IrregularDG"] = [current_index, current_index + 1, current_index + 2]
+        #     current_index += 3
+        # else:
+        #     self.concept_map["IrregularDG"] = [current_index]
+        #     current_index += 1
+        # self.meta["IrregularDG"] = self.meta.apply(
+        #     lambda row: {"absent": 0, "regular": unc_value, "irregular": 1}[row["dots_and_globules"]],
+        #     axis=1,
+        # )
+
+
+        # self.posible_concept_vals["BWV"] = [0, 1]
+        # if self.use_full_concepts:
+        #     self.concept_map["BWV"] = [current_index, current_index + 1]
+        #     current_index += 2
+        # else:
+        #     self.concept_map["BWV"] = [current_index]
+        #     current_index += 1
+        # self.meta["BWV"] = self.meta.apply(
+        #     lambda row: {"absent": 0, "present": 1}[row["blue_whitish_veil"]],
+        #     axis=1,
+        # )
+
         current_index = 0
-        self.posible_concept_vals["TypicalPigmentNetwork"] = [0, 1, unc_value]
+        self.posible_concept_vals["TypicalPigmentNetwork"] = [0, 1, 2]
         if self.use_full_concepts:
             self.concept_map["TypicalPigmentNetwork"] = [current_index, current_index + 1, current_index + 2]
             current_index += 3
@@ -57,24 +161,11 @@ class Derm7ptDataset(object):
             self.concept_map["TypicalPigmentNetwork"] = [current_index]
             current_index += 1
         self.meta["TypicalPigmentNetwork"] = self.meta.apply(
-            lambda row: {"absent": 0, "typical": 1, "atypical": unc_value}[row["pigment_network"]],
+            lambda row: {"absent": 0, "typical": 1, "atypical": 2}[row["pigment_network"]],
             axis=1,
         )
 
-        self.posible_concept_vals["AtypicalPigmentNetwork"] = [0, 1, unc_value]
-        if self.use_full_concepts:
-            self.concept_map["AtypicalPigmentNetwork"] = [current_index, current_index + 1, current_index + 2]
-            current_index += 3
-        else:
-            self.concept_map["AtypicalPigmentNetwork"] = [current_index]
-            current_index += 1
-        self.meta["AtypicalPigmentNetwork"] = self.meta.apply(
-            lambda row: {"absent": 0, "typical": unc_value, "atypical": 1}[row["pigment_network"]],
-            axis=1,
-        )
-
-
-        self.posible_concept_vals["RegularStreaks"] = [0, 1, unc_value]
+        self.posible_concept_vals["RegularStreaks"] = [0, 1, 2]
         if self.use_full_concepts:
             self.concept_map["RegularStreaks"] = [current_index, current_index + 1, current_index + 2]
             current_index += 3
@@ -82,38 +173,20 @@ class Derm7ptDataset(object):
             self.concept_map["RegularStreaks"] = [current_index]
             current_index += 1
         self.meta["RegularStreaks"] = self.meta.apply(
-            lambda row: {"absent": 0, "regular": 1, "irregular": unc_value}[row["streaks"]],
+            lambda row: {"absent": 0, "regular": 1, "irregular": 2}[row["streaks"]],
             axis=1,
         )
 
-
-        self.posible_concept_vals["IrregularStreaks"] = [0, 1, unc_value]
-        if self.use_full_concepts:
-            self.concept_map["IrregularStreaks"] = [current_index, current_index + 1, current_index + 2]
-            current_index += 3
-        else:
-            self.concept_map["IrregularStreaks"] = [current_index]
-            current_index += 1
-        self.meta["IrregularStreaks"] = self.meta.apply(
-            lambda row: {"absent": 0, "regular": unc_value, "irregular": 1}[row["streaks"]],
-            axis=1,
-        )
-
-
-        self.posible_concept_vals["RegressionStructures"] = [0, 1]
-        if self.use_full_concepts:
-            self.concept_map["RegressionStructures"] = [current_index, current_index + 1]
-            current_index += 2
-        else:
-            self.concept_map["RegressionStructures"] = [current_index]
-            current_index += 1
+        self.posible_concept_vals["RegressionStructures"] = [1]
+        self.concept_map["RegressionStructures"] = [current_index]
+        current_index += 1
         self.meta["RegressionStructures"] = self.meta.apply(
-            lambda row: (1-int(row["regression_structures"] == "absent")),
+            lambda row: (1 - int(row["regression_structures"] == "absent")),
             axis=1,
         )
 
 
-        self.posible_concept_vals["RegularDG"] = [0, 1, unc_value]
+        self.posible_concept_vals["RegularDG"] = [0, 1, 2]
         if self.use_full_concepts:
             self.concept_map["RegularDG"] = [current_index, current_index + 1, current_index + 2]
             current_index += 3
@@ -121,38 +194,28 @@ class Derm7ptDataset(object):
             self.concept_map["RegularDG"] = [current_index]
             current_index += 1
         self.meta["RegularDG"] = self.meta.apply(
-            lambda row: {"absent": 0, "regular": 1, "irregular": unc_value}[row["dots_and_globules"]],
+            lambda row: {"absent": 0, "regular": 1, "irregular": 2}[row["dots_and_globules"]],
             axis=1,
         )
 
-
-        self.posible_concept_vals["IrregularDG"] = [0, 1, unc_value]
-        if self.use_full_concepts:
-            self.concept_map["IrregularDG"] = [current_index, current_index + 1, current_index + 2]
-            current_index += 3
-        else:
-            self.concept_map["IrregularDG"] = [current_index]
-            current_index += 1
-        self.meta["IrregularDG"] = self.meta.apply(
-            lambda row: {"absent": 0, "regular": unc_value, "irregular": 1}[row["dots_and_globules"]],
-            axis=1,
-        )
-
-
-        self.posible_concept_vals["BWV"] = [0, 1]
-        if self.use_full_concepts:
-            self.concept_map["BWV"] = [current_index, current_index + 1]
-            current_index += 2
-        else:
-            self.concept_map["BWV"] = [current_index]
-            current_index += 1
+        self.posible_concept_vals["BWV"] = [1]
+        self.concept_map["BWV"] = [current_index]
+        current_index += 1
         self.meta["BWV"] = self.meta.apply(
             lambda row: {"absent": 0, "present": 1}[row["blue_whitish_veil"]],
             axis=1,
         )
+
         self.n_concepts = current_index
         self.label_map = {}
-        for val in self.meta[self.label_key].unique():
+        if label_generating_fn is not None:
+            self.label_col = self.meta.apply(
+                lambda row: label_generating_fn(row[self.label_key]),
+                axis=1,
+            )
+        else:
+            self.label_col = self.meta[self.label_key]
+        for val in self.label_col.unique():
             self.label_map[val] = len(self.label_map)
         self.meta = self.meta.iloc[indexes]
         self.transform = transform
@@ -161,17 +224,17 @@ class Derm7ptDataset(object):
         self.concepts = [
             "BWV",
             "RegularDG",
-            "IrregularDG",
+            # "IrregularDG",
             "RegressionStructures",
-            "IrregularStreaks",
+            # "IrregularStreaks",
             "RegularStreaks",
-            "AtypicalPigmentNetwork",
+            # "AtypicalPigmentNetwork",
             "TypicalPigmentNetwork",
         ]
 
 
     def num_classes(self):
-        return len(self.label_map)
+        return len(self.label_map) if len(self.label_map) > 2 else 1
 
     def _get_concepts(self, idx):
         result = []
@@ -189,7 +252,7 @@ class Derm7ptDataset(object):
 
     def _get_label(self, idx):
         return np.array(
-            self.label_map[self.meta.iloc[idx][self.label_key]]
+            self.label_map[self.label_col.iloc[idx]]
         )
 
     def __len__(self):
@@ -210,7 +273,8 @@ class Derm7ptDataset(object):
             class_label = self.label_transform(class_label)
         if self.transform:
             image = self.transform(image)
-
+        if self.num_classes() == 1:
+            class_label = float(class_label)
         concepts = self._get_concepts(idx)
         if self.concept_transform is not None:
             concepts = self.concept_transform(concepts)
@@ -228,6 +292,7 @@ def load_data(
     unc_value=0.5,
     label_key="diagnosis",
     use_full_concepts=False,
+    label_generating_fn=None,
 ):
     resized_resol = int(resol * 256/224)
     is_training = fold == "train"
@@ -255,6 +320,7 @@ def load_data(
         label_transform=label_transform,
         label_key=label_key,
         use_full_concepts=use_full_concepts,
+        label_generating_fn=label_generating_fn,
     )
     if is_training:
         drop_last = True
@@ -285,6 +351,11 @@ def generate_data(
 ):
     if root_dir is None:
         root_dir = DATASET_DIR
+    label_generating_fn = None
+    if config.get("cancer_binary_label", False):
+        label_generating_fn = lambda x: int(
+            ("clark nevus" in x)
+        )
     seed_everything(seed)
     sampling_percent = config.get("sampling_percent", 1)
     sampling_groups = config.get("sampling_groups", False)
@@ -297,6 +368,7 @@ def generate_data(
         unc_value=config.get('unc_value', 0.5),
         label_key=config.get('label_key', 'diagnosis'),
         use_full_concepts=config.get('use_full_concepts', False),
+        label_generating_fn=label_generating_fn,
     )
     n_concepts = pre_dl.dataset.n_concepts
     concept_group_map = pre_dl.dataset.concept_map.copy()
@@ -385,6 +457,7 @@ def generate_data(
         unc_value=config.get('unc_value', 0.5),
         label_key=config.get('label_key', 'diagnosis'),
         use_full_concepts=config.get('use_full_concepts', False),
+        label_generating_fn=label_generating_fn,
     )
     num_classes = og_train_dl.dataset.num_classes()
     val_size = config.get("val_size", 0.1)
@@ -440,13 +513,14 @@ def generate_data(
         unc_value=config.get('unc_value', 0.5),
         label_key=config.get('label_key', 'diagnosis'),
         use_full_concepts=config.get('use_full_concepts', False),
+        label_generating_fn=label_generating_fn,
     )
 
     # Finally, determine whether or not we will need to compute the imbalance factors
     if config.get('weight_loss', False):
         attribute_count = np.zeros((n_concepts,))
         samples_seen = 0
-        for i, (_, (y, c)) in enumerate(train_dl):
+        for i, (_, y, c) in enumerate(train_dl):
             c = c.cpu().detach().numpy()
             attribute_count += np.sum(c, axis=0)
             samples_seen += c.shape[0]

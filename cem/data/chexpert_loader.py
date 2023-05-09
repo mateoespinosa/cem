@@ -60,7 +60,7 @@ def generate_data(
     def prev_concept_transform(sample):
         if isinstance(sample, list):
             sample = np.array(sample)
-        return np.where(np.logical_or(sample == 1, sample == 0), sample, 0.5)
+        return np.where(np.logical_or(sample == 1, sample == 0), sample, config.get("unk_value", 0.5))
     if sampling_percent != 1:
         # Do the subsampling
         if sampling_groups:
@@ -148,6 +148,7 @@ def generate_data(
         concept_transform=concept_transform,
         path_transform=lambda path: os.path.join(root_dir, path),
         label_transform=lambda x: float(x),
+        is_chexpert=True,
     )
     if not config.get("train_subsampling", 1) in [1, 0, None]:
         percent = config.get("train_subsampling", 1)
@@ -225,6 +226,7 @@ def generate_data(
         concept_transform=concept_transform,
         path_transform=lambda path: os.path.join(root_dir, path),
         label_transform=lambda x: float(x),
+        is_chexpert=True,
     )
     if test_idxs is not None:
         test_dl = torch.utils.data.DataLoader(

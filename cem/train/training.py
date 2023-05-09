@@ -5,6 +5,7 @@ import os
 import pytorch_lightning as pl
 import torch
 import logging
+import time
 
 from pytorch_lightning import seed_everything
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
@@ -689,9 +690,20 @@ def train_model(
                 # Then we simply load the model and proceed
                 print("\tFound cached model... loading it")
                 model.load_state_dict(torch.load(model_saved_path))
+                if os.path.exists(
+                    model_saved_path.replace(".pt", "_training_times.npy")
+                ):
+                    [training_time, num_epochs] = np.load(
+                        model_saved_path.replace(".pt", "_training_times.npy"),
+                    )
+                else:
+                    training_time, num_epochs = 0, 0
             else:
                 # Else it is time to train it
+                start_time = time.time()
                 fit_trainer.fit(model, train_dl, val_dl)
+                num_epochs = fit_trainer.current_epoch
+                training_time = time.time() - start_time
                 config_copy = copy.deepcopy(config)
                 if "c_extractor_arch" in config_copy and (
                     not isinstance(config_copy["c_extractor_arch"], str)
@@ -708,6 +720,10 @@ def train_model(
                     torch.save(
                         model.state_dict(),
                         model_saved_path,
+                    )
+                    np.save(
+                        model_saved_path.replace(".pt", "_training_times.npy"),
+                        np.array([training_time, num_epochs]),
                     )
             # freeze model and compute test accuracy
             if test_dl is not None:
@@ -761,11 +777,14 @@ def train_model(
                     key: val
                     for (key, val) in zip(keys, values)
                 }
+                test_results['training_time'] = training_time
+                test_results['num_epochs'] = num_epochs
                 print(
                     f'c_acc: {test_results["test_acc_c"]*100:.2f}%, '
                     f'y_acc: {test_results["test_acc_y"]*100:.2f}%, '
                     f'c_auc: {test_results["test_auc_c"]*100:.2f}%, '
-                    f'y_auc: {test_results["test_auc_y"]*100:.2f}%'
+                    f'y_auc: {test_results["test_auc_y"]*100:.2f}% with '
+                    f'{num_epochs} epochs in {training_time:.2f} seconds'
                 )
             else:
                 test_results = None
@@ -819,14 +838,30 @@ def train_model(
             # Then we simply load the model and proceed
             print("\tFound cached model... loading it")
             model.load_state_dict(torch.load(model_saved_path))
+            if os.path.exists(
+                model_saved_path.replace(".pt", "_training_times.npy")
+            ):
+                [training_time, num_epochs] = np.load(
+                    model_saved_path.replace(".pt", "_training_times.npy"),
+                )
+            else:
+                training_time, num_epochs = 0, 0
         else:
             # Else it is time to train it
+            start_time = time.time()
             fit_trainer.fit(model, train_dl, val_dl)
+            training_time = time.time() - start_time
+            num_epochs = fit_trainer.current_epoch
             if save_model and (result_dir is not None):
                 torch.save(
                     model.state_dict(),
                     model_saved_path,
                 )
+                np.save(
+                    model_saved_path.replace(".pt", "_training_times.npy"),
+                    np.array([training_time, num_epochs]),
+                )
+
 
         if not os.path.exists(os.path.join(
             result_dir,
@@ -893,11 +928,14 @@ def train_model(
                 key: val
                 for (key, val) in zip(keys, values)
             }
+            test_results['training_time'] = training_time
+            test_results['num_epochs'] = num_epochs
             print(
                 f'c_acc: {test_results["test_acc_c"]*100:.2f}%, '
                 f'y_acc: {test_results["test_acc_y"]*100:.2f}%, '
                 f'c_auc: {test_results["test_auc_c"]*100:.2f}%, '
-                f'y_auc: {test_results["test_auc_y"]*100:.2f}%'
+                f'y_auc: {test_results["test_auc_y"]*100:.2f}% with '
+                f'{num_epochs} epochs in {training_time:.2f} seconds'
             )
         else:
             test_results = None

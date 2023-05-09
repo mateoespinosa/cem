@@ -1,0 +1,87 @@
+trials: 5
+results_dir: results/rollout_ablation_cub_0.25_groups/ #results/rollout_ablation_cub/
+dataset: cub
+num_workers: 8
+batch_size: 1024 # 256
+
+# DATASET VARIABLES
+root_dir: /homes/me466/UncertaintyIntervention/cem/data/CUB200/
+sampling_percent: 1 #0.25
+sampling_groups: True
+test_subsampling: 0.5
+skip_repr_evaluation: True
+
+# Intervention Parameters
+intervention_freq: 1
+intervention_batch_size: 1024
+intervention_policies:
+    # - "intcem_policy"
+    - "group_random"
+    - "group_random_no_prior"
+    # - "group_coop_no_prior"
+    # - "behavioural_cloning_no_prior"
+    # - "group_uncertainty_no_prior"
+    # - "optimal_greedy_no_prior"
+    # - "global_val_error_no_prior"
+    # - "global_val_improvement_no_prior"
+
+
+max_epochs: 150
+shared_params:
+    top_k_accuracy: null
+    save_model: True
+    patience: 15
+    emb_size: 16
+    extra_dims: 0
+    concept_loss_weight: 5
+    learning_rate: 0.01
+    weight_decay: 0.000004
+    weight_loss: True
+    c_extractor_arch: resnet34
+    optimizer: sgd
+    bool: False
+    early_stopping_monitor: val_loss
+    early_stopping_mode: min
+    early_stopping_delta: 0.0
+    momentum: 0.9
+    sigmoidal_prob: False
+    training_intervention_prob: 0.25
+
+runs:
+
+    - architecture: "IntAwareConceptEmbeddingModel"
+      extra_name: "_intervention_weight_{intervention_weight}_rollouts_{num_rollouts}"
+      horizon_binary_representation:  True
+      include_task_trajectory_loss: True
+      include_only_last_trajectory_loss: True
+      average_trajectory: False
+      task_loss_weight: 0
+      use_concept_groups: True
+      embedding_activation: "leakyrelu"
+      tau: 1
+      max_horizon: 28
+      horizon_uniform_distr: True
+      beta_a: 1
+      beta_b: 3
+      use_horizon: False
+      model_pretrain_path: null
+      pretrain_intcem: False
+      intervention_weight: [1] #[5,0.1]
+      initial_horizon: 2
+      include_probs: False
+      use_full_mask_distr: True
+      int_model_use_bn: True
+      int_model_layers: [128,128,64,64]
+      intervention_discount: 1.05
+      horizon_rate: 1
+      intcem_task_loss_weight: 0
+      intervention_task_discount: 1.05
+      intervention_task_loss_weight: 1
+      initialize_discount: True
+      training_intervention_prob: 0.25
+      propagate_target_gradients: True
+      num_rollouts: [1, 10, 20, 30]
+      grid_variables:
+          - intervention_weight
+          - num_rollouts
+      grid_search_mode: exhaustive
