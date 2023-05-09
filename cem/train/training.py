@@ -1524,6 +1524,8 @@ def update_statistics(results, config, model, test_results, save_model=True):
         f'test_acc_c_{full_run_name}': test_results['test_acc_c'],
         f'test_auc_c_{full_run_name}': test_results['test_auc_c'],
         f'test_f1_c_{full_run_name}': test_results['test_f1_c'],
+        f'training_epochs_{full_run_name}': test_results['num_epochs'],
+        f'training_time_{full_run_name}': test_results['training_time'],
     })
     results[f'num_trainable_params_{full_run_name}'] = sum(
         p.numel() for p in model.parameters() if p.requires_grad
