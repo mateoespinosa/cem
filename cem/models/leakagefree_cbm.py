@@ -12,20 +12,29 @@ import numpy as np
 ## HELPER LAYERS AND FUNCTIONS
 ################################################################################
 
+# def reinforce_mean(outcomes, log_probs):
+#     # modified from: https://github.com/dtak/addressing-leakage/blob/main/concept_bottleneck_model.py
+#     # converting from tf -> pytorch 
+
+#     tf.ensure_shape(log_probs, outcomes.shape[:-1])
+
+#     def grad(upstream):
+#         return upstream * tf.ones_like(outcomes) / outcomes.shape[0], tf.reduce_sum(upstream * outcomes, axis=-1) / \
+#             outcomes.shape[0]
+
+#     return tf.reduce_mean(outcomes, axis=0), grad
+
+
 def reinforce_mean(outcomes, log_probs):
     # modified from: https://github.com/dtak/addressing-leakage/blob/main/concept_bottleneck_model.py
-    # First axis assumed to be the sample dimension
-    # Outcomes last axis is predictions
-
-    # todo: convert to torch 
-
-    tf.ensure_shape(log_probs, outcomes.shape[:-1])
+    # converting from tf -> pytorch 
+    assert log_probs.shape == outcomes.shape[:-1]
 
     def grad(upstream):
-        return upstream * tf.ones_like(outcomes) / outcomes.shape[0], tf.reduce_sum(upstream * outcomes, axis=-1) / \
-            outcomes.shape[0]
+        return (upstream * torch.ones_like(outcomes) / outcomes.shape[0],
+                torch.sum(upstream * outcomes, dim=-1) / outcomes.shape[0])
 
-    return tf.reduce_mean(outcomes, axis=0), grad
+    return torch.mean(outcomes, dim=0), grad
 
 
 ################################################################################
@@ -283,8 +292,10 @@ class LeakageFreeConceptModel(ConceptBottleneckModel):
         self.use_concept_groups = use_concept_groups
 
 
-        # KATIE ADDED
+        # ------ KATIE ADDED ----- 
         self.amortization_width = amortization_width
+        self.mc_samples_train = mc_samples_train
+        self.mc_samples_int = mc_samples_int
         if c2z_model is not None: 
             self.c2z_model = c2z_model
         else: 
@@ -307,6 +318,7 @@ class LeakageFreeConceptModel(ConceptBottleneckModel):
         c_pred,
         intervention_idxs=None,
         c_true=None,
+        mc_samples=None # KATIE added
     ):
         if (c_true is None) or (intervention_idxs is None):
             return c_pred
@@ -316,29 +328,41 @@ class LeakageFreeConceptModel(ConceptBottleneckModel):
             batch_size=c_pred.shape[0],
         )
         intervention_idxs = intervention_idxs.to(c_pred.device)
-        if self.sigmoidal_prob:
-            c_pred_copy[intervention_idxs] = c_true[intervention_idxs]
-        else:
-            batched_active_intervention_values =  torch.tile(
-                torch.unsqueeze(self.active_intervention_values, 0),
-                (c_pred.shape[0], 1),
-            ).to(c_true.device)
 
-            batched_inactive_intervention_values =  torch.tile(
-                torch.unsqueeze(self.inactive_intervention_values, 0),
-                (c_pred.shape[0], 1),
-            ).to(c_true.device)
+        # KATIE: todo -- update with autoregressive (need flag for whether train or not, dep on num samples)
+        # todo: check if post-sigmoidal?
+        if mc_samples is not None: 
+            c_pred_copy = None # TODO 
+            for m in range(mc_samples): 
+                w_m = 1
+                # todo: check batch implementation.... single or multi?
+                print("int idx shape: ", intervention_idxs.shape)
+                # for i in range(): 
 
-            c_pred_copy[intervention_idxs] = (
-                (
-                    c_true[intervention_idxs] *
-                    batched_active_intervention_values[intervention_idxs]
-                ) +
-                (
-                    (c_true[intervention_idxs] - 1) *
-                    -batched_inactive_intervention_values[intervention_idxs]
+        else: 
+            if self.sigmoidal_prob:
+                c_pred_copy[intervention_idxs] = c_true[intervention_idxs]
+            else:
+                batched_active_intervention_values =  torch.tile(
+                    torch.unsqueeze(self.active_intervention_values, 0),
+                    (c_pred.shape[0], 1),
+                ).to(c_true.device)
+
+                batched_inactive_intervention_values =  torch.tile(
+                    torch.unsqueeze(self.inactive_intervention_values, 0),
+                    (c_pred.shape[0], 1),
+                ).to(c_true.device)
+
+                c_pred_copy[intervention_idxs] = (
+                    (
+                        c_true[intervention_idxs] *
+                        batched_active_intervention_values[intervention_idxs]
+                    ) +
+                    (
+                        (c_true[intervention_idxs] - 1) *
+                        -batched_inactive_intervention_values[intervention_idxs]
+                    )
                 )
-            )
 
         return c_pred_copy
 
@@ -361,7 +385,6 @@ class LeakageFreeConceptModel(ConceptBottleneckModel):
         output_latent = output_latent if output_latent is not None else self.output_latent
         if latent is None:
             latent = self.x2c_model(x)
-            # here, we assume that latent includes extra dims (i.e., latent concepts)
 
         if self.sigmoidal_prob or self.bool:
             if self.extra_dims:
@@ -386,12 +409,13 @@ class LeakageFreeConceptModel(ConceptBottleneckModel):
             else:
                 c_sem = self.sig(latent)
 
-        # in the leakage free, make sure side concepts are in {0, 1}
+        # KATIE ADDED in the leakage free, make sure side concepts are in {0, 1}
         # e.g. https://github.com/dtak/addressing-leakage/blob/main/concept_bottleneck_model.py#L233
         if self.extra_dims is not None: 
             side_channel = latent[:, -self.extra_dims:]
             print("latent shape: ", latent.shape, "side channel shape: ", side_channel.shape)
             # tf.random.uniform([n_samples] + latent_probs.shape) < latent_probs
+            # TODO: move the below code to the sample function
             side_channel = torch.where(
                     torch.rand([n_samples] + side_channel.shape) < side_channel, 
                     1.,
@@ -497,6 +521,9 @@ class LeakageFreeConceptModel(ConceptBottleneckModel):
                 )
         else:
             c_int = c
+
+
+        # KATIE: to update for autoreg!!!!!! 
         c_pred = self._concept_intervention(
             c_pred=c_pred,
             intervention_idxs=intervention_idxs,
