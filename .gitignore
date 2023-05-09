@@ -1,10 +1,14 @@
 # Byte-compiled / optimized / DLL files
 __pycache__/
 lightning_logs/
+.vscode/
 *.DS_Store/
 *.py[cod]
 *$py.class
 notebooks/
+results/
+figures/
+checkpoints/
 
 # C extensions
 *.so

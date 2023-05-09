@@ -1,38 +1,39 @@
+trials: 5
+results_dir: /local/scratch-2/me466/intervention_experiment_results/chexpert_interventions_quarter_longer/
+dataset: chexpert
+num_workers: 8
+batch_size: 256
+
+# Intervention Parameters
+intervention_freq: 1
+intervention_batch_size: 256
+intervention_policies:
+    - "intcem_policy"
+    - "group_random"
+    - "group_random_no_prior"
+    - "group_coop_no_prior"
+    - "behavioural_cloning_no_prior"
+    - "group_uncertainty_no_prior"
+    - "optimal_greedy_no_prior"
+    - "global_val_error_no_prior"
+    - "global_val_improvement_no_prior"
+
+# DATASET VARIABLES
+root_dir: /anfs/bigdisc/me466/chexpert_small/
+sampling_percent: 1
+test_subsampling: 1
+train_subsampling: 0.2
+rerun_intervention_group_coop_no_prior: True # TODO: CHANGE ME TO FALSE!!!!!!!!!!!!!!!!!!!
+ignore_intervention_global_val_error_no_prior: False #True
+ignore_intervention_global_val_improvement_no_prior: False #True
+ignore_intervention_behavioural_cloning_no_prior: False # True
+no_coop_finetune: False #True
+skip_repr_evaluation: False #True
+use_task_class_weights: True
+check_val_every_n_epoch: 2
+
 shared_params:
-    trials: 5
-    results_dir: /local/scratch-2/me466/intervention_experiment_results/chexpert_interventions_quarter_longer/
-    dataset: "chexpert"
-    num_workers: 8
-    batch_size: 256
-
-    # Intervention Parameters
-    intervention_freq: 1
-    intervention_batch_size: 1024
-    intervention_policies:
-        - "intcem_policy"
-        - "group_random"
-        - "group_random_no_prior"
-        - "group_coop_no_prior"
-        - "behavioural_cloning_no_prior"
-        - "group_uncertainty_no_prior"
-        - "optimal_greedy_no_prior"
-        - "global_val_error_no_prior"
-        - "global_val_improvement_no_prior"
-
-    # DATASET VARIABLES
-    root_dir: /anfs/bigdisc/me466/chexpert_small/
-    sampling_percent: 1
-    test_subsampling: 1
-    train_subsampling: 0.2
-    ignore_intervention_global_val_error_no_prior: True
-    ignore_intervention_global_val_improvement_no_prior: True
-    ignore_intervention_behavioural_cloning_no_prior: False
-    no_coop_finetune: True
-    skip_repr_evaluation: True
-    use_task_class_weights: True
-    check_val_every_n_epoch: 2
     weight_loss: True
-
     max_epochs: 150
     top_k_accuracy: null
     save_model: True
@@ -62,7 +63,7 @@ runs:
       embedding_activation: "leakyrelu"
 
     - architecture: "IntAwareConceptEmbeddingModel"
-      extra_name: "LastOnly_intervention_weight_{intervention_weight}_horizon_rate_{horizon_rate}_intervention_discount_{intervention_discount}__tau_{tau}_max_horizon_{max_horizon}_task_discount_{intervention_task_discount}_uniform_distr_{uniform_distr}_no_horizon"
+      extra_name: "LastOnly_intervention_weight_{intervention_weight}_horizon_rate_{horizon_rate}_intervention_discount_{intervention_discount}_tau_{tau}_max_horizon_{max_horizon}_task_discount_{intervention_task_discount}_uniform_distr_{uniform_distr}_no_horizon"
       horizon_binary_representation:  True
       include_task_trajectory_loss: True
       include_only_last_trajectory_loss: True
@@ -71,7 +72,7 @@ runs:
       use_concept_groups: True
       embedding_activation: "leakyrelu"
       tau: 1
-      max_horizon: 28
+      max_horizon: 13
       uniform_distr: True
       beta_a: 1
       beta_b: 3

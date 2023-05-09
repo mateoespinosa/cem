@@ -687,6 +687,7 @@ def load_data(
     concept_transform=None,
     label_transform=None,
     path_transform=None,
+    is_chexpert=False,
 ):
     """
     Note: Inception needs (299,299,3) images with inputs scaled between -1 and 1
@@ -696,23 +697,32 @@ def load_data(
     resized_resol = int(resol * 256/224)
     is_training = any(['train.pkl' in f for f in pkl_paths])
     if is_training:
-        transform = transforms.Compose([
-            #transforms.Resize((resized_resol, resized_resol)),
-            #transforms.RandomSizedCrop(resol),
-            transforms.ColorJitter(brightness=32/255, saturation=(0.5, 1.5)),
-            transforms.RandomResizedCrop(resol),
-            transforms.RandomHorizontalFlip(),
-            transforms.ToTensor(), #implicitly divides by 255
-            transforms.Normalize(mean = [0.5, 0.5, 0.5], std = [2, 2, 2])
-            #transforms.Normalize(mean = [ 0.485, 0.456, 0.406 ], std = [ 0.229, 0.224, 0.225 ]),
+        if is_chexpert:
+            transform = transforms.Compose([
+                transforms.CenterCrop((320, 320)),
+                transforms.RandomHorizontalFlip(p=0.5),
+                transforms.ColorJitter(0.1),
+                transforms.ToTensor(),
+            ])
+        else:
+            transform = transforms.Compose([
+                transforms.ColorJitter(brightness=32/255, saturation=(0.5, 1.5)),
+                transforms.RandomResizedCrop(resol),
+                transforms.RandomHorizontalFlip(),
+                transforms.ToTensor(), #implicitly divides by 255
+                transforms.Normalize(mean = [0.5, 0.5, 0.5], std = [2, 2, 2])
             ])
     else:
-        transform = transforms.Compose([
-            #transforms.Resize((resized_resol, resized_resol)),
-            transforms.CenterCrop(resol),
-            transforms.ToTensor(), #implicitly divides by 255
-            transforms.Normalize(mean = [0.5, 0.5, 0.5], std = [2, 2, 2])
-            #transforms.Normalize(mean = [ 0.485, 0.456, 0.406 ], std = [ 0.229, 0.224, 0.225 ]),
+        if is_chexpert:
+            transform = transforms.Compose([
+                transforms.CenterCrop((320, 320)),
+                transforms.ToTensor(),
+            ])
+        else:
+            transform = transforms.Compose([
+                transforms.CenterCrop(resol),
+                transforms.ToTensor(), #implicitly divides by 255
+                transforms.Normalize(mean = [0.5, 0.5, 0.5], std = [2, 2, 2])
             ])
 
     dataset = CUBDataset(

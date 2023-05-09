@@ -381,12 +381,22 @@ def concept_purity_matrix(
                         num_classes=concept_label_cardinality[tgt_true_concept],
                     )[:, used_labels]
                     used_preds = used_preds[:, used_labels]
-
-                auc = sklearn.metrics.roc_auc_score(
-                    true_concepts,
-                    used_preds,
-                    multi_class='ovo',
-                )
+                if len(np.unique(true_concepts)) > 1:
+                    auc = sklearn.metrics.roc_auc_score(
+                        true_concepts,
+                        used_preds,
+                        multi_class='ovo',
+                    )
+                else:
+                    if concept_label_cardinality[tgt_true_concept] <= 2:
+                        used_preds = (scipy.special.expit(used_preds) >= 0.5).astype(np.int32)
+                    else:
+                        used_preds = np.argmax(used_preds, axis=-1)
+                        true_concepts = np.argmax(true_concepts, axis=-1)
+                    auc = sklearn.metrics.accuracy_score(
+                        true_concepts,
+                        used_preds,
+                    )
 
                 # Finally, time to populate the actual entry of our resulting
                 # matrix

@@ -1,5 +1,5 @@
 trials: 5
-results_dir: "results/derm_full_concepts_interventions/"
+results_dir: /local/scratch-2/me466/intervention_experiment_results/derm_full_concepts_interventions/
 use_full_concepts: True
 # DATASET VARIABLES
 dataset: "derm"
@@ -25,16 +25,15 @@ intervention_policies:
 
 
 shared_params:
-    top_k_accuracy: [3, 5, 10]
     save_model: True
     max_epochs: 200
     patience: 15
     emb_size: 16
     extra_dims: 0
     concept_loss_weight: 5
-    learning_rate: 0.005
+    learning_rate: 0.01
     weight_decay: 0.000004
-    weight_loss: False
+    weight_loss: True
     c_extractor_arch: resnet34
     optimizer: sgd
     bool: False
