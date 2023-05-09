@@ -2,7 +2,7 @@ trials: 5
 results_dir: results/rollout_ablation_cub_0.25_groups/ #results/rollout_ablation_cub/
 dataset: cub
 num_workers: 8
-batch_size: 1024 # 256
+batch_size: 512 # 256
 
 # DATASET VARIABLES
 root_dir: /homes/me466/UncertaintyIntervention/cem/data/CUB200/
@@ -13,7 +13,7 @@ skip_repr_evaluation: True
 
 # Intervention Parameters
 intervention_freq: 1
-intervention_batch_size: 1024
+intervention_batch_size: 512
 intervention_policies:
     # - "intcem_policy"
     - "group_random"

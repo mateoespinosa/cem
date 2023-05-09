@@ -47,7 +47,7 @@ runs:
       horizon_binary_representation:  True
       include_task_trajectory_loss: True
       include_only_last_trajectory_loss: True
-      average_trajectory: True
+      average_trajectory: False
       task_loss_weight: 0
       use_concept_groups: True
       embedding_activation: "leakyrelu"
