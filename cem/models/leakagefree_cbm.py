@@ -312,6 +312,9 @@ class LeakageFreeConceptModel(ConceptBottleneckModel):
             #                                                 activation='relu'))
             # self.amortization_predictor.add(tf.keras.layers.Dense(self.n_latent_concepts,
             #                                                         activation='sigmoid')
+        # todo -- add autoreg model
+        # from: https://proceedings.neurips.cc/paper_files/paper/2022/file/944ecf65a46feb578a43abfd5cddd960-Supplemental-Conference.pdf
+        # add params to opt
 
     def _concept_intervention(
         self,
@@ -422,7 +425,7 @@ class LeakageFreeConceptModel(ConceptBottleneckModel):
                     0.,
                 )
 
-
+        # KATIE: todo -- make sure this isn't called 
         if output_embeddings or (
             (intervention_idxs is None) and (c is not None) and (
             self.intervention_policy is not None
@@ -455,7 +458,10 @@ class LeakageFreeConceptModel(ConceptBottleneckModel):
                         )
             pos_embeddings = torch.unsqueeze(pos_embeddings, dim=-1)
             neg_embeddings = torch.unsqueeze(neg_embeddings, dim=-1)
+
+
         # Now include any interventions that we may want to include
+        # KATIE: to confirm that intervention indices are still chosen randomly in leak-free model
         if (intervention_idxs is None) and (c is not None) and (
             self.intervention_policy is not None
         ):
