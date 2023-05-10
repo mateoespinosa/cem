@@ -176,6 +176,8 @@ def construct_model(
             "include_probs": config.get("include_probs", False),
             "propagate_target_gradients": config.get("propagate_target_gradients", False),
             "num_rollouts": config.get("num_rollouts", 1),
+            "max_num_rollouts": config.get("max_num_rollouts", None),
+            "rollout_aneal_rate": config.get("rollout_aneal_rate", 1),
             "legacy_mode": config.get("legacy_mode", False),
             "include_certainty": config.get("include_certainty", True),
         }
@@ -218,6 +220,8 @@ def construct_model(
             "include_probs": config.get("include_probs", False),
             "propagate_target_gradients": config.get("propagate_target_gradients", False),
             "num_rollouts": config.get("num_rollouts", 1),
+            "max_num_rollouts": config.get("max_num_rollouts", None),
+            "rollout_aneal_rate": config.get("rollout_aneal_rate", 1),
             "legacy_mode": config.get("legacy_mode", False),
             "include_certainty": config.get("include_certainty", True),
         }
@@ -967,6 +971,8 @@ def train_independent_and_sequential_model(
 ):
     if seed is not None:
         seed_everything(seed)
+    num_epochs = 0
+    training_time = 0
 
     extr_name = config['c_extractor_arch']
     if not isinstance(extr_name, str):
@@ -1156,6 +1162,14 @@ def train_independent_and_sequential_model(
                 c2y_model=ind_c2y_model,
             )
             ind_model.load_state_dict(torch.load(ind_model_saved_path))
+            if os.path.exists(
+                ind_model_saved_path.replace(".pt", "_training_times.npy")
+            ):
+                [ind_training_time, ind_num_epochs] = np.load(
+                    ind_model_saved_path.replace(".pt", "_training_times.npy")
+                )
+            else:
+                ind_training_time, ind_num_epochs = 0, 0
 
             seq_model = construct_model(
                 n_concepts=n_concepts,
@@ -1167,10 +1181,21 @@ def train_independent_and_sequential_model(
                 c2y_model=seq_c2y_model,
             )
             seq_model.load_state_dict(torch.load(seq_model_saved_path))
+            if os.path.exists(
+                seq_model_saved_path.replace(".pt", "_training_times.npy")
+            ):
+                [seq_training_time, seq_num_epochs] = np.load(
+                    seq_model_saved_path.replace(".pt", "_training_times.npy")
+                )
+            else:
+                seq_training_time, seq_num_epochs = 0, 0
         else:
             # First train the input to concept model
             print("[Training input to concept model]")
+            start_time = time.time()
             x2c_trainer.fit(model, train_dl, val_dl)
+            training_time += time.time() - start_time
+            num_epochs += x2c_trainer.current_epoch
             if val_dl is not None:
                 print(
                     "Validation results for x2c model:",
@@ -1298,11 +1323,14 @@ def train_independent_and_sequential_model(
                     ) if project_name and (rerun or (not chpt_exists)) else False)
                 ),
             )
+            start_time = time.time()
             ind_c2y_trainer.fit(
                 ind_c2y_model,
                 ind_c2y_train_dl,
                 ind_c2y_val_dl,
             )
+            ind_training_time = training_time + time.time() - start_time
+            ind_num_epochs = num_epochs + ind_c2y_trainer.current_epoch
             if ind_c2y_val_dl is not None:
                 print(
                     "Independent validation results for c2y model:",
@@ -1340,11 +1368,14 @@ def train_independent_and_sequential_model(
                     ) if project_name and (rerun or (not chpt_exists)) else False)
                 ),
             )
+            start_time = time.time()
             seq_c2y_trainer.fit(
                 seq_c2y_model,
                 seq_c2y_train_dl,
                 seq_c2y_val_dl,
             )
+            seq_training_time = training_time + time.time() - start_time
+            seq_num_epochs = num_epochs + seq_c2y_trainer.current_epoch
             if seq_c2y_val_dl is not None:
                 print(
                     "Sequential validation results for c2y model:",
@@ -1387,6 +1418,10 @@ def train_independent_and_sequential_model(
                     ind_model.state_dict(),
                     ind_model_saved_path,
                 )
+                np.save(
+                    ind_model_saved_path.replace(".pt", "_training_times.npy"),
+                    np.array([ind_training_time, ind_num_epochs]),
+                )
             seq_model = construct_model(
                 n_concepts=n_concepts,
                 n_tasks=n_tasks,
@@ -1400,6 +1435,10 @@ def train_independent_and_sequential_model(
                 torch.save(
                     seq_model.state_dict(),
                     seq_model_saved_path,
+                )
+                np.save(
+                    seq_model_saved_path.replace(".pt", "_training_times.npy"),
+                    np.array([seq_training_time, seq_num_epochs]),
                 )
 
     if test_dl is not None:
@@ -1468,11 +1507,14 @@ def train_independent_and_sequential_model(
             key: val
             for (key, val) in zip(keys, values)
         }
+        ind_test_results['training_time'] = ind_training_time
+        ind_test_results['num_epochs'] = ind_num_epochs
         print(
             f'Independent c_acc: {ind_test_results["test_acc_c"] * 100:.2f}%, '
             f'Independent y_acc: {ind_test_results["test_acc_y"] * 100:.2f}%, '
             f'Independent c_auc: {ind_test_results["test_auc_c"] * 100:.2f}%, '
-            f'Independent y_auc: {ind_test_results["test_auc_y"] * 100:.2f}%'
+            f'Independent y_auc: {ind_test_results["test_auc_y"] * 100:.2f}% with '
+            f'{ind_num_epochs} epochs in {ind_training_time:.2f} seconds'
         )
 
 
@@ -1503,11 +1545,14 @@ def train_independent_and_sequential_model(
             key: val
             for (key, val) in zip(keys, values)
         }
+        seq_test_results['training_time'] = seq_training_time
+        seq_test_results['num_epochs'] = seq_num_epochs
         print(
             f'Sequential c_acc: {seq_test_results["test_acc_c"] * 100:.2f}%, '
             f'Sequential y_acc: {seq_test_results["test_acc_y"] * 100:.2f}%, '
             f'Sequential c_auc: {seq_test_results["test_auc_c"] * 100:.2f}%, '
-            f'Sequential y_auc: {seq_test_results["test_auc_y"] * 100:.2f}%'
+            f'Sequential y_auc: {seq_test_results["test_auc_y"] * 100:.2f}% with '
+            f'{seq_num_epochs} epochs in {seq_training_time:.2f} seconds'
         )
     else:
         ind_test_results = None

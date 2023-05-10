@@ -738,7 +738,7 @@ if __name__ == '__main__':
     main(
         data_module=data_module,
         rerun=args.rerun,
-        result_dir=args.output_dir,
+        result_dir=args.output_dir if args.output_dir else loaded_config['results_dir'],
         project_name=args.project_name,
         num_workers=args.num_workers,
         global_params=args.param,

@@ -829,16 +829,17 @@ class ConceptBottleneckModel(pl.LightningModule):
                 prog_bar = (
                     ("auc" in name) or
                     ("mask_accuracy" in name) or
-                    ("horizon_limit" in name) or
-                    ("current_steps" in name)
+                    ("current_steps" in name) or
+                    ("num_rollouts" in name)
                 )
             else:
                 prog_bar = (
                     ("c_auc" in name) or
                     ("y_accuracy" in name) or
                     ("mask_accuracy" in name) or
-                    ("horizon_limit" in name) or
-                    ("current_steps" in name)
+                    ("current_steps" in name) or
+                    ("num_rollouts" in name)
+
                 )
             self.log(name, val, prog_bar=prog_bar)
         return {

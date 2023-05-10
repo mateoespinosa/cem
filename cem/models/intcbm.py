@@ -68,12 +68,16 @@ class IntAwareConceptBottleneckModel(ConceptBottleneckModel):
         propagate_target_gradients=False,
         top_k_accuracy=None,
         num_rollouts=1,
+        max_num_rollouts=None,
+        rollout_aneal_rate=1,
         legacy_mode=False,
 
         gpu=int(torch.cuda.is_available()),
     ):
         self.legacy_mode = legacy_mode
         self.num_rollouts = num_rollouts
+        self.rollout_aneal_rate = rollout_aneal_rate
+        self.max_num_rollouts = max_num_rollouts
         self.propagate_target_gradients = propagate_target_gradients
         self.initialize_discount = initialize_discount
         self.use_horizon = use_horizon
@@ -149,6 +153,11 @@ class IntAwareConceptBottleneckModel(ConceptBottleneckModel):
                 torch.IntTensor([0]),
                 requires_grad=False,
             )
+            if self.rollout_aneal_rate != 1:
+                self.current_aneal_rate = torch.nn.Parameter(
+                    torch.FloatTensor([1]),
+                    requires_grad=False,
+                )
         self.rollout_init_steps = rollout_init_steps
         self.tau = tau
         self.intervention_weight = intervention_weight
@@ -345,7 +354,6 @@ class IntAwareConceptBottleneckModel(ConceptBottleneckModel):
         else:
             c_used = c
         if (
-            (self.intervention_weight != 0) and
             train and
             (intervention_idxs is None)
         ):
@@ -504,7 +512,16 @@ class IntAwareConceptBottleneckModel(ConceptBottleneckModel):
                 (self.current_steps.detach().cpu().numpy()[0] < self.rollout_init_steps)
             ):
                 current_horizon = 0
-            for _ in range(self.num_rollouts):
+            if self.rollout_aneal_rate != 1:
+                num_rollouts = int(round(
+                    self.num_rollouts * (self.current_aneal_rate.detach().cpu().numpy()[0])
+                ))
+            else:
+                num_rollouts = self.num_rollouts
+            if self.max_num_rollouts is not None:
+                num_rollouts = min(num_rollouts, self.max_num_rollouts)
+            # print("num_rollouts = ", num_rollouts)
+            for _ in range(num_rollouts):
                 for i in range(current_horizon):
                     # And generate a probability distribution over previously unseen
                     # concepts to indicate which one we should intervene on next!
@@ -622,12 +639,20 @@ class IntAwareConceptBottleneckModel(ConceptBottleneckModel):
 
                     # Sample the next concepts we will intervene on using a hard
                     # Gumbel softmax
-                    selected_groups = torch.nn.functional.gumbel_softmax(
-                        concept_group_scores,
-                        dim=-1,
-                        hard=True,
-                        tau=self.tau,
-                    )
+                    if self.intervention_weight == 0:
+                        selected_groups = torch.FloatTensor(
+                            np.eye(concept_group_scores.shape[-1])[np.random.choice(
+                                concept_group_scores.shape[-1],
+                                size=concept_group_scores.shape[0]
+                            )]
+                        ).to(concept_group_scores.device)
+                    else:
+                        selected_groups = torch.nn.functional.gumbel_softmax(
+                            concept_group_scores,
+                            dim=-1,
+                            hard=True,
+                            tau=self.tau,
+                        )
                     # print("\tselected_groups[0] = ", selected_groups[0])
                     # print("\tselected_groups.grad_fn = ", selected_groups.grad_fn)
                     if self.use_concept_groups:
@@ -675,15 +700,19 @@ class IntAwareConceptBottleneckModel(ConceptBottleneckModel):
                     self.horizon_limit *= self.horizon_rate
 
             intervention_loss_scalar = self.intervention_weight * intervention_loss
-            intervention_loss = intervention_loss/self.num_rollouts
-            intervention_task_loss = intervention_task_loss/self.num_rollouts
-            int_mask_accuracy = int_mask_accuracy/self.num_rollouts
+            intervention_loss = intervention_loss/num_rollouts
+            intervention_task_loss = intervention_task_loss/num_rollouts
+            int_mask_accuracy = int_mask_accuracy/num_rollouts
         else:
             intervention_loss = 0.0
             intervention_loss_scalar = 0.0
 
         if not self.legacy_mode:
             self.current_steps += 1
+            if self.rollout_aneal_rate != 1 and (
+                self.current_aneal_rate.detach().cpu().numpy()[0] < 100
+            ):
+                self.current_aneal_rate *= self.rollout_aneal_rate
 
         if self.include_task_trajectory_loss and (self.intervention_task_loss_weight != 0):
             if isinstance(intervention_task_loss, float):
@@ -757,6 +786,13 @@ class IntAwareConceptBottleneckModel(ConceptBottleneckModel):
         }
         if not self.legacy_mode:
             result["current_steps"] = self.current_steps.detach().cpu().numpy()[0]
+            if self.rollout_aneal_rate != 1:
+                num_rollouts = int(round(
+                    self.num_rollouts * (self.current_aneal_rate.detach().cpu().numpy()[0])
+                ))
+                if self.max_num_rollouts is not None:
+                    num_rollouts = min(num_rollouts, self.max_num_rollouts)
+                result["num_rollouts"] = num_rollouts
 
         if self.top_k_accuracy is not None:
             y_true = y.reshape(-1).cpu().detach()
@@ -832,12 +868,16 @@ class IntAwareConceptEmbeddingModel(
         initialize_discount=False,
         propagate_target_gradients=False,
         num_rollouts=1,
+        max_num_rollouts=None,
+        rollout_aneal_rate=1,
         legacy_mode=False,
 
         gpu=int(torch.cuda.is_available()),
     ):
         self.legacy_mode = legacy_mode
         self.num_rollouts = num_rollouts
+        self.rollout_aneal_rate = rollout_aneal_rate
+        self.max_num_rollouts = max_num_rollouts
         self.propagate_target_gradients = propagate_target_gradients
         self.initialize_discount = initialize_discount
         self.use_full_mask_distr = use_full_mask_distr
@@ -952,11 +992,16 @@ class IntAwareConceptEmbeddingModel(
             torch.FloatTensor([initial_horizon]),
             requires_grad=False,
         )
-        if not legacy_mode:
+        if not self.legacy_mode:
             self.current_steps = torch.nn.Parameter(
                 torch.IntTensor([0]),
                 requires_grad=False,
             )
+            if self.rollout_aneal_rate != 1:
+                self.current_aneal_rate = torch.nn.Parameter(
+                    torch.FloatTensor([1]),
+                    requires_grad=False,
+                )
         self.rollout_init_steps = rollout_init_steps
         self.tau = tau
         self.intervention_weight = intervention_weight

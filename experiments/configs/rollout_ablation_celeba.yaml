@@ -23,6 +23,12 @@ intervention_batch_size: 1024
 intervention_policies:
     - "group_random"
     - "group_random_no_prior"
+    - "group_coop_no_prior"
+    - "behavioural_cloning_no_prior"
+    - "group_uncertainty_no_prior"
+    - "optimal_greedy_no_prior"
+    - "global_val_error_no_prior"
+    - "global_val_improvement_no_prior"
 
 shared_params:
     top_k_accuracy: [3, 5, 10]
@@ -77,7 +83,7 @@ runs:
       initialize_discount: True
       training_intervention_prob: 0.25
       propagate_target_gradients: True
-      num_rollouts: [1, 10, 20, 30]
+      num_rollouts: [1, 5, 10, 15]
       grid_variables:
           - intervention_weight
           - num_rollouts
