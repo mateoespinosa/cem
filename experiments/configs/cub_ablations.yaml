@@ -1,5 +1,5 @@
 trials: 3
-results_dir: /local/scratch-2/me466/intervention_experiment_results/discount_ablation_cub/
+results_dir: results/cub_all_ablations/
 dataset: cub
 num_workers: 8
 batch_size: 256
