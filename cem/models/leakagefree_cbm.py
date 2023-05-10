@@ -332,40 +332,29 @@ class LeakageFreeConceptModel(ConceptBottleneckModel):
         )
         intervention_idxs = intervention_idxs.to(c_pred.device)
 
-        # KATIE: todo -- update with autoregressive (need flag for whether train or not, dep on num samples)
-        # todo: check if post-sigmoidal?
-        if mc_samples is not None: 
-            c_pred_copy = None # TODO 
-            for m in range(mc_samples): 
-                w_m = 1
-                # todo: check batch implementation.... single or multi?
-                print("int idx shape: ", intervention_idxs.shape)
-                # for i in range(): 
+        if self.sigmoidal_prob:
+            c_pred_copy[intervention_idxs] = c_true[intervention_idxs]
+        else:
+            batched_active_intervention_values =  torch.tile(
+                torch.unsqueeze(self.active_intervention_values, 0),
+                (c_pred.shape[0], 1),
+            ).to(c_true.device)
 
-        else: 
-            if self.sigmoidal_prob:
-                c_pred_copy[intervention_idxs] = c_true[intervention_idxs]
-            else:
-                batched_active_intervention_values =  torch.tile(
-                    torch.unsqueeze(self.active_intervention_values, 0),
-                    (c_pred.shape[0], 1),
-                ).to(c_true.device)
+            batched_inactive_intervention_values =  torch.tile(
+                torch.unsqueeze(self.inactive_intervention_values, 0),
+                (c_pred.shape[0], 1),
+            ).to(c_true.device)
 
-                batched_inactive_intervention_values =  torch.tile(
-                    torch.unsqueeze(self.inactive_intervention_values, 0),
-                    (c_pred.shape[0], 1),
-                ).to(c_true.device)
-
-                c_pred_copy[intervention_idxs] = (
-                    (
-                        c_true[intervention_idxs] *
-                        batched_active_intervention_values[intervention_idxs]
-                    ) +
-                    (
-                        (c_true[intervention_idxs] - 1) *
-                        -batched_inactive_intervention_values[intervention_idxs]
-                    )
+            c_pred_copy[intervention_idxs] = (
+                (
+                    c_true[intervention_idxs] *
+                    batched_active_intervention_values[intervention_idxs]
+                ) +
+                (
+                    (c_true[intervention_idxs] - 1) *
+                    -batched_inactive_intervention_values[intervention_idxs]
                 )
+            )
 
         return c_pred_copy
 
@@ -529,12 +518,58 @@ class LeakageFreeConceptModel(ConceptBottleneckModel):
             c_int = c
 
 
-        # KATIE: to update for autoreg!!!!!! 
-        c_pred = self._concept_intervention(
-            c_pred=c_pred,
-            intervention_idxs=intervention_idxs,
-            c_true=c_int,
-        )
+        # # KATIE: to update for autoreg!!!!!! 
+        # c_pred = self._concept_intervention(
+        #     c_pred=c_pred,
+        #     intervention_idxs=intervention_idxs,
+        #     c_true=c_int,
+        # )
+
+        # KATIE: todo -- update with autoregressive (need flag for whether train or not, dep on num samples)
+        # todo: check if post-sigmoidal?
+        # implementing pseudo-code alg from https://proceedings.neurips.cc/paper_files/paper/2022/file/944ecf65a46feb578a43abfd5cddd960-Supplemental-Conference.pdf
+        if not ((c_true is None) or (intervention_idxs is None)) and self.autoreg: 
+            batch_size, concepts = intervention_idxs.shape
+            
+            if train: n_mc_samples = self.mc_samples_train
+            else: n_mc_samples = self.mc_samples_int
+
+            w_mc = torch.ones([n_mc_samples,batch_size])
+            # [mc_samples, B, concept_dims?]
+            c_mc = torch.zeros([n_mc_samples, c_true.shape[0]])#, c_pred_copy.shape[1]]) # clean up size
+            
+            for m in range(n_mc_samples):
+                # todo: check batch implementation.... single or multi? [B, n_concepts] where each is binary int/non-int
+                print("int idx shape: ", intervention_idxs.shape)
+                # TODO: what is the order or sample looping? could change autoreg output??
+                for k in range(n_concepts): 
+                    # if intervening on concept, keep concept and update weight
+                    # otherwise, sample concept 
+
+                    # NOTE: for now, loop over batches, to check logic, but make cleaner!! 
+                    for b in range(batch_size):
+                        if intervention_idxs[b, i]: 
+                            # score current concept? using what we have so far? check
+                            w_mc[m, b] = w_mc[m, b] * self.autoreg_model(x, c_mc)
+                            c_mc[m, b, k] = c_int[b]
+                        else: 
+                            # sample 
+                            c_mc[m, b, k] = self.sample_autoreg(x, c_mc, k, b)
+
+        else: 
+            c_pred = self._concept_intervention(
+                c_pred=c_pred,
+                intervention_idxs=intervention_idxs,
+                c_true=c_int,
+                )   
+
+
+
+            
+        
+        c_pred_copy = torch.sum(w_mc ) / torch.sum() # TODO
+
+
         if self.bool or threshold_concepts:
             y = self.c2y_model((c_pred > 0.5).float())
         else:
