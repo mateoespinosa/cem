@@ -178,6 +178,8 @@ def construct_model(
             "num_rollouts": config.get("num_rollouts", 1),
             "max_num_rollouts": config.get("max_num_rollouts", None),
             "rollout_aneal_rate": config.get("rollout_aneal_rate", 1),
+            "backprop_masks": config.get("backprop_masks", True),
+            "hard_intervention": config.get("hard_intervention", True),
             "legacy_mode": config.get("legacy_mode", False),
             "include_certainty": config.get("include_certainty", True),
         }
@@ -222,6 +224,8 @@ def construct_model(
             "num_rollouts": config.get("num_rollouts", 1),
             "max_num_rollouts": config.get("max_num_rollouts", None),
             "rollout_aneal_rate": config.get("rollout_aneal_rate", 1),
+            "backprop_masks": config.get("backprop_masks", True),
+            "hard_intervention": config.get("hard_intervention", True),
             "legacy_mode": config.get("legacy_mode", False),
             "include_certainty": config.get("include_certainty", True),
         }
@@ -959,7 +963,7 @@ def train_independent_and_sequential_model(
     task_class_weights=None,
     rerun=False,
     logger=False,
-    project_name='cub_concept_training',
+    project_name='',
     seed=None,
     save_model=True,
     activation_freq=0,

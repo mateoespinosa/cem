@@ -14,6 +14,7 @@ label_dataset_subsample: 12
 num_hidden_concepts: 2
 selected_concepts: False
 num_workers: 8
+competence_levels: [1, 0]
 
 # Intervention Parameters
 intervention_freq: 1
@@ -121,6 +122,7 @@ runs:
       horizon_rate: 1.005
       intervention_discount: 1
       legacy_mode: False # Diff True
+      gradient_clip_val: 50  # DIFF from last ones too!! Before no gradient clipping was done
       grid_variables:
           - intervention_task_discount
           - intervention_weight
@@ -143,7 +145,7 @@ runs:
       use_horizon: False
       model_pretrain_path: null
       pretrain_intcem: False
-      intervention_weight: [0, 0.1, 1, 5]
+      intervention_weight: [0.1, 1, 5] #[0, 0.1, 1, 5]
       initial_horizon: 2
       include_probs: False
       use_full_mask_distr: True
@@ -157,7 +159,7 @@ runs:
       initialize_discount: True
       training_intervention_prob: 0.25
       propagate_target_gradients: True
-      num_rollouts: [1, 10]
+      num_rollouts: [1] #[1, 10]
       use_rollouts_random: True
       grid_variables:
           - intervention_weight

@@ -117,6 +117,69 @@ def _default_competence_generator(
 ## MAIN INTERVENTION FUNCTION
 ################################################################################
 
+def adversarial_intervene_in_cbm(
+    config,
+    test_dl,
+    n_tasks,
+    n_concepts,
+    result_dir,
+    imbalance=None,
+    task_class_weights=None,
+    train_dl=None,
+    sequential=False,
+    independent=False,
+    concept_group_map=None,
+    intervened_groups=None,
+    gpu=int(torch.cuda.is_available()),
+    split=0,
+    concept_selection_policy=IndependentRandomMaskIntPolicy,
+    rerun=False,
+    batch_size=None,
+    policy_params=None,
+    key_name="",
+    test_subsampling=1,
+    x_test=None,
+    y_test=None,
+    c_test=None,
+    seed=None,
+    budgeted=False,
+):
+    def competence_generator(
+        x,
+        y,
+        c,
+        concept_group_map,
+    ):
+        return np.zeros(c.shape)
+    return intervene_in_cbm(
+        config=config,
+        test_dl=test_dl,
+        n_tasks=n_tasks,
+        n_concepts=n_concepts,
+        result_dir=result_dir,
+        imbalance=imbalance,
+        task_class_weights=task_class_weights,
+        competence_generator=competence_generator,
+        train_dl=train_dl,
+        sequential=sequential,
+        independent=independent,
+        concept_group_map=concept_group_map,
+        intervened_groups=intervened_groups,
+        gpu=gpu,
+        split=split,
+        concept_selection_policy=concept_selection_policy,
+        rerun=rerun,
+        batch_size=batch_size,
+        policy_params=policy_params,
+        key_name=key_name,
+        test_subsampling=test_subsampling,
+        x_test=x_test,
+        y_test=y_test,
+        c_test=c_test,
+        seed=seed,
+        budgeted=budgeted,
+    )
+
 def intervene_in_cbm(
     config,
     test_dl,
@@ -337,7 +400,7 @@ def intervene_in_cbm(
         )
         if n_tasks > 1:
             acc = np.mean(y_pred == y_test.detach().cpu().numpy())
-            print(
+            logging.debug(
                 f"\tTest accuracy when intervening with {num_groups_intervened} "
                 f"concept groups is {acc * 100:.2f}%."
             )
@@ -369,7 +432,7 @@ def intervene_in_cbm(
             #     f"is {np.mean(y_pred == y_test.detach().cpu().numpy()) * 100:.2f}% "
             #     f"and full dataset AUC is {full_auc*100:.2f}%)."
             # )
-            print(
+            logging.debug(
                 f"\tTest AUC when intervening with {num_groups_intervened} "
                 f"concept groups is {acc * 100:.2f}% (accuracy "
                 f"is {np.mean(y_pred == y_test.detach().cpu().numpy()) * 100:.2f}%)."
@@ -1281,8 +1344,11 @@ def test_interventions(
                     )
                 return batch_concept_level_competencies
             return np.ones(c.shape) * competence_level
-
-        for policy in used_policies:
+        if competence_level == 1:
+            currently_used_policies = used_policies
+        else:
+            currently_used_policies = config.get('incompetence_intervention_policies', used_policies)
+        for policy in currently_used_policies:
             if os.environ.get(f"IGNORE_INTERVENTION_{policy.upper()}", "0") == "1":
                 continue
             if "optimal_global" in policy:
@@ -1323,9 +1389,9 @@ def test_interventions(
                 int_time_key = f'avg_int_time_{policy}_ints_{full_run_name}'
                 construction_times_key = f'construction_time_{policy}_ints_{full_run_name}'
             else:
-                key = f'test_acc_y_{policy}_ints_competence_{competence_level}_{full_run_name}'
-                int_time_key = f'avg_int_time_{policy}_ints_competence_{competence_level}_{full_run_name}'
-                construction_times_key = f'construction_time_{policy}_ints_competence_{competence_level}_{full_run_name}'
+                key = f'test_acc_y_{policy}_ints_co_{competence_level}_{full_run_name}'
+                int_time_key = f'avg_int_time_{policy}_ints_co_{competence_level}_{full_run_name}'
+                construction_times_key = f'construction_time_{policy}_ints_co_{competence_level}_{full_run_name}'
 
             (int_results, avg_time, constr_time), loaded = cem_train.load_call(
                 function=intervene_in_cbm,
@@ -1365,19 +1431,18 @@ def test_interventions(
             results[int_time_key] = avg_time
             results[construction_times_key] = constr_time
             if loaded:
-                print("int results", int_results)
                 if avg_time:
                     extra = f" (avg int time is {avg_time:.5f}s and construction time is {constr_time:.5f}s)"
                 else:
                     extra = ""
                 for num_groups_intervened, val in enumerate(int_results):
                     if n_tasks > 1:
-                        print(
+                        logging.debug(
                             f"\t\tTest accuracy when intervening with {num_groups_intervened} "
                             f"concept groups is {val * 100:.2f}%{extra}."
                         )
                     else:
-                        print(
+                        logging.debug(
                             f"\t\tTest AUC when intervening with {num_groups_intervened} "
                             f"concept groups is {val * 100:.2f}%{extra}."
                         )
@@ -1398,9 +1463,9 @@ def test_interventions(
                         int_time_key = f'avg_int_time_{policy}_budgeted_{budget_limit}_ints_{full_run_name}'
                         construction_times_key = f'construction_time_{policy}_budgeted_{budget_limit}_ints_{full_run_name}'
                     else:
-                        key = f'test_acc_y_{policy}_budgeted_{budget_limit}_ints_competence_{competence_level}_{full_run_name}'
-                        int_time_key = f'avg_int_time_{policy}_budgeted_i{budget_limit}_nts_competence_{competence_level}_{full_run_name}'
-                        construction_times_key = f'construction_time_{policy}_budgeted_{budget_limit}_ints_competence_{competence_level}_{full_run_name}'
+                        key = f'test_acc_y_{policy}_budgeted_{budget_limit}_ints_co_{competence_level}_{full_run_name}'
+                        int_time_key = f'avg_int_time_{policy}_budgeted_i{budget_limit}_nts_co_{competence_level}_{full_run_name}'
+                        construction_times_key = f'construction_time_{policy}_budgeted_{budget_limit}_ints_co_{competence_level}_{full_run_name}'
 
                     current_budget_intervened_groups = list(range(0, budget_limit + 1, 1))
                     (int_results, avg_time, constr_time), loaded = cem_train.load_call(
@@ -1447,7 +1512,7 @@ def test_interventions(
                         else:
                             extra = ""
                         for num_groups_intervened, val in enumerate(int_results):
-                            print(
+                            logging.debug(
                                 f"\t\tTest accuracy when intervening, using explicit BUDGET {budget_limit}, with {num_groups_intervened} "
                                 f"concept groups is {val * 100:.2f}%{extra}."
                             )

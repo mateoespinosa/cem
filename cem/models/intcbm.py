@@ -70,13 +70,17 @@ class IntAwareConceptBottleneckModel(ConceptBottleneckModel):
         num_rollouts=1,
         max_num_rollouts=None,
         rollout_aneal_rate=1,
+        backprop_masks=True,
         legacy_mode=False,
+        hard_intervention=True,
 
         gpu=int(torch.cuda.is_available()),
     ):
+        self.hard_intervention = hard_intervention
         self.legacy_mode = legacy_mode
         self.num_rollouts = num_rollouts
         self.rollout_aneal_rate = rollout_aneal_rate
+        self.backprop_masks = backprop_masks
         self.max_num_rollouts = max_num_rollouts
         self.propagate_target_gradients = propagate_target_gradients
         self.initialize_discount = initialize_discount
@@ -620,6 +624,9 @@ class IntAwareConceptBottleneckModel(ConceptBottleneckModel):
                         concept_group_scores,
                         target_int_labels,
                     )
+                    if not self.backprop_masks:
+                        # Then block the gradient into the masks
+                        concept_group_scores = concept_group_scores.detach()
                     # print("\tnew_loss = ", new_loss)
                     # print("\tnew_loss.grad_fn = ", new_loss.grad_fn)
                     # print("\t\tFor rollout", i + 1, "the unadjusted intervention loss is", new_loss, "and accuracy is", curr_acc)
@@ -650,7 +657,7 @@ class IntAwareConceptBottleneckModel(ConceptBottleneckModel):
                         selected_groups = torch.nn.functional.gumbel_softmax(
                             concept_group_scores,
                             dim=-1,
-                            hard=True,
+                            hard=self.hard_intervention,
                             tau=self.tau,
                         )
                     # print("\tselected_groups[0] = ", selected_groups[0])
@@ -870,12 +877,16 @@ class IntAwareConceptEmbeddingModel(
         num_rollouts=1,
         max_num_rollouts=None,
         rollout_aneal_rate=1,
+        backprop_masks=True,
         legacy_mode=False,
+        hard_intervention=True,
 
         gpu=int(torch.cuda.is_available()),
     ):
+        self.hard_intervention = hard_intervention
         self.legacy_mode = legacy_mode
         self.num_rollouts = num_rollouts
+        self.backprop_masks = backprop_masks
         self.rollout_aneal_rate = rollout_aneal_rate
         self.max_num_rollouts = max_num_rollouts
         self.propagate_target_gradients = propagate_target_gradients

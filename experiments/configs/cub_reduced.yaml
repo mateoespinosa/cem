@@ -9,7 +9,11 @@ root_dir: /homes/me466/UncertaintyIntervention/cem/data/CUB200/
 sampling_percent: 0.25
 sampling_groups: True
 test_subsampling: 0.5
-
+competence_levels: [1, 0]
+incompetence_intervention_policies:
+    - "group_random"
+    - "group_random_no_prior"
+    - "group_coop_no_prior"
 
 # Intervention Parameters
 intervention_freq: 1
@@ -168,6 +172,17 @@ runs:
       extra_dims: 0
       sigmoidal_extra_capacity: False
       sigmoidal_prob: True
+
+    - architecture: "ConceptBottleneckModel"
+      extra_name: "Sigmoid_concept_loss_weight_1"
+      sigmoidal_embedding: False
+      concat_prob: False
+      embedding_activation: "leakyrelu"
+      bool: False
+      extra_dims: 0
+      sigmoidal_extra_capacity: False
+      sigmoidal_prob: True
+      concept_loss_weight: 1 # DIFF AS OTHERWISE IT IS TOO UNSTABLE!!!!!!!!
 
     - architecture: 'ConceptBottleneckModel'
       extra_name: "Logit"

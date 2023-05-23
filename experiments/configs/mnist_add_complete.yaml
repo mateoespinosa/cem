@@ -79,6 +79,7 @@ runs:
       sigmoidal_extra_capacity: False
       sigmoidal_prob: True
 
+
     - architecture: 'ConceptBottleneckModel'
       extra_name: "Logit_long"
       sigmoidal_embedding: False

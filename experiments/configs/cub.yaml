@@ -24,6 +24,12 @@ intervention_policies:
     - "global_val_error_no_prior"
     - "global_val_improvement_no_prior"
 
+competence_levels: [1, 0]
+incompetence_intervention_policies:
+    - "group_random"
+    - "group_random_no_prior"
+    - "group_coop_no_prior"
+
 
 max_epochs: 300
 shared_params:
@@ -106,7 +112,7 @@ runs:
       horizon_uniform_distr: True
       beta_a: 1
       beta_b: 3
-      intervention_task_discount: [1.5, 1.1]
+      intervention_task_discount: [1.1] #[1.5, 1.1]
       average_trajectory: True
       use_horizon: False # DIFF True
       initialize_discount: False
@@ -136,7 +142,7 @@ runs:
       use_horizon: False
       model_pretrain_path: null
       pretrain_intcem: False
-      intervention_weight: [5,1,0.1,0]
+      intervention_weight: [5,1,0.1] #,0]
       initial_horizon: 2
       include_probs: False
       use_full_mask_distr: True

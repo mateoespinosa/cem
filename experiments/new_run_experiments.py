@@ -37,6 +37,26 @@ from experiment_utils import (
 ## HELPER FUNCTIONS
 ################################################################################
 
+def _determine_rerun(
+    config,
+    rerun,
+    full_run_name,
+    split,
+):
+    if rerun:
+        return True
+    reruns = config.get('reruns', [])
+    if "RERUNS" in os.environ:
+        reruns += os.environ['RERUNS'].split(",")
+    for variant in [
+        full_run_name,
+        full_run_name + f"_split_{split}",
+        full_run_name + f"_fold_{split}",
+    ]:
+        if variant in reruns:
+            return True
+    return False
+
 def _get_mnist_extractor_arch(input_shape, num_operands):
     def c_extractor_arch(output_dim):
         intermediate_maps = 16
@@ -160,8 +180,9 @@ def _print_table(results, result_dir, split=0, result_table_fields=None, sort_ke
     print("\n\n")
 
     # Also serialize the results
-    with open(os.path.join(result_dir, f"output_table_fold_{split + 1}.txt"), "w") as f:
-        f.write(str(results_table))
+    if result_dir:
+        with open(os.path.join(result_dir, f"output_table_fold_{split + 1}.txt"), "w") as f:
+            f.write(str(results_table))
 ################################################################################
 ## MAIN FUNCTION
 ################################################################################
@@ -307,8 +328,19 @@ def main(
                     result_dir,
                     f'{full_run_name}_split_{split}_results.joblib'
                 )
-                if os.path.exists(current_results_path):
-                    old_results = joblib.load(current_results_path)
+                current_rerun = _determine_rerun(
+                    config=run_config,
+                    rerun=rerun,
+                    split=split,
+                    full_run_name=full_run_name,
+                )
+                if current_rerun:
+                    logging.warning(
+                        f"We will rerun model {full_run_name}_split_{split} as requested by the config"
+                    )
+                if (not current_rerun) and os.path.exists(current_results_path):
+                    with open(current_results_path, 'rb') as f:
+                        old_results = joblib.load(f)
 
                 if run_config["architecture"] in [
                     "IndependentConceptBottleneckModel",
@@ -327,7 +359,8 @@ def main(
                         f'Sequential{full_run_name}_split_{split}_results.joblib'
                     )
                     if os.path.exists(seq_current_results_path):
-                        seq_old_results = joblib.load(seq_current_results_path)
+                        with open(seq_current_results_path, 'rb') as f:
+                            seq_old_results = joblib.load(f)
 
                     ind_old_results = None
                     ind_current_results_path = os.path.join(
@@ -335,7 +368,8 @@ def main(
                         f'Sequential{full_run_name}_split_{split}_results.joblib'
                     )
                     if os.path.exists(ind_current_results_path):
-                        ind_old_results = joblib.load(ind_current_results_path)
+                        with open(ind_current_results_path, 'rb') as f:
+                            ind_old_results = joblib.load(f)
                     ind_model, ind_test_results, seq_model, seq_test_results = \
                         training.train_independent_and_sequential_model(
                             task_class_weights=task_class_weights,
@@ -347,7 +381,7 @@ def main(
                             test_dl=test_dl,
                             split=split,
                             result_dir=result_dir,
-                            rerun=rerun,
+                            rerun=current_rerun,
                             project_name=project_name,
                             seed=(42 + split),
                             imbalance=imbalance,
@@ -380,17 +414,19 @@ def main(
                         intervened_groups=intervened_groups,
                         gpu=gpu,
                         split=split,
-                        rerun=rerun,
+                        rerun=current_rerun,
                         old_results=ind_old_results,
                         independent=True,
+                        competence_levels=config.get('competence_levels', [1]),
                     ))
                     logging.debug(f"\tResults for {full_run_name} in split {split}:")
                     for key, val in filter_results(results[f'{split}'], full_run_name, cut=True).items():
                         logging.debug(f"\t\t{key} -> {val}")
-                    joblib.dump(
-                        filter_results(results[f'{split}'], full_run_name),
-                        ind_current_results_path,
-                    )
+                    with open(ind_current_results_path, 'wb') as f:
+                        joblib.dump(
+                            filter_results(results[f'{split}'], full_run_name),
+                            f,
+                        )
 
                     config["architecture"] = "SequentialConceptBottleneckModel"
                     training.update_statistics(
@@ -418,19 +454,32 @@ def main(
                         intervened_groups=intervened_groups,
                         gpu=gpu,
                         split=split,
-                        rerun=rerun,
+                        rerun=current_rerun,
                         old_results=seq_old_results,
                         sequential=True,
+                        competence_levels=config.get('competence_levels', [1]),
                     ))
                     logging.debug(f"\tResults for {full_run_name} in split {split}:")
                     for key, val in filter_results(results[f'{split}'], full_run_name, cut=True).items():
                         logging.debug(f"\t\t{key} -> {val}")
-                    joblib.dump(
-                        filter_results(results[f'{split}'], full_run_name),
-                        seq_current_results_path,
-                    )
+                    with open(seq_current_results_path, 'wb') as f:
+                        joblib.dump(
+                            filter_results(results[f'{split}'], full_run_name),
+                            f,
+                        )
                     if experiment_config['shared_params'].get("start_split", 0) == 0:
-                        joblib.dump(results, os.path.join(result_dir, f'results.joblib'))
+                        attempt = 0
+                        while attempt < 5:
+                            try:
+                                with open(os.path.join(result_dir, f'results.joblib'), 'wb') as f:
+                                    joblib.dump(results, f)
+                                break
+                            except Exception as e:
+                                print(e)
+                                print("FAILED TO SERIALIZE RESULTS TO", os.path.join(result_dir, f'results.joblib'))
+                                attempt += 1
+                        if attempt == 5:
+                            raise ValueError("Could not serialize " + os.path.join(result_dir, f'results.joblib') + " to disk")
                 else:
                     model,  model_results = \
                         training.train_model(
@@ -444,7 +493,7 @@ def main(
                             test_dl=test_dl,
                             split=split,
                             result_dir=result_dir,
-                            rerun=rerun,
+                            rerun=current_rerun,
                             project_name=project_name,
                             seed=(42 + split),
                             imbalance=imbalance,
@@ -473,8 +522,9 @@ def main(
                         intervened_groups=intervened_groups,
                         gpu=gpu,
                         split=split,
-                        rerun=rerun,
+                        rerun=current_rerun,
                         old_results=old_results,
+                        competence_levels=run_config.get('competence_levels', [1]),
                     ))
                     results[f'{split}'].update(training.evaluate_representation_metrics(
                         config=run_config,
@@ -489,7 +539,7 @@ def main(
                         independent=False,
                         task_class_weights=task_class_weights,
                         gpu=gpu,
-                        rerun=rerun,
+                        rerun=current_rerun,
                         seed=42,
                         old_results=old_results,
                     ))
@@ -501,12 +551,24 @@ def main(
                         cut=True,
                     ).items():
                         logging.debug(f"\t\t{key} -> {val}")
-                    joblib.dump(
-                        filter_results(results[f'{split}'], full_run_name),
-                        current_results_path,
-                    )
+                    with open(current_results_path, 'wb') as f:
+                        joblib.dump(
+                            filter_results(results[f'{split}'], full_run_name),
+                            f,
+                        )
                 if run_config.get("start_split", 0) == 0:
-                    joblib.dump(results, os.path.join(result_dir, f'results.joblib'))
+                    attempt = 0
+                    while attempt < 5:
+                        try:
+                            with open(os.path.join(result_dir, f'results.joblib'), 'wb') as f:
+                                joblib.dump(results, f)
+                            break
+                        except Exception as e:
+                            print(e)
+                            print("FAILED TO SERIALIZE RESULTS TO", os.path.join(result_dir, f'results.joblib'))
+                            attempt += 1
+                    if attempt == 5:
+                        raise ValueError("Could not serialize " + os.path.join(result_dir, f'results.joblib') + " to disk")
                 extr_name = run_config['c_extractor_arch']
                 if not isinstance(extr_name, str):
                     extr_name = "lambda"
@@ -518,12 +580,12 @@ def main(
                     f"{then.strftime('%d/%m/%Y at %H:%M:%S')} ({diff_minutes:.4f} "
                     f"minutes):"
                 )
-            print(f"************ Results after trial {split + 1} ************")
+            print(f"************ Results in between trial {split + 1} ************")
             _print_table(
                 results=results,
                 result_table_fields=result_table_fields,
                 sort_key=sort_key,
-                result_dir=result_dir,
+                result_dir=None,
                 split=split,
             )
             logging.debug(f"\t\tDone with trial {split + 1}")
@@ -639,7 +701,7 @@ if __name__ == '__main__':
 
     if args.project_name:
         # Lazy import to avoid importing unless necessary
-        import wandb
+        pass #import wandb
     if args.debug:
         logging.basicConfig(level=logging.DEBUG)
     else:
