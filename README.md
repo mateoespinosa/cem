@@ -268,16 +268,16 @@ indicated above. For example, to run our experiments on the DOT dataset
 (see our paper), you can execute the following command:
 
 ```bash
-$ python experiments/synthetic_datasets_experiments.py dot -o dot_results/
+$ python experiments/run_experiments.py dot -o dot_results/
 ```
 This should generate a summary of all the results after execution has
 terminated and dump all results/trained models/logs into the given
 output directory (`dot_results/` in this case).
 
-Similarly, you can recreate our `CUB` and `CelebA` experiments by running
+Similarly, you can recreate our `CUB` and `CelebA` experiments (or those on any other synthetic dataset) by running
 
 ```bash
-$ python experiments/run_experiments.py dot {cub/celeba}
+$ python experiments/run_experiments.py dot {cub/celeba/xor/trig/dot}
 ```
 
 Our intervention experiments can be further recreated by running
