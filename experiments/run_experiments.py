@@ -1,6 +1,4 @@
 import argparse
-import cem.data.celeba_loader as celeba_data_module
-import cem.data.CUB200.cub_loader as cub_data_module
 import copy
 import joblib
 import logging
@@ -11,9 +9,14 @@ import torch
 from pathlib import Path
 from pytorch_lightning import seed_everything
 
+import cem.data.celeba_loader as celeba_data_module
+import cem.data.CUB200.cub_loader as cub_data_module
 import cem.train.training as training
 import cem.train.utils as utils
-
+from cem.data.synthetic_loaders import (
+    get_synthetic_data_loader,
+    get_synthetic_num_features,
+)
 
 ################################################################################
 ## DEFAULT OVERWRITEABLE CONFIGS
@@ -83,6 +86,38 @@ CELEBA_CONFIG = dict(
     embeding_activation=None,
 )
 
+SYNTH_CONFIG = dict(
+    cv=5,
+    dataset_size=3000,
+    max_epochs=500,
+    patience=15,
+    batch_size=256,
+    num_workers=8,
+    emb_size=128,
+    extra_dims=0,
+    concept_loss_weight=1,
+    learning_rate=0.01,
+    weight_decay=0,
+    scheduler_step=20,
+    weight_loss=False,
+    optimizer="adam",
+    bool=False,
+    early_stopping_monitor="val_loss",
+    early_stopping_mode="min",
+    early_stopping_delta=0.0,
+    masked=False,
+    check_val_every_n_epoch=30,
+    linear_c2y=True,
+    embeding_activation="leakyrelu",
+
+    momentum=0.9,
+    shared_prob_gen=False,
+    sigmoidal_prob=False,
+    sigmoidal_embedding=False,
+    training_intervention_prob=0.0,
+    concat_prob=False,
+)
+
 
 ################################################################################
 ## MAIN FUNCTION
@@ -113,7 +148,7 @@ def main(
     gpu = 1 if gpu else 0
     utils.extend_with_global_params(og_config, global_params or [])
 
-    train_dl, val_dl, test_dl, imbalance, (n_concepts, n_tasks) = data_module.generate_data(
+    train_dl, val_dl, test_dl, imbalance, (n_concepts, n_tasks, _) = data_module.generate_data(
         config=og_config,
         seed=42,
         output_dataset_vars=True,
@@ -427,7 +462,7 @@ if __name__ == '__main__':
     )
     parser.add_argument(
         'dataset',
-        choices=['cub', 'celeba'],
+        choices=['cub', 'celeba', "xor", "trig", "vec", "dot"],
         help=(
             "Dataset to run experiments for. Must be a supported dataset with "
             "a loader."
@@ -500,9 +535,6 @@ if __name__ == '__main__':
         default=[],
     )
     args = parser.parse_args()
-    if args.project_name:
-        # Lazy import to avoid importing unless necessary
-        import wandb
     if args.dataset == "cub":
         data_module = cub_data_module
         og_config = CUB_CONFIG
@@ -513,6 +545,25 @@ if __name__ == '__main__':
         og_config = CELEBA_CONFIG
         args.output_dir = args.output_dir.format(ds_name="celeba")
         args.project_name = args.project_name.format(ds_name="celeba")
+    elif args.dataset in ["xor", "vector", "dot", "trig"]:
+        data_module = get_synthetic_data_loader(args.dataset)
+        args.project_name = args.project_name.format(ds_name=args.dataset)
+        input_features = get_synthetic_num_features(args.dataset)
+        og_config = SYNTH_CONFIG
+        def synth_c_extractor_arch(
+            output_dim,
+            pretrained=False,
+        ):
+            if output_dim is None:
+                output_dim = 128
+            return torch.nn.Sequential(*[
+                torch.nn.Linear(input_features, 128),
+                torch.nn.LeakyReLU(),
+                torch.nn.Linear(128, 128),
+                torch.nn.LeakyReLU(),
+                torch.nn.Linear(128, output_dim),
+            ])
+        og_config["c_extractor_arch"] = synth_c_extractor_arch
     else:
         raise ValueError(f"Unsupported dataset {args.dataset}!")
     main(
@@ -524,4 +575,5 @@ if __name__ == '__main__':
         num_workers=args.num_workers,
         single_frequency_epochs=args.single_frequency_epochs,
         global_params=args.param,
+        og_config=og_config,
     )

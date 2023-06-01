@@ -59,15 +59,14 @@ def main(
     gpu = 1 if gpu else 0
     utils.extend_with_global_params(og_config, global_params or [])
 
-    train_dl, val_dl, test_dl, imbalance, (n_concepts, n_tasks) = \
+    train_dl, val_dl, test_dl, imbalance, (n_concepts, n_tasks, concept_map) = \
         data_module.generate_data(
             config=og_config,
             seed=42,
             output_dataset_vars=True,
         )
     concept_map = None
-    if hasattr(data_module, 'CONCEPT_MAP'):
-        concept_map = data_module.CONCEPT_MAP
+    if concept_map is not None:
         intervened_groups = list(
             range(
                 0,
@@ -76,7 +75,6 @@ def main(
             )
         )
     else:
-        concept_map = None
         intervened_groups = list(
             range(
                 0,
@@ -409,9 +407,6 @@ if __name__ == '__main__':
         default=[],
     )
     args = parser.parse_args()
-    if args.project_name:
-        # Lazy import to avoid importing unless necessary
-        import wandb
     if args.debug:
         logging.basicConfig(level=logging.DEBUG)
     else:

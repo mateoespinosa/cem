@@ -537,7 +537,7 @@ class CUBDataset(Dataset):
     Returns a compatible Torch Dataset object customized for the CUB dataset
     """
 
-    def __init__(self, pkl_file_paths, use_attr, no_img, uncertain_label, image_dir, n_class_attr, root_dir='../data/CUB200/', transform=None, concept_transform=None):
+    def __init__(self, pkl_file_paths, use_attr, no_img, uncertain_label, image_dir, n_class_attr, root_dir='../data/CUB200/', path_transform=None, transform=None, concept_transform=None, label_transform=None):
         """
         Arguments:
         pkl_file_paths: list of full path to all the pkl data
@@ -556,12 +556,14 @@ class CUBDataset(Dataset):
             self.data.extend(pickle.load(open(file_path, 'rb')))
         self.transform = transform
         self.concept_transform = concept_transform
+        self.label_transform = label_transform
         self.use_attr = use_attr
         self.no_img = no_img
         self.uncertain_label = uncertain_label
         self.image_dir = image_dir
         self.n_class_attr = n_class_attr
         self.root_dir = root_dir
+        self.path_transform = path_transform
 
     def __len__(self):
         return len(self.data)
@@ -569,26 +571,41 @@ class CUBDataset(Dataset):
     def __getitem__(self, idx):
         img_data = self.data[idx]
         img_path = img_data['img_path']
-        img_path = img_path.replace(
-            '/juice/scr/scr102/scr/thaonguyen/CUB_supervision/datasets/',
-            '../data/CUB200/'
-        )
-        # Trim unnecessary paths
-        try:
-            idx = img_path.split('/').index('CUB_200_2011')
-            # if self.image_dir != 'images':
-            #     img_path = '/'.join([self.image_dir] + img_path.split('/')[idx+1:])
-            #     img_path = img_path.replace('images/', '')
-            # else:
-            img_path = self.root_dir + '/' + '/'.join(img_path.split('/')[idx:])
-            img = Image.open(img_path).convert('RGB')
-        except:
-            img_path_split = img_path.split('/')
-            split = 'train' if self.is_train else 'test'
-            img_path = '/'.join(img_path_split[:2] + [split] + img_path_split[2:])
+        if self.path_transform == None:
+            img_path = img_path.replace(
+                '/juice/scr/scr102/scr/thaonguyen/CUB_supervision/datasets/',
+                '../data/CUB200/'
+            )
+            # Trim unnecessary paths
+            try:
+                idx = img_path.split('/').index('CUB_200_2011')
+                # if self.image_dir != 'images':
+                #     img_path = '/'.join([self.image_dir] + img_path.split('/')[idx+1:])
+                #     img_path = img_path.replace('images/', '')
+                # else:
+                # img_path = self.root_dir + '/' + '/'.join(img_path.split('/')[idx:])
+                img_path = self.root_dir + '/'.join(img_path.split('/')[idx:])
+                img = None
+                for _ in range(5):
+                    try:
+                        img = Image.open(img_path).convert('RGB')
+                        break
+                    except:
+                        pass
+                if img is None:
+                    raise ValueError(f"Failed to fetch {img_path} after 5 trials!")
+            except:
+                img_path_split = img_path.split('/')
+                split = 'train' if self.is_train else 'test'
+                img_path = '/'.join(img_path_split[:2] + [split] + img_path_split[2:])
+                img = Image.open(img_path).convert('RGB')
+        else:
+            img_path = self.path_transform(img_path)
             img = Image.open(img_path).convert('RGB')
 
         class_label = img_data['class_label']
+        if self.label_transform:
+            class_label = self.label_transform(class_label)
         if self.transform:
             img = self.transform(img)
 
@@ -668,6 +685,8 @@ def load_data(
     root_dir='../data/CUB200/',
     num_workers=1,
     concept_transform=None,
+    label_transform=None,
+    path_transform=None,
 ):
     """
     Note: Inception needs (299,299,3) images with inputs scaled between -1 and 1
@@ -678,23 +697,18 @@ def load_data(
     is_training = any(['train.pkl' in f for f in pkl_paths])
     if is_training:
         transform = transforms.Compose([
-            #transforms.Resize((resized_resol, resized_resol)),
-            #transforms.RandomSizedCrop(resol),
             transforms.ColorJitter(brightness=32/255, saturation=(0.5, 1.5)),
             transforms.RandomResizedCrop(resol),
             transforms.RandomHorizontalFlip(),
             transforms.ToTensor(), #implicitly divides by 255
             transforms.Normalize(mean = [0.5, 0.5, 0.5], std = [2, 2, 2])
-            #transforms.Normalize(mean = [ 0.485, 0.456, 0.406 ], std = [ 0.229, 0.224, 0.225 ]),
-            ])
+        ])
     else:
         transform = transforms.Compose([
-            #transforms.Resize((resized_resol, resized_resol)),
             transforms.CenterCrop(resol),
             transforms.ToTensor(), #implicitly divides by 255
             transforms.Normalize(mean = [0.5, 0.5, 0.5], std = [2, 2, 2])
-            #transforms.Normalize(mean = [ 0.485, 0.456, 0.406 ], std = [ 0.229, 0.224, 0.225 ]),
-            ])
+        ])
 
     dataset = CUBDataset(
         pkl_file_paths=pkl_paths,
@@ -706,6 +720,8 @@ def load_data(
         transform=transform,
         root_dir=root_dir,
         concept_transform=concept_transform,
+        label_transform=label_transform,
+        path_transform=path_transform,
     )
     if is_training:
         drop_last = True
@@ -903,4 +919,4 @@ def generate_data(
     )
     if not output_dataset_vars:
         return train_dl, val_dl, test_dl, imbalance
-    return train_dl, val_dl, test_dl, imbalance, (n_concepts, N_CLASSES)
+    return train_dl, val_dl, test_dl, imbalance, (n_concepts, N_CLASSES, concept_group_map)
