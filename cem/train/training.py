@@ -213,7 +213,7 @@ def train_model(
         "SequentialConceptBottleneckModel",
         "IndependentConceptBottleneckModel",
     ]:
-        return train_sequential_model(
+        return train_independent_and_sequential_model(
             n_concepts=n_concepts,
             n_tasks=n_tasks,
             config=config,

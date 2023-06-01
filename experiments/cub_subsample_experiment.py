@@ -4,12 +4,12 @@ import joblib
 import numpy as np
 import os
 import torch
+import cem.data.CUB200.cub_loader as cub_data_module
 
 from cem.data.CUB200.cub_loader import load_data, find_class_imbalance
 from pathlib import Path
 from pytorch_lightning import seed_everything
 
-import cem.experiments.cub_experiments as cub
 import cem.train.training as training
 import cem.train.utils as utils
 
@@ -59,17 +59,7 @@ def main(
         concat_prob=False,
     )
 
-    train_data_path = os.path.join(cub.BASE_DIR, 'train.pkl')
-    if og_config['weight_loss']:
-        og_imbalance = find_class_imbalance(train_data_path, True)
-    else:
-        og_imbalance = None
     utils.extend_with_global_params(og_config, global_params or [])
-
-    val_data_path = train_data_path.replace('train.pkl', 'val.pkl')
-    test_data_path = train_data_path.replace('train.pkl', 'test.pkl')
-    n_concepts, n_tasks = 112, 200
-
     os.makedirs(result_dir, exist_ok=True)
     joblib.dump(
         og_config,
@@ -88,82 +78,20 @@ def main(
             f"concepts"
         )
         results[sampling_percent] = {}
-        new_n_concepts = int(np.ceil(n_concepts * sampling_percent))
         for split in range(og_config["cv"]):
+            config = copy.deepcopy(og_config)
+            config['sampling_percent'] = sampling_percent
+
+            results[sampling_percent][f'{split}'] = {}
+
+            train_dl, val_dl, test_dl, imbalance, (new_n_concepts, n_tasks, _) = cub_data_module.generate_data(
+                config=og_config,
+                seed=42,
+                output_dataset_vars=True,
+            )
             print(
                 f'\tExperiment {split+1}/{og_config["cv"]} with sampling '
                 f'rate {sampling_percent *100}% and {new_n_concepts} concepts'
-            )
-            results[sampling_percent][f'{split}'] = {}
-
-            # Do the subsampling
-            selected_concepts_file = os.path.join(
-                result_dir,
-                (
-                    f"selected_concepts_"
-                    f"sampling_{sampling_percent}_fold_{split}.npy"
-                ),
-            )
-            if (not rerun) and os.path.exists(selected_concepts_file):
-                selected_concepts = np.load(selected_concepts_file)
-            else:
-                if sampling_percent != 1:
-                    selected_concepts = np.random.permutation(
-                        n_concepts
-                    )[:new_n_concepts]
-                else:
-                    # Then simply select them all in their original order
-                    selected_concepts = np.range(new_n_concepts)
-                np.save(selected_concepts_file, selected_concepts)
-            print("\t\tSelected concepts:", selected_concepts)
-            def subsample_transform(sample):
-                if isinstance(sample, list):
-                    sample = np.array(sample)
-                return sample[selected_concepts]
-
-            if og_config['weight_loss']:
-                imbalance = np.array(og_imbalance)[selected_concepts]
-            else:
-                imbalance = np.array(og_imbalance)[selected_concepts]
-
-            train_dl = load_data(
-                pkl_paths=[train_data_path],
-                use_attr=True,
-                no_img=False,
-                batch_size=og_config['batch_size'],
-                uncertain_label=False,
-                n_class_attr=2,
-                image_dir='images',
-                resampling=False,
-                root_dir=CUB_DIR,
-                num_workers=og_config['num_workers'],
-                concept_transform=subsample_transform,
-            )
-            val_dl = load_data(
-                pkl_paths=[val_data_path],
-                use_attr=True,
-                no_img=False,
-                batch_size=og_config['batch_size'],
-                uncertain_label=False,
-                n_class_attr=2,
-                image_dir='images',
-                resampling=False,
-                root_dir=CUB_DIR,
-                num_workers=og_config['num_workers'],
-                concept_transform=subsample_transform,
-            )
-            test_dl = load_data(
-                pkl_paths=[test_data_path],
-                use_attr=True,
-                no_img=False,
-                batch_size=og_config['batch_size'],
-                uncertain_label=False,
-                n_class_attr=2,
-                image_dir='images',
-                resampling=False,
-                root_dir=CUB_DIR,
-                num_workers=og_config['num_workers'],
-                concept_transform=subsample_transform,
             )
 
             sample = next(iter(train_dl))
@@ -174,7 +102,7 @@ def main(
 
             # train vanilla model with more capacity (i.e., no concept
             # supervision) but with ReLU activation
-            config = copy.deepcopy(og_config)
+
             config["architecture"] = "ConceptBottleneckModel"
             config["extra_name"] = (
                 f"NoConceptSupervisionReLU_ExtraCapacity_"
@@ -284,7 +212,6 @@ def main(
             config["extra_name"] = f"Bool_subsample_{sampling_percent}"
             config["bool"] = True
             config["sampling_percent"] = sampling_percent
-            config["selected_concepts"] = selected_concepts
             bool_model, bool_test_results = training.train_model(
                 n_concepts=new_n_concepts,
                 n_tasks=n_tasks,
