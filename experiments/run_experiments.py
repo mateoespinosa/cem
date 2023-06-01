@@ -452,7 +452,7 @@ if __name__ == '__main__':
     parser.add_argument(
         '--output_dir',
         '-o',
-        default='results/{ds_name}/',
+        default=None,
         help=(
             "directory where we will dump our experiment's results. If not "
             "given, then we will use results/{ds_name}/."
@@ -566,6 +566,8 @@ if __name__ == '__main__':
         og_config["c_extractor_arch"] = synth_c_extractor_arch
     else:
         raise ValueError(f"Unsupported dataset {args.dataset}!")
+    if args.output_dir is None:
+        args.output_dir = f'results/{args.dataset}/'
     main(
         data_module=data_module,
         rerun=args.rerun,
