@@ -100,17 +100,7 @@ def compute_accuracy(
 def wrap_pretrained_model(c_extractor_arch, pretrain_model=True):
     def _result_x2c_fun(output_dim):
         try:
-            attempt = 0
-            while attempt < 5:
-                try:
-                    model = c_extractor_arch(pretrained=pretrain_model)
-                    break
-                except Exception as e:
-                    attempt += 1
-                    print(e)
-                    logging.warning(f"Attempt {attempt} of loading pretrained model failed!")
-            if attempt == 5:
-                raise Exception("Could not load pretrained model!")
+            model = c_extractor_arch(pretrained=pretrain_model)
             if output_dim:
                 if c_extractor_arch == densenet121:
                     model.classifier = torch.nn.Linear(
