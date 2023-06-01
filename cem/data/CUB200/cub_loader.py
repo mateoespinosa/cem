@@ -763,7 +763,13 @@ def find_class_imbalance(pkl_file, multiple_attr=False, attr_idx=-1):
 ##########################################################
 
 
-def generate_data(config, root_dir=DATASET_DIR, seed=42, output_dataset_vars=False):
+def generate_data(
+    config,
+    root_dir=DATASET_DIR,
+    seed=42,
+    output_dataset_vars=False,
+    rerun=False,
+):
     if root_dir is None:
         root_dir = DATASET_DIR
     base_dir = os.path.join(root_dir, 'class_attr_data_10')
@@ -777,22 +783,71 @@ def generate_data(config, root_dir=DATASET_DIR, seed=42, output_dataset_vars=Fal
     val_data_path = train_data_path.replace('train.pkl', 'val.pkl')
     test_data_path = train_data_path.replace('train.pkl', 'test.pkl')
     sampling_percent = config.get("sampling_percent", 1)
+    sampling_groups = config.get("sampling_groups", False)
 
+    concept_group_map = CONCEPT_GROUP_MAP.copy()
+    n_concepts = len(SELECTED_CONCEPTS)
     if sampling_percent != 1:
         # Do the subsampling
-        new_n_concepts = int(np.ceil(n_concepts * sampling_percent))
-        selected_concepts_file = os.path.join(
-            result_dir,
-            f"selected_concepts_sampling_{sampling_percent}.npy",
-        )
-        if (not rerun) and os.path.exists(selected_concepts_file):
-            selected_concepts = np.load(selected_concepts_file)
-        else:
-            selected_concepts = sorted(
-                np.random.permutation(n_concepts)[:new_n_concepts]
+        if sampling_groups:
+            new_n_groups = int(np.ceil(len(concept_group_map) * sampling_percent))
+            selected_groups_file = os.path.join(
+                DATASET_DIR,
+                f"selected_groups_sampling_{sampling_percent}.npy",
             )
-            np.save(selected_concepts_file, selected_concepts)
+            if (not rerun) and os.path.exists(selected_groups_file):
+                selected_groups = np.load(selected_groups_file)
+            else:
+                selected_groups = sorted(
+                    np.random.permutation(len(concept_group_map))[:new_n_groups]
+                )
+                np.save(selected_groups_file, selected_groups)
+            selected_concepts = []
+            group_concepts = [x[1] for x in concept_group_map.items()]
+            for group_idx in selected_groups:
+                selected_concepts.extend(group_concepts[group_idx])
+            selected_concepts = sorted(set(selected_concepts))
+        else:
+            new_n_concepts = int(np.ceil(n_concepts * sampling_percent))
+            selected_concepts_file = os.path.join(
+                DATASET_DIR,
+                f"selected_concepts_sampling_{sampling_percent}.npy",
+            )
+            if (not rerun) and os.path.exists(selected_concepts_file):
+                selected_concepts = np.load(selected_concepts_file)
+            else:
+                selected_concepts = sorted(
+                    np.random.permutation(n_concepts)[:new_n_concepts]
+                )
+                np.save(selected_concepts_file, selected_concepts)
+        # Then we also have to update the concept group map so that
+        # selected concepts that were previously in the same concept
+        # group are maintained in the same concept group
+        new_concept_group = {}
+        remap = dict((y, x) for (x, y) in enumerate(selected_concepts))
+        selected_concepts_set = set(selected_concepts)
+        for selected_concept in selected_concepts:
+            for concept_group_name, group_concepts in concept_group_map.items():
+                if selected_concept in group_concepts:
+                    if concept_group_name in new_concept_group:
+                        # Then we have already added this group
+                        continue
+                    # Then time to add this group!
+                    new_concept_group[concept_group_name] = []
+                    for other_concept in group_concepts:
+                        if other_concept in selected_concepts_set:
+                            # Add the remapped version of this concept
+                            # into the concept group
+                            new_concept_group[concept_group_name].append(
+                                remap[other_concept]
+                            )
+        # And update the concept group map accordingly
+        concept_group_map = new_concept_group
         print("\t\tSelected concepts:", selected_concepts)
+        print(f"\t\tUpdated concept group map (with {len(concept_group_map)} groups):")
+        for k, v in concept_group_map.items():
+            print(f"\t\t\t{k} -> {v}")
+
         def concept_transform(sample):
             if isinstance(sample, list):
                 sample = np.array(sample)
@@ -801,6 +856,7 @@ def generate_data(config, root_dir=DATASET_DIR, seed=42, output_dataset_vars=Fal
         # And correct the weight imbalance
         if config.get('weight_loss', False):
             imbalance = np.array(imbalance)[selected_concepts]
+        n_concepts = len(selected_concepts)
     else:
         concept_transform = None
 
@@ -847,4 +903,4 @@ def generate_data(config, root_dir=DATASET_DIR, seed=42, output_dataset_vars=Fal
     )
     if not output_dataset_vars:
         return train_dl, val_dl, test_dl, imbalance
-    return train_dl, val_dl, test_dl, imbalance, (len(SELECTED_CONCEPTS), N_CLASSES)
+    return train_dl, val_dl, test_dl, imbalance, (n_concepts, N_CLASSES)

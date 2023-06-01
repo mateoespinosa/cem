@@ -162,8 +162,8 @@ class InterventionPolicyWrapper(object):
 
     def __call__(self, x, y, c):
         intervention_idxs = self.policy_fn(
-            num_groups_intervened=num_groups_intervened,
-            concept_group_map=concept_group_map,
+            num_groups_intervened=self.num_groups_intervened,
+            concept_group_map=self.concept_group_map,
         )
         return intervention_idxs, c
 

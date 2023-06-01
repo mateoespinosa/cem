@@ -1,12 +1,12 @@
 import argparse
+import cem.data.celeba_loader as celeba_data_module
+import cem.data.CUB200.cub_loader as cub_data_module
 import copy
 import joblib
+import logging
 import numpy as np
 import os
 import torch
-
-import cem.data.CUB200.cub_loader as cub_data_module
-import cem.data.celeba_loader as celeba_data_module
 
 from pathlib import Path
 from pytorch_lightning import seed_everything
@@ -425,7 +425,16 @@ if __name__ == '__main__':
         metavar="path",
 
     )
+    parser.add_argument(
+        'dataset',
+        choices=['cub', 'celeba'],
+        help=(
+            "Dataset to run experiments for. Must be a supported dataset with "
+            "a loader."
+        ),
+        metavar="ds_name",
 
+    )
     parser.add_argument(
         '--rerun',
         '-r',

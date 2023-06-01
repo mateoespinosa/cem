@@ -1,7 +1,11 @@
-import sklearn.metrics
-import numpy as np
 import torch
+import sklearn.metrics
 import pytorch_lightning as pl
+import os
+import numpy as np
+import logging
+
+from pathlib import Path
 from torchvision.models import densenet121
 
 
@@ -95,15 +99,30 @@ def compute_accuracy(
 
 def wrap_pretrained_model(c_extractor_arch, pretrain_model=True):
     def _result_x2c_fun(output_dim):
-        model = c_extractor_arch(pretrained=pretrain_model)
-        if output_dim:
-            if c_extractor_arch == densenet121:
-                model.classifier = torch.nn.Linear(
-                    1024,
-                    output_dim,
-                )
-            elif hasattr(model, 'fc'):
-                model.fc = torch.nn.Linear(512, output_dim)
+        try:
+            attempt = 0
+            while attempt < 5:
+                try:
+                    model = c_extractor_arch(pretrained=pretrain_model)
+                    break
+                except Exception as e:
+                    attempt += 1
+                    print(e)
+                    logging.warning(f"Attempt {attempt} of loading pretrained model failed!")
+            if attempt == 5:
+                raise Exception("Could not load pretrained model!")
+            if output_dim:
+                if c_extractor_arch == densenet121:
+                    model.classifier = torch.nn.Linear(
+                        1024,
+                        output_dim,
+                    )
+                elif hasattr(model, 'fc'):
+                    model.fc = torch.nn.Linear(512, output_dim)
+        except:
+            model = c_extractor_arch(
+                output_dim=output_dim,
+            )
         return model
     return _result_x2c_fun
 
