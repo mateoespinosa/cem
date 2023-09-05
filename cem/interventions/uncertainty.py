@@ -42,7 +42,8 @@ class UncertaintyMaximizerPolicy(InterventionPolicy):
         # that does not allow replacement between samples...
         scores = 1 / np.abs(pred_c.cpu().detach().numpy() - 0.5 + self.eps)
         if prev_interventions is not None:
-            # Then zero out the scores of the concepts that have been previously intervened
+            # Then zero out the scores of the concepts that have been previously
+            # intervened
             scores[prev_interventions.type(torch.BoolTensor)] = 0
         if prior_distribution is not None:
             # Then rescale the scores based on the prior
@@ -50,21 +51,32 @@ class UncertaintyMaximizerPolicy(InterventionPolicy):
         best_concepts = np.argsort(-scores, axis=-1)
         for sample_idx in range(c.shape[0]):
             if self.group_based:
-                # We will assign each group a score based on the max score of its
-                # corresponding concepts
+                # We will assign each group a score based on the max score of
+                # its corresponding concepts
                 group_scores = np.zeros(len(self.concept_group_map))
                 group_names = []
                 for i, key in enumerate(self.concept_group_map):
-                    group_scores[i] = np.max(scores[sample_idx, self.concept_group_map[key]], axis=-1)
+                    group_scores[i] = np.max(
+                        scores[sample_idx, self.concept_group_map[key]],
+                        axis=-1,
+                    )
                     group_names.append(key)
                 # Sort them out
                 best_group_scores = np.argsort(-group_scores, axis=-1)
-                for selected_group in best_group_scores[: self.num_groups_intervened]:
-                    mask[sample_idx, self.concept_group_map[group_names[selected_group]]] = 1
+                for selected_group in (
+                    best_group_scores[: self.num_groups_intervened]
+                ):
+                    mask[
+                        sample_idx,
+                        self.concept_group_map[group_names[selected_group]],
+                    ] = 1
 
             else:
                 # Else, previous interventions do not affect future ones
-                mask[sample_idx, best_concepts[sample_idx, : self.num_groups_intervened]] = 1
+                mask[
+                    sample_idx,
+                    best_concepts[sample_idx, : self.num_groups_intervened],
+                ] = 1
         return mask, c
 
 

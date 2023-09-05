@@ -1,21 +1,24 @@
-import numpy as np
-from sklearn.metrics import homogeneity_score
-import warnings
-warnings.simplefilter("ignore", UserWarning)
-from sklearn_extra.cluster import KMedoids
 import cem.metrics.oracle as purity
+import numpy as np
+import warnings
+
+from sklearn_extra.cluster import KMedoids
+from sklearn.metrics import homogeneity_score
 from tqdm import tqdm
 
-def embedding_homogeneity(
+warnings.simplefilter("ignore", UserWarning)
+
+def concept_alignment_score(
     c_vec,
     c_test,
     y_test,
     step,
     force_alignment=False,
     alignment=None,
+    progress_bar=True,
 ):
     """
-    Computes the alignment between learnt concepts and labels.
+    Computes the concept alignment score between learnt concepts and labels.
 
     :param c_vec: predicted concept representations (can be concept embeddings)
     :param c_test: concept ground truth labels
@@ -43,14 +46,22 @@ def embedding_homogeneity(
             c_vec = c_vec[:, alignment]
 
     # compute the maximum value for the AUC
-    n_clusters = np.linspace(2, c_vec.shape[0], step).astype(int)
-    max_auc = np.trapz(np.ones(step))
+    n_clusters = np.linspace(
+        2,
+        c_vec.shape[0],
+        (c_vec.shape[0] - 2)//step,
+    ).astype(int)
+    max_auc = np.trapz(np.ones(len(n_clusters)))
 
     # for each concept:
     #   1. find clusters
     #   2. compare cluster assignments with ground truth concept/task labels
     concept_auc, task_auc = [], []
-    for concept_id in tqdm(range(c_test.shape[1])):
+    if progress_bar:
+        bar = tqdm(range(c_test.shape[1]))
+    else:
+        bar = range(c_test.shape[1])
+    for concept_id in bar:
         concept_homogeneity, task_homogeneity = [], []
         for nc in n_clusters:
             kmedoids = KMedoids(n_clusters=nc, random_state=0)

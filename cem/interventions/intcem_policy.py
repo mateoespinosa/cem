@@ -49,7 +49,9 @@ class IntCemInterventionPolicy(CooP):
         intervene_with_groups=False,
     ):
         if intervene_with_groups:
-            for group_idx, (_, group_concepts) in enumerate(self.concept_group_map.items()):
+            for group_idx, (_, group_concepts) in enumerate(
+                self.concept_group_map.items()
+            ):
                 if group_idx == concept_group_idx:
                     break
         else:
@@ -61,7 +63,9 @@ class IntCemInterventionPolicy(CooP):
             for val_to_set in [0, 1] if len(group_concepts) == 1 else [1]:
                 old_c_vals = c[:, group_concepts]
                 # Make a fake intervention in the current concept
-                new_vals = torch.zeros((x.shape[0], len(group_concepts))).to(c.device)
+                new_vals = torch.zeros((x.shape[0], len(group_concepts))).to(
+                    c.device
+                )
                 new_vals[:, concept_val_idx] = val_to_set
                 c[:, group_concepts] = new_vals
                 prev_mask = prev_interventions[:, group_concepts] == 1
@@ -75,7 +79,9 @@ class IntCemInterventionPolicy(CooP):
                 )
                 # Restore prev-interventions
                 c[:, group_concepts] = old_c_vals
-                prev_interventions[:, group_concepts] = prev_mask.type(prev_interventions.type())
+                prev_interventions[:, group_concepts] = prev_mask.type(
+                    prev_interventions.type()
+                )
                 # And compute their weighted output
                 prob = pred_c[:, group_concepts[concept_val_idx]]
                 if val_to_set == 0:
@@ -94,14 +100,17 @@ class IntCemInterventionPolicy(CooP):
                         [1 - y_probs, y_probs],
                         dim=-1,
                     )
-                expected_new_entropy += prior_distribution[:, concept_group_idx] * (
+                expected_new_entropy += \
+                    prior_distribution[:, concept_group_idx] * (
                         prob * torch.sum(
-                            -torch.log(new_class_probs + self.eps) * new_class_probs,
+                            -torch.log(new_class_probs + self.eps) * \
+                                new_class_probs,
                             axis=-1,
                         )
                     )
         return -(
-            expected_new_entropy + (1 - prior_distribution[:, concept_group_idx]) * prev_entropy
+            expected_new_entropy +
+            (1 - prior_distribution[:, concept_group_idx]) * prev_entropy
         )
 
     def _coop_step(
@@ -143,9 +152,13 @@ class IntCemInterventionPolicy(CooP):
         if prior_distribution is None:
             denom = torch.sum(prev_used_groups, dim=-1, keepdim=True)
             denom = torch.where(denom == 0, torch.ones_like(denom), denom)
-            prior_distribution = torch.ones(prev_used_groups.shape).to(prev_used_groups.device) / denom
+            prior_distribution = torch.ones(prev_used_groups.shape).to(
+                prev_used_groups.device
+            ) / denom
 
-        sample_importances = torch.zeros((c.shape[0], n_groups)).to(pred_c.device)
+        sample_importances = torch.zeros((c.shape[0], n_groups)).to(
+            pred_c.device
+        )
         for concept_group_idx in range(n_groups):
             sample_importances[:, concept_group_idx] = self._importance_score(
                 x=x,
@@ -167,7 +180,9 @@ class IntCemInterventionPolicy(CooP):
             sample_importances,
         )
         if not self.cbm.use_concept_groups:
-            new_sample_importances = torch.zeros((c.shape[0], len(self.concept_group_map))).to(c.device)
+            new_sample_importances = torch.zeros(
+                (c.shape[0], len(self.concept_group_map))
+            ).to(c.device)
             for concept_group_idx, (_, group_concepts) in enumerate(
                 self.concept_group_map.items()
             ):
@@ -185,8 +200,11 @@ class IntCemInterventionPolicy(CooP):
                 group_names.append(group_name)
             next_groups = torch.argmax(sample_importances, axis=-1)
             for sample_idx, best_group_idx in enumerate(next_groups):
-                # Get the concepts corresponding to the group we will be intervening on
-                next_concepts = self.concept_group_map[group_names[best_group_idx]]
+                # Get the concepts corresponding to the group we will be
+                # intervening on
+                next_concepts = self.concept_group_map[
+                    group_names[best_group_idx]
+                ]
                 prev_interventions[sample_idx, next_concepts] = 1
         else:
             raise ValueError("Not implemented")
@@ -239,7 +257,9 @@ class IntCemInterventionPolicy(CooP):
         if prior_distribution is None:
             denom = torch.sum(prev_used_groups, dim=-1, keepdim=True)
             denom = torch.where(denom == 0, torch.ones_like(denom), denom)
-            prior_distribution = torch.ones(prev_used_groups.shape).to(prev_used_groups.device) / denom
+            prior_distribution = torch.ones(prev_used_groups.shape).to(
+                prev_used_groups.device
+            ) / denom
 
         if competencies is None:
             competencies = torch.ones(c.shape).to(x.device)
@@ -266,7 +286,10 @@ class IntCemInterventionPolicy(CooP):
         )
 
         for i in range(self.num_groups_intervened):
-            logging.debug(f"Intervening with {i + 1}/{self.num_groups_intervened} concepts in CooP")
+            logging.debug(
+                f"Intervening with {i + 1}/{self.num_groups_intervened} "
+                f"concepts in CooP"
+            )
             mask, latent, y_preds = self._coop_step(
                 x=x,
                 c=c,

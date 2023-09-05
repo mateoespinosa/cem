@@ -1,4 +1,9 @@
 '''
+Efficient implementation of the Oracle Impurity Score (OIS)
+taken from https://github.com/mateoespinosa/concept-quality.
+
+All credit goes to Espinosa Zarlenga et al. AAAI 2023.
+
 Metrics to measure concept purity inspired on the definition of purity by
 Mahinpei et al.'s "Promises and Pitfalls of Black-Box Concept Learning Models"
 (found at https://arxiv.org/abs/2106.13314).
@@ -389,7 +394,9 @@ def concept_purity_matrix(
                     )
                 else:
                     if concept_label_cardinality[tgt_true_concept] <= 2:
-                        used_preds = (scipy.special.expit(used_preds) >= 0.5).astype(np.int32)
+                        used_preds = (
+                            scipy.special.expit(used_preds) >= 0.5
+                        ).astype(np.int32)
                     else:
                         used_preds = np.argmax(used_preds, axis=-1)
                         true_concepts = np.argmax(true_concepts, axis=-1)
@@ -403,9 +410,9 @@ def concept_purity_matrix(
                 result[src_soft_concept, tgt_true_concept] = auc
         else:
             for tgt_true_concept in range(n_true_concepts):
-                # Let's populate the (i,j)-th entry of our matrix by first training
-                # a classifier to predict the ground truth value of concept j using
-                # the soft-concept labels for concept i.
+                # Let's populate the (i,j)-th entry of our matrix by first
+                # training a classifier to predict the ground truth value of
+                # concept j using the soft-concept labels for concept i.
                 if ignore_diags and (src_soft_concept == tgt_true_concept):
                     # Then for simplicity sake we will simply set this to one
                     # as it is expected to be perfectly predictable
@@ -427,8 +434,8 @@ def concept_purity_matrix(
                 preds = estimator.predict(concept_soft_test_x)
                 true_concepts = c_true[test_indexes, tgt_true_concept]
                 if concept_label_cardinality[tgt_true_concept] > 2:
-                    # Then lets apply a softmax activation over all the probability
-                    # classes
+                    # Then lets apply a softmax activation over all the
+                    # probability classes
                     preds = scipy.special.softmax(preds, axis=-1)
 
                     # And make sure we only compute the AUC of labels that are

@@ -69,8 +69,8 @@ class TrueOptimal(InterventionPolicy):
         concepts_to_intervene,
         latent,
     ):
-        # Then just look at the value of the probability of the known truth class, as
-        # this is what we want to maximize!
+        # Then just look at the value of the probability of the known truth
+        # class, as this is what we want to maximize!
         # See how the predictions change
         _, _, y_pred_logits, _, _ = self.cbm(
             x,
@@ -79,7 +79,8 @@ class TrueOptimal(InterventionPolicy):
             latent=latent,
         )
         return np.array([
-            y_pred_logits[i, label].detach().cpu().numpy() for i, label in enumerate(y)
+            y_pred_logits[i, label].detach().cpu().numpy()
+            for i, label in enumerate(y)
         ])
 
 

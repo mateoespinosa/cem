@@ -2,12 +2,10 @@ import os
 import numpy as np
 import torch
 import pytorch_lightning as pl
-import cem.train.training as cem_train
 import logging
 import joblib
 import io
 from contextlib import redirect_stdout
-from cem.interventions.random import IndependentRandomMaskIntPolicy
 import scipy.special
 import sklearn.metrics
 from scipy.special import expit
@@ -15,16 +13,16 @@ import time
 from pytorch_lightning import seed_everything
 from typing import Callable
 
+from cem.train.utils import load_call
+from cem.models.construction import load_trained_model
+from cem.interventions.random import IndependentRandomMaskIntPolicy
 from cem.interventions.random import IndependentRandomMaskIntPolicy
 from cem.interventions.uncertainty import UncertaintyMaximizerPolicy
 from cem.interventions.coop import CooPEntropy, CooP,CompetenceCooPEntropy
 from cem.interventions.optimal import GreedyOptimal, TrueOptimal
 from cem.interventions.behavioural_learning import BehavioralLearningPolicy
 from cem.interventions.intcem_policy import IntCemInterventionPolicy
-from cem.interventions.global_policies import (
-    GlobalValidationPolicy,
-    GlobalValidationImprovementPolicy,
-)
+from cem.interventions.global_policies import (GlobalValidationPolicy, GlobalValidationImprovementPolicy)
 
 
 ################################################################################
@@ -52,7 +50,13 @@ POLICY_NAMES = [
 
 class InterventionPolicyWrapper(object):
 
-    def __init__(self, policy_fn, concept_group_map, num_groups_intervened=0, include_prior=True):
+    def __init__(
+            self,
+            policy_fn,
+            concept_group_map,
+            num_groups_intervened=0,
+            include_prior=True,
+        ):
         self.policy_fn = policy_fn
         self.num_groups_intervened = num_groups_intervened
         self.concept_group_map = concept_group_map
@@ -142,7 +146,6 @@ def adversarial_intervene_in_cbm(
     y_test=None,
     c_test=None,
     seed=None,
-    budgeted=False,
 ):
     def competence_generator(
         x,
@@ -177,7 +180,6 @@ def adversarial_intervene_in_cbm(
         y_test=y_test,
         c_test=c_test,
         seed=seed,
-        budgeted=budgeted,
     )
 
 def intervene_in_cbm(
@@ -206,7 +208,6 @@ def intervene_in_cbm(
     y_test=None,
     c_test=None,
     seed=None,
-    budgeted=False,
 ):
     if seed is not None:
         seed_everything(seed)
@@ -253,7 +254,7 @@ def intervene_in_cbm(
                 construct_time = 0
             return result, avg_time, construct_time
 
-    model = cem_train.load_trained_model(
+    model = load_trained_model(
         config=config,
         n_tasks=n_tasks,
         n_concepts=n_concepts,
@@ -359,8 +360,6 @@ def intervene_in_cbm(
         model.intervention_policy.num_groups_intervened = (
             num_groups_intervened - prev_num_groups_intervened
         )
-        if budgeted:
-            model.intervention_policy.horizon = np.max(groups) - prev_num_groups_intervened
         trainer = pl.Trainer(
             gpus=gpu,
             logger=False,
@@ -401,11 +400,11 @@ def intervene_in_cbm(
         if n_tasks > 1:
             acc = np.mean(y_pred == y_test.detach().cpu().numpy())
             logging.debug(
-                f"\tTest accuracy when intervening with {num_groups_intervened} "
+                f"\tTest accuracy when intervening "
+                f"with {num_groups_intervened} "
                 f"concept groups is {acc * 100:.2f}%."
             )
         else:
-            y_test_cpu = y_test.detach().cpu().numpy().reshape(-1)
             if int(os.environ.get("VERBOSE_INTERVENTIONS", "0")):
                 [test_results] = trainer.test(model, test_dl)
             else:
@@ -413,25 +412,6 @@ def intervene_in_cbm(
                 with redirect_stdout(f):
                     [test_results] = trainer.test(model, test_dl)
             acc = test_results['test_y_auc']
-            # acc = 0.0
-            # count = 0
-            # for x in test_batch_results:
-            #     acc += sklearn.metrics.roc_auc_score(
-            #         y_test_cpu[count:(count + x[2].shape[0])],
-            #         x[2].detach().cpu().numpy(),
-            #     )
-            #     count += x[2].shape[0]
-            # acc = acc/count if count else 0
-            # if len(np.unique(y_test_cpu)) == 1:
-            #     full_auc = sklearn.metrics.accuracy_score(y_test_cpu,  y_pred)
-            # else:
-            #     full_auc = sklearn.metrics.roc_auc_score(y_test_cpu, y_pred)
-            # print(
-            #     f"\tTest AUC when intervening with {num_groups_intervened} "
-            #     f"concept groups is {acc * 100:.2f}% (accuracy "
-            #     f"is {np.mean(y_pred == y_test.detach().cpu().numpy()) * 100:.2f}% "
-            #     f"and full dataset AUC is {full_auc*100:.2f}%)."
-            # )
             logging.debug(
                 f"\tTest AUC when intervening with {num_groups_intervened} "
                 f"concept groups is {acc * 100:.2f}% (accuracy "
@@ -519,7 +499,7 @@ def fine_tune_coop(
         }
     if seed is not None:
         seed_everything(seed)
-    cbm = cem_train.load_trained_model(
+    cbm = load_trained_model(
         config=config,
         n_tasks=n_tasks,
         n_concepts=n_concepts,
@@ -544,7 +524,10 @@ def fine_tune_coop(
     if (not rerun) and (result_dir is not None):
         result_file = os.path.join(
             result_dir,
-            f"coop_best_params{'_' + key_name if key_name else key_name}_fold_{split}.joblib",
+            (
+                f"coop_best_params{'_' + key_name if key_name else key_name}_"
+                f"fold_{split}.joblib"
+            ),
         )
         if os.path.exists(result_file):
             return joblib.load(result_file)
@@ -615,7 +598,11 @@ def fine_tune_coop(
                         include_prior=include_prior,
                     )
                     with redirect_stdout(f):
-                        [test_results] = trainer.test(cbm, val_dl, verbose=False)
+                        [test_results] = trainer.test(
+                            cbm,
+                            val_dl,
+                            verbose=False,
+                        )
                     intervention_accs.append(test_results['test_y_accuracy'])
                 print("\tValidation accuracies are:", intervention_accs)
                 grid_search_results.append((used_params, intervention_accs))
@@ -632,18 +619,24 @@ def fine_tune_coop(
     if result_dir is not None:
         result_file = os.path.join(
             result_dir,
-            f"coop_best_params{'_' + key_name if key_name else key_name}_fold_{split}.joblib",
+            (
+                f"coop_best_params{'_' + key_name if key_name else key_name}_"
+                f"fold_{split}.joblib"
+            ),
         )
         joblib.dump(best_params, result_file)
 
         grid_search_results_file = os.path.join(
             result_dir,
-            f"coop_grid_search{'_' + key_name if key_name else key_name}_fold_{split}.joblib",
+            (
+                f"coop_grid_search{'_' + key_name if key_name else key_name}_"
+                f"fold_{split}.joblib"
+            ),
         )
         joblib.dump(grid_search_results, grid_search_results_file)
     return best_params
 
-def generate_arb_conds_training_data(
+def generate_policy_training_data(
     config,
     n_concepts,
     n_tasks,
@@ -662,7 +655,7 @@ def generate_arb_conds_training_data(
 ):
     if seed is not None:
         seed_everything(seed)
-    cbm = cem_train.load_trained_model(
+    cbm = load_trained_model(
         config=config,
         n_tasks=n_tasks,
         n_concepts=n_concepts,
@@ -763,8 +756,6 @@ def generate_arb_conds_training_data(
     )
 
 
-
-
 def get_int_policy(
     policy_name,
     n_tasks,
@@ -803,16 +794,6 @@ def get_int_policy(
         concept_selection_policy = UncertaintyMaximizerPolicy
     elif "global_val_error" in policy_name:
         concept_selection_policy = GlobalValidationPolicy
-    elif "learnt_expected_gain" in policy_name:
-        from cem.interventions.arbitrary_conditionals import LearntExpectedInfoGainPolicy
-        concept_selection_policy = LearntExpectedInfoGainPolicy
-    elif "expected_loss_improvement" in policy_name:
-        if "new" in policy_name:
-            from cem.interventions.arbitrary_conditionals import NewExpectedLossImprovement
-            concept_selection_policy = NewExpectedLossImprovement
-        else:
-            from cem.interventions.arbitrary_conditionals import ExpectedLossImprovement
-            concept_selection_policy = ExpectedLossImprovement
     elif "coop" in policy_name:
         concept_selection_policy = (
             CooPEntropy if "entropy" in policy_name
@@ -847,8 +828,14 @@ def get_int_policy(
                 "individual" in policy_name
             )
             policy_params["n_tasks"] = n_tasks
-            policy_params["importance_weight"] = config.get("importance_weight", 1)
-            policy_params["acquisition_weight"] = config.get("acquisition_weight", 1)
+            policy_params["importance_weight"] = config.get(
+                "importance_weight",
+                1,
+            )
+            policy_params["acquisition_weight"] = config.get(
+                "acquisition_weight",
+                1,
+            )
             policy_params["acquisition_costs"] = acquisition_costs
             policy_params["n_tasks"] = n_tasks
             policy_params["n_concepts"] = n_concepts
@@ -870,7 +857,7 @@ def get_int_policy(
             policy_params["group_based"] = not (
                 "individual" in policy_name
             )
-            _, _, _, _, _, _, _, val_c_aucs = generate_arb_conds_training_data(
+            _, _, _, _, _, _, _, val_c_aucs = generate_policy_training_data(
                 n_concepts=n_concepts,
                 n_tasks=n_tasks,
                 split=split,
@@ -887,204 +874,19 @@ def get_int_policy(
                 seed=(42 + split),
             )
             policy_params["val_c_aucs"] = val_c_aucs
-        elif "learnt_expected_gain" in policy_name:
-            policy_params["importance_weight"] = config.get("importance_weight", 1)
-            policy_params["acquisition_weight"] = config.get("acquisition_weight", 1)
-            policy_params["concept_entropy_weight"] = config.get("concept_entropy_weight", 0.1)
-            policy_params["acquisition_costs"] = acquisition_costs
-            policy_params["n_tasks"] = n_tasks
-            policy_params["n_concepts"] = n_concepts
-            policy_params["eps"] = config.get("eps", 1e-8)
-            policy_params["group_based"] = not (
-                "individual" in policy_name
-            )
-            full_run_name = (
-                f"{config['architecture']}{config.get('extra_name', '')}"
-            )
-            key_name = (
-                f'individual_coop_{full_run_name}'
-                if "individual" in policy_name else f'group_coop_{full_run_name}'
-            )
-
-            if concept_group_map is None:
-                concept_group_map = dict(
-                    [(i, [i]) for i in range(n_concepts)]
-                )
-            if intervened_groups is None:
-                # Then intervene on 1% 5% 25% 50% of all concepts
-                if policy_params["group_based"]:
-                    intervened_groups = set([
-                        int(np.ceil(p * len(concept_group_map)))
-                        for p in [0.01, 0.05, 0.25, 0.5]
-                    ])
-                else:
-                    intervened_groups = set([
-                        int(np.ceil(p * n_concepts))
-                        for p in [0.01, 0.05, 0.25, 0.5]
-                    ])
-                # We do this to avoid running the same twice if, say,
-                # 1% of the groups and 5% of the groups gives use the
-                # same whole number once the ceiling is applied
-                intervened_groups = sorted(intervened_groups)
-            best_params = fine_tune_coop(
-                n_concepts=n_concepts,
-                n_tasks=n_tasks,
-                split=split,
-                imbalance=imbalance,
-                task_class_weights=task_class_weights,
-                val_dl=val_dl,
-                train_dl=train_dl,
-                result_dir=result_dir,
-                config=config,
-                intervened_groups=intervened_groups,
-                concept_group_map=concept_group_map,
-                concept_entropy_weight_range=config.get(
-                    'concept_entropy_weight_range',
-                    None,
-                ),
-                importance_weight_range=config.get(
-                    'importance_weight_range',
-                    None,
-                ),
-                acquisition_weight_range=config.get(
-                    'acquisition_weight_range',
-                    None,
-                ),
-                acquisition_costs=acquisition_costs,
-                group_based=policy_params["group_based"],
-                eps=policy_params["eps"],
-                key_name=key_name,
-                coop_variant=CooP,
-                sequential=sequential,
-                independent=independent,
-                rerun=rerun,
-                batch_size=intervention_batch_size,
-                seed=(42 + split),
-                include_prior=policy_params["include_prior"],
-            )
-            print("Best params found for", policy_name, "are:")
-            for param_name, param_value in best_params.items():
-                policy_params[param_name] = param_value
-                print(f"\t{param_name} = {param_value}")
-
-
-            x_train, y_train, c_train, c_sem, c_pred, y_pred, ground_truth_embs_train, val_c_aucs = generate_arb_conds_training_data(
-                n_concepts=n_concepts,
-                n_tasks=n_tasks,
-                split=split,
-                imbalance=imbalance,
-                task_class_weights=task_class_weights,
-                train_dl=train_dl,
-                val_dl=val_dl,
-                result_dir=result_dir,
-                config=config,
-                sequential=sequential,
-                independent=independent,
-                rerun=rerun,
-                gpu=gpu,
-                seed=(42 + split),
-            )
-            policy_params["x_train"] = x_train
-            policy_params["c_sem"] = c_sem
-            policy_params["c_embs_train"] = c_pred
-            policy_params["y_pred_train"] = y_pred
-            policy_params["result_dir"] = result_dir
-            policy_params["include_inputs"] = config.get('include_inputs', False)
-            policy_params["vae_latent_dim"] = config.get('vae_latent_dim', 32)
-            policy_params["freeze_encoder"] = config.get('freeze_encoder', False)
-            policy_params["weight_decay"] = config.get('weight_decay', 0.00001)
-            policy_params["batch_size"] = config.get('batch_size', 512)
-            policy_params["train_epochs"] = config.get('vae_train_epochs', 500)
-            policy_params["lookahead_train_epochs"] = config.get('lookahead_train_epochs', 250)
-            policy_params["info_gains_samples"] = config.get('info_gains_samples', 100)
-            policy_params["matching_coef"] = config.get('matching_coef', 1)
-            policy_params["seed"] = config.get('seed', 42) + split
-            policy_params["binary_inputs"] = False
-            if (
-                (config["architecture"] == "ConceptBottleneckModel") and
-                config.get("sigmoidal_prob", True)
-            ):
-                policy_params["binary_inputs"] = True
-            policy_params["emb_size"] = (
-                config["emb_size"] if config["architecture"] in [
-                    "CEM",
-                    "ConceptEmbeddingModel",
-                    "IntAwareConceptEmbeddingModel",
-                    "IntCEM",
-                ]
-                else 1
-            )
-            policy_params["full_run_name"] = f"{full_run_name}_fold_{split}"
-
-
-        elif "expected_loss_improvement" in policy_name:
-            policy_params["non_greedy"] = "non_greedy" in policy_name
-            policy_params["importance_weight"] = config.get("importance_weight", 1)
-            policy_params["acquisition_weight"] = config.get("acquisition_weight", 1)
-            policy_params["acquisition_costs"] = acquisition_costs
-            policy_params["n_tasks"] = n_tasks
-            policy_params["n_concepts"] = n_concepts
-            policy_params["eps"] = config.get("eps", 1e-8)
-            policy_params["group_based"] = not (
-                "individual" in policy_name
-            )
-            full_run_name = (
-                f"{config['architecture']}{config.get('extra_name', '')}"
-            )
-
-
-
-            x_train, y_train, c_train, c_sem, c_pred, y_pred, ground_truth_embs_train, val_c_aucs = generate_arb_conds_training_data(
-                n_concepts=n_concepts,
-                n_tasks=n_tasks,
-                split=split,
-                imbalance=imbalance,
-                task_class_weights=task_class_weights,
-                train_dl=train_dl,
-                val_dl=val_dl,
-                result_dir=result_dir,
-                config=config,
-                sequential=sequential,
-                independent=independent,
-                rerun=rerun,
-                gpu=gpu,
-                seed=(42 + split),
-            )
-
-            policy_params["x_train"] = x_train
-            policy_params["y_train"] = y_train
-            policy_params["c_train"] = c_train
-            policy_params["val_c_aucs"] = val_c_aucs
-            policy_params["c_embs_train"] = c_pred
-            policy_params["y_pred_train"] = y_pred
-            policy_params["ground_truth_embs_train"] = ground_truth_embs_train
-            policy_params["result_dir"] = result_dir
-            policy_params["vae_latent_dim"] = config.get('vae_latent_dim', 32)
-            policy_params["freeze_encoder"] = config.get('freeze_encoder', False)
-            policy_params["weight_decay"] = config.get('weight_decay', 0.00001)
-            policy_params["batch_size"] = config.get('batch_size', 512)
-            policy_params["train_epochs"] = config.get('vae_train_epochs', 500)
-            policy_params["matching_coef"] = config.get('matching_coef', 1)
-            policy_params["seed"] = config.get('seed', 42) + split
-            if (
-                (config["architecture"] == "ConceptBottleneckModel") and
-                config.get("sigmoidal_prob", True)
-            ):
-                policy_params["binary_inputs"] = True
-            policy_params["emb_size"] = (
-                config["emb_size"] if config["architecture"] in [
-                    "CEM",
-                    "ConceptEmbeddingModel",
-                    "IntAwareConceptEmbeddingModel",
-                    "IntCEM",
-                ]
-                else 1
-            )
-            policy_params["full_run_name"] = f"{full_run_name}_fold_{split}"
         elif "coop" in policy_name:
-            policy_params["concept_entropy_weight"] = config.get("concept_entropy_weight", 1)
-            policy_params["importance_weight"] = config.get("importance_weight", 1)
-            policy_params["acquisition_weight"] = config.get("acquisition_weight", 1)
+            policy_params["concept_entropy_weight"] = config.get(
+                "concept_entropy_weight",
+                1,
+            )
+            policy_params["importance_weight"] = config.get(
+                "importance_weight",
+                1,
+            )
+            policy_params["acquisition_weight"] = config.get(
+                "acquisition_weight",
+                1,
+            )
             policy_params["acquisition_costs"] = acquisition_costs
             policy_params["n_tasks"] = n_tasks
             policy_params["eps"] = config.get("eps", 1e-8)
@@ -1094,7 +896,8 @@ def get_int_policy(
             if "competence" in policy_name:
                 tune_params = False
 
-            # Then also run our hyperparameter search using the validation data, if given
+            # Then also run our hyperparameter search using the validation data,
+            # if given
             if tune_params and (val_dl is not None):
                 full_run_name = (
                     f"{config['architecture']}{config.get('extra_name', '')}"
@@ -1170,22 +973,23 @@ def get_int_policy(
                 f"{config['architecture']}{config.get('extra_name', '')}"
             )
 
-            x_train, y_train, c_train, _, _, _, _, _ = generate_arb_conds_training_data(
-                n_concepts=n_concepts,
-                n_tasks=n_tasks,
-                split=split,
-                imbalance=imbalance,
-                task_class_weights=task_class_weights,
-                train_dl=train_dl,
-                val_dl=val_dl,
-                result_dir=result_dir,
-                config=config,
-                sequential=sequential,
-                independent=independent,
-                rerun=rerun,
-                gpu=gpu,
-                seed=(42 + split),
-            )
+            x_train, y_train, c_train, _, _, _, _, _ = \
+                generate_policy_training_data(
+                    n_concepts=n_concepts,
+                    n_tasks=n_tasks,
+                    split=split,
+                    imbalance=imbalance,
+                    task_class_weights=task_class_weights,
+                    train_dl=train_dl,
+                    val_dl=val_dl,
+                    result_dir=result_dir,
+                    config=config,
+                    sequential=sequential,
+                    independent=independent,
+                    rerun=rerun,
+                    gpu=gpu,
+                    seed=(42 + split),
+                )
             policy_params["x_train"] = x_train
             policy_params["y_train"] = y_train
             policy_params["c_train"] = c_train
@@ -1208,16 +1012,28 @@ def get_int_policy(
 
         elif "optimal_greedy" in policy_name:
             policy_params["acquisition_costs"] = acquisition_costs
-            policy_params["acquisition_weight"] = config.get("acquisition_weight", 1)
-            policy_params["importance_weight"] = config.get("importance_weight", 1)
+            policy_params["acquisition_weight"] = config.get(
+                "acquisition_weight",
+                1,
+            )
+            policy_params["importance_weight"] = config.get(
+                "importance_weight",
+                1,
+            )
             policy_params["n_tasks"] = n_tasks
             policy_params["group_based"] = not (
                 "individual" in policy_name
             )
         elif "optimal_global" in policy_name:
             policy_params["acquisition_costs"] = acquisition_costs
-            policy_params["acquisition_weight"] = config.get("acquisition_weight", 1)
-            policy_params["importance_weight"] = config.get("importance_weight", 1)
+            policy_params["acquisition_weight"] = config.get(
+                "acquisition_weight",
+                1,
+            )
+            policy_params["importance_weight"] = config.get(
+                "importance_weight",
+                1,
+            )
             policy_params["group_based"] = not (
                 "individual" in policy_name
             )
@@ -1240,7 +1056,10 @@ def _rerun_policy(rerun, policy_name, config, split):
     ):
         return True
     if "coop" in policy_name.lower() and (
-        config.get('rerun_coop_tuning', (os.environ.get(f"RERUN_COOP_TUNING", "0") == "1"))
+        config.get(
+        'rerun_coop_tuning',
+        (os.environ.get(f"RERUN_COOP_TUNING", "0") == "1"),
+    )
     ):
         return True
     if config.get(
@@ -1256,7 +1075,8 @@ def _rerun_policy(rerun, policy_name, config, split):
         if len(rerun_list) == 0:
             # Then we always rerun this guy
             return True
-        # Else, check if one of the models we are asking to rerun corresponds to this guy
+        # Else, check if one of the models we are asking to rerun corresponds to
+        # this guy
         for model_to_rerun in rerun_list:
             if model_to_rerun in full_run_name:
                 return True
@@ -1277,7 +1097,7 @@ def test_interventions(
     intervened_groups,
     used_policies=None,
     intervention_batch_size=1024,
-    competence_levels=[1], #, 0.9, 0.75, 0.6, 0.5, "unif"], #[0.5, 0.6, 0.75, 0.9, 1], #0.25, 1, 0, 0.5, 0.75],
+    competence_levels=[1],
     gpu=1,
     split=0,
     rerun=False,
@@ -1326,8 +1146,8 @@ def test_interventions(
             concept_group_map,
         ):
             if competence_level == "unif":
-                 # When using uniform competence, we will assign the same competence
-                # level to the same batch index
+                # When using uniform competence, we will assign the same
+                # competence level to the same batch index
                 # The same competence is assigned to all concepts within the same
                 # group
                 np.random.seed(42)
@@ -1347,7 +1167,10 @@ def test_interventions(
         if competence_level == 1:
             currently_used_policies = used_policies
         else:
-            currently_used_policies = config.get('incompetence_intervention_policies', used_policies)
+            currently_used_policies = config.get(
+                'incompetence_intervention_policies',
+                used_policies,
+            )
         for policy in currently_used_policies:
             if os.environ.get(f"IGNORE_INTERVENTION_{policy.upper()}", "0") == "1":
                 continue
@@ -1360,7 +1183,6 @@ def test_interventions(
                     for x in intervened_groups
 
                 ]
-                print("\tUsing intervened groups", used_intervened_groups, "with optimal global policy")
             else:
                 used_intervened_groups = intervened_groups
             policy_params_fn, concept_selection_policy = get_int_policy(
@@ -1383,17 +1205,31 @@ def test_interventions(
                 independent=independent,
                 task_class_weights=task_class_weights,
             )
-            print(f"\tIntervening in {full_run_name} with policy {policy} and competence {competence_level}")
+            print(
+                f"\tIntervening in {full_run_name} with policy {policy} and "
+                f"competence {competence_level}"
+            )
             if competence_level == 1:
                 key = f'test_acc_y_{policy}_ints_{full_run_name}'
                 int_time_key = f'avg_int_time_{policy}_ints_{full_run_name}'
-                construction_times_key = f'construction_time_{policy}_ints_{full_run_name}'
+                construction_times_key = (
+                    f'construction_time_{policy}_ints_{full_run_name}'
+                )
             else:
-                key = f'test_acc_y_{policy}_ints_co_{competence_level}_{full_run_name}'
-                int_time_key = f'avg_int_time_{policy}_ints_co_{competence_level}_{full_run_name}'
-                construction_times_key = f'construction_time_{policy}_ints_co_{competence_level}_{full_run_name}'
+                key = (
+                    f'test_acc_y_{policy}_ints_co_{competence_level}_'
+                    f'{full_run_name}'
+                )
+                int_time_key = (
+                    f'avg_int_time_{policy}_ints_co_{competence_level}_'
+                    f'{full_run_name}'
+                )
+                construction_times_key = (
+                    f'construction_time_{policy}_ints_co_{competence_level}_'
+                    f'{full_run_name}'
+                )
 
-            (int_results, avg_time, constr_time), loaded = cem_train.load_call(
+            (int_results, avg_time, constr_time), loaded = load_call(
                 function=intervene_in_cbm,
                 keys=(key, int_time_key, construction_times_key),
                 old_results=old_results,
@@ -1432,88 +1268,23 @@ def test_interventions(
             results[construction_times_key] = constr_time
             if loaded:
                 if avg_time:
-                    extra = f" (avg int time is {avg_time:.5f}s and construction time is {constr_time:.5f}s)"
+                    extra = (
+                        f" (avg int time is {avg_time:.5f}s and construction "
+                        f"time is {constr_time:.5f}s)"
+                    )
                 else:
                     extra = ""
                 for num_groups_intervened, val in enumerate(int_results):
                     if n_tasks > 1:
                         logging.debug(
-                            f"\t\tTest accuracy when intervening with {num_groups_intervened} "
+                            f"\t\tTest accuracy when intervening "
+                            f"with {num_groups_intervened} "
                             f"concept groups is {val * 100:.2f}%{extra}."
                         )
                     else:
                         logging.debug(
-                            f"\t\tTest AUC when intervening with {num_groups_intervened} "
+                            f"\t\tTest AUC when intervening "
+                            f"with {num_groups_intervened} "
                             f"concept groups is {val * 100:.2f}%{extra}."
                         )
-
-            if policy in ["group_random", "individual_random"] and (
-                "IntAware" in config["architecture"] and
-                config.get("include_budgeted_ints", False)
-            ):
-                # Then we will also attempt some rollouts where we give the model an actual boundary
-                # budget
-                budget_intervened_groups = [
-                    int(np.ceil(len(used_intervened_groups) * percent))
-                    for percent in [0.25] #, 0.5, 0.75, 1]
-                ]
-                for budget_limit in budget_intervened_groups:
-                    if competence_level == 1:
-                        key = f'test_acc_y_{policy}_budgeted_{budget_limit}_ints_{full_run_name}'
-                        int_time_key = f'avg_int_time_{policy}_budgeted_{budget_limit}_ints_{full_run_name}'
-                        construction_times_key = f'construction_time_{policy}_budgeted_{budget_limit}_ints_{full_run_name}'
-                    else:
-                        key = f'test_acc_y_{policy}_budgeted_{budget_limit}_ints_co_{competence_level}_{full_run_name}'
-                        int_time_key = f'avg_int_time_{policy}_budgeted_i{budget_limit}_nts_co_{competence_level}_{full_run_name}'
-                        construction_times_key = f'construction_time_{policy}_budgeted_{budget_limit}_ints_co_{competence_level}_{full_run_name}'
-
-                    current_budget_intervened_groups = list(range(0, budget_limit + 1, 1))
-                    (int_results, avg_time, constr_time), loaded = cem_train.load_call(
-                        function=intervene_in_cbm,
-                        keys=(key, int_time_key, construction_times_key),
-                        old_results=old_results,
-                        full_run_name=full_run_name,
-                        rerun=_rerun_policy(rerun, policy, config, split),
-                        kwargs=dict(
-                            concept_selection_policy=concept_selection_policy,
-                            policy_params=policy_params_fn,
-                            concept_group_map=concept_map,
-                            intervened_groups=current_budget_intervened_groups,
-                            gpu=gpu if gpu else None,
-                            config=config,
-                            test_dl=test_dl,
-                            train_dl=train_dl,
-                            n_tasks=n_tasks,
-                            n_concepts=n_concepts,
-                            result_dir=result_dir,
-                            imbalance=imbalance,
-                            split=split,
-                            rerun=_rerun_policy(rerun, policy, config, split),
-                            batch_size=intervention_batch_size,
-                            key_name=key,
-                            competence_generator=competence_generator,
-                            x_test=x_test,
-                            y_test=y_test,
-                            c_test=c_test,
-                            test_subsampling=config.get('test_subsampling', 1),
-                            sequential=sequential,
-                            independent=independent,
-                            seed=(42 + split),
-                            budgeted=True,
-                            task_class_weights=task_class_weights,
-                        ),
-                    )
-                    results[key] = int_results
-                    results[int_time_key] = avg_time
-                    results[construction_times_key] = constr_time
-                    if loaded:
-                        if avg_time:
-                            extra = f" (avg int time is {avg_time:.5f}s and construction time is {constr_time:.5f}s)"
-                        else:
-                            extra = ""
-                        for num_groups_intervened, val in enumerate(int_results):
-                            logging.debug(
-                                f"\t\tTest accuracy when intervening, using explicit BUDGET {budget_limit}, with {num_groups_intervened} "
-                                f"concept groups is {val * 100:.2f}%{extra}."
-                            )
     return results

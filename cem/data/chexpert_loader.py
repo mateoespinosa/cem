@@ -1,14 +1,10 @@
-import os
-import torch
-import pickle
 import numpy as np
-import torchvision.transforms as transforms
-from pytorch_lightning import seed_everything
-from collections import defaultdict
+import os
 import sklearn.model_selection
+import torch
 
-from PIL import Image
-from torch.utils.data import Dataset, DataLoader
+from pytorch_lightning import seed_everything
+
 from cem.data.CUB200.cub_loader import load_data
 
 ########################################################
@@ -60,7 +56,11 @@ def generate_data(
     def prev_concept_transform(sample):
         if isinstance(sample, list):
             sample = np.array(sample)
-        return np.where(np.logical_or(sample == 1, sample == 0), sample, config.get("unk_value", 0.5))
+        return np.where(
+            np.logical_or(sample == 1, sample == 0),
+            sample,
+            config.get("unk_value", 0.5),
+        )
     if sampling_percent != 1:
         # Do the subsampling
         if sampling_groups:

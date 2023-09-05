@@ -40,8 +40,8 @@ class ConstantMaskPolicy(InterventionPolicy):
         ), c
 
 class GlobalValidationPolicy(InterventionPolicy):
-    # Intervenes first on concepts with the highest uncertainty (measured by their
-    # predicted distribution's entropy)
+    # Intervenes first on concepts with the highest uncertainty (measured by
+    # their predicted distribution's entropy)
     # Adapted from the ideas in https://openreview.net/pdf?id=PUspzfGsgY
     def __init__(
         self,
@@ -92,7 +92,8 @@ class GlobalValidationPolicy(InterventionPolicy):
             # Then rescale the scores based on the prior
             scores *= prior_distribution
         if prev_interventions is not None:
-            # Then zero out the scores of the concepts that have been previously intervened
+            # Then zero out the scores of the concepts that have been previously
+            # intervened
             scores = np.where(
                 prev_interventions == 1,
                 -float("inf"),
@@ -102,26 +103,37 @@ class GlobalValidationPolicy(InterventionPolicy):
         best_concepts = np.argsort(-scores, axis=-1)
         for sample_idx in range(c.shape[0]):
             if self.group_based:
-                # We will assign each group a score based on the max score of its
-                # corresponding concepts
+                # We will assign each group a score based on the max score of
+                # its corresponding concepts
                 group_scores = np.zeros(len(self.concept_group_map))
                 group_names = []
                 for i, key in enumerate(self.concept_group_map):
-                    group_scores[i] = np.max(scores[sample_idx, self.concept_group_map[key]], axis=-1)
+                    group_scores[i] = np.max(
+                        scores[sample_idx, self.concept_group_map[key]],
+                        axis=-1,
+                    )
                     group_names.append(key)
                 # Sort them out
                 best_group_scores = np.argsort(-group_scores, axis=-1)
-                for selected_group in best_group_scores[: self.num_groups_intervened]:
-                    mask[sample_idx, self.concept_group_map[group_names[selected_group]]] = 1
+                for selected_group in (
+                    best_group_scores[: self.num_groups_intervened]
+                ):
+                    mask[
+                        sample_idx,
+                        self.concept_group_map[group_names[selected_group]]
+                    ] = 1
 
             else:
                 # Else, previous interventions do not affect future ones
-                mask[sample_idx, best_concepts[sample_idx, : self.num_groups_intervened]] = 1
+                mask[
+                    sample_idx,
+                    best_concepts[sample_idx, : self.num_groups_intervened]
+                ] = 1
         return mask, c
 
 class GlobalValidationImprovementPolicy(GlobalValidationPolicy):
-    # Intervenes first on concepts with the highest uncertainty (measured by their
-    # predicted distribution's entropy)
+    # Intervenes first on concepts with the highest uncertainty (measured by
+    # their predicted distribution's entropy)
     # Adapted from the ideas in https://openreview.net/pdf?id=PUspzfGsgY
     def __init__(
         self,

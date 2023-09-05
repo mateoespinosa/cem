@@ -1,12 +1,12 @@
-# We will use TensorFlow for constructing DNNs
-import torch
+import logging
 import numpy as np
 import os
 import pytorch_lightning
-import torchvision
-import scipy
-import sklearn.model_selection
 import random
+import sklearn.model_selection
+import torch
+import torchvision
+
 from pytorch_lightning import seed_everything
 
 
@@ -35,30 +35,56 @@ def inject_uncertainty(
                 for j in range(c_new.shape[-1]):
                     num_operands = x.shape[1] if x.shape[1] > 2 else 1
                     if mixing:
-                        possible_options_pos = x[c[:, j] == 1, j//num_operands, :, :]
-                        possible_options_neg = x[c[:, j] == 0, j//num_operands, :, :]
+                        possible_options_pos = x[
+                            c[:, j] == 1,
+                            j//num_operands,
+                            :,
+                            :,
+                        ]
+                        possible_options_neg = x[
+                            c[:, j] == 0,
+                            j//num_operands,
+                            :,
+                            :,
+                        ]
                     for i in range(c_new.shape[0]):
                         if c_new[i, j] == 1:
-                            c_new[i, j] = np.random.uniform(low=1.0 - uncertain_width, high=1)
+                            c_new[i, j] = np.random.uniform(
+                                low=1.0 - uncertain_width,
+                                high=1,
+                            )
                             if mixing:
-                                selected_mix = np.random.randint(0, possible_options_neg.shape[0])
+                                selected_mix = np.random.randint(
+                                    0,
+                                    possible_options_neg.shape[0],
+                                )
                                 x_new[i,j//num_operands,:,:]  = (
                                     x_new[i,j//num_operands,:,:] * c_new[i, j] +
-                                    (1 - c_new[i, j]) * possible_options_neg[selected_mix, :, :].numpy()
+                                    (
+                                        (1 - c_new[i, j]) *
+                                        possible_options_neg[
+                                            selected_mix,
+                                            :,
+                                            :,
+                                        ].numpy()
+                                    )
                                 )
                         else:
-                            c_new[i, j] = np.random.uniform(low=0.0, high=uncertain_width)
+                            c_new[i, j] = np.random.uniform(
+                                low=0.0,
+                                high=uncertain_width,
+                            )
                             if mixing:
-                                selected_mix = np.random.randint(0, possible_options_pos.shape[0])
+                                selected_mix = np.random.randint(
+                                    0,
+                                    possible_options_pos.shape[0],
+                                )
                                 x_new[i,j//num_operands,:,:]  = (
                                     x_new[i,j//num_operands,:,:] * (1 - c_new[i, j]) +
                                     c_new[i, j] * possible_options_pos[selected_mix, :, :].numpy()
                                 )
                         if threshold:
                             c_new[i, j] = int(c_new[i, j] >= 0.5)
-                # # Then normalize probabilities across multiple concept groups
-                # for concept_group in concept_groups:
-                #     c_new[:, concept_group] = scipy.special.softmax(c_new[:, concept_group], axis=-1)
 
             xs.append(x_new)
             cs.append(c_new)
@@ -98,7 +124,10 @@ def produce_addition_set(
     if not isinstance(selected_digits[0], list):
         selected_digits = [selected_digits[:] for _ in range(num_operands)]
     elif len(selected_digits) != num_operands:
-        raise ValueError("If selected_digits is a list of lists, it must have the same length as num_operands")
+        raise ValueError(
+            "If selected_digits is a list of lists, it must have the same "
+            "length as num_operands"
+        )
 
     operand_remaps = [
         dict((dig, idx) for (idx, dig) in enumerate(operand_digits))
@@ -143,8 +172,9 @@ def produce_addition_set(
                     ).numpy()
                 concepts.append(concept_vals)
             else:
-                # Else we will treat it as a simple binary concept (this allows us to train
-                # models that do not have mutually exclusive concepts!)
+                # Else we will treat it as a simple binary concept (this allows
+                # us to train models that do not have mutually exclusive
+                # concepts!)
                 if even_concepts:
                     concepts.append(np.array([[
                         int((total_labels[img_idx] % 2) == 0)
@@ -224,7 +254,9 @@ def load_mnist_addition(
     noise_level=0.0,
     test_noise_level=None,
 ):
-    test_noise_level = test_noise_level if (test_noise_level is not None) else noise_level
+    test_noise_level = (
+        test_noise_level if (test_noise_level is not None) else noise_level
+    )
     os.environ['PYTHONHASHSEED'] = str(seed)
     random.seed(seed)
     np.random.seed(seed)
@@ -232,7 +264,10 @@ def load_mnist_addition(
 
     concept_groups = []
     for operand_digits in selected_digits:
-        concept_groups.append(list(range(len(concept_groups), len(concept_groups) + len(operand_digits))))
+        concept_groups.append(list(range(
+            len(concept_groups),
+            len(concept_groups) + len(operand_digits),
+        )))
 
     ds_test = torchvision.datasets.MNIST(
         cache_dir,
@@ -281,7 +316,11 @@ def load_mnist_addition(
         y_test = torch.LongTensor(y_test)
     c_test = torch.FloatTensor(c_test)
     test_data = torch.utils.data.TensorDataset(x_test, y_test, c_test)
-    test_dl = torch.utils.data.DataLoader(test_data, batch_size=batch_size, num_workers=num_workers)
+    test_dl = torch.utils.data.DataLoader(
+        test_data,
+        batch_size=batch_size,
+        num_workers=num_workers,
+    )
     if uncertain_width and (not even_concepts):
         [test_dl] = inject_uncertainty(
             test_dl,
@@ -323,7 +362,12 @@ def load_mnist_addition(
 
 
     if val_percent:
-        x_train, x_val, y_train, y_val = sklearn.model_selection.train_test_split(x_train, y_train, test_size=val_percent)
+        x_train, x_val, y_train, y_val = \
+            sklearn.model_selection.train_test_split(
+                x_train,
+                y_train,
+                test_size=val_percent,
+            )
         x_val, y_val, c_val = produce_addition_set(
             X=x_val,
             y=y_val,
@@ -347,7 +391,11 @@ def load_mnist_addition(
             y_val = torch.LongTensor(y_val)
         c_val = torch.FloatTensor(c_val)
         val_data = torch.utils.data.TensorDataset(x_val, y_val, c_val)
-        val_dl = torch.utils.data.DataLoader(val_data, batch_size=batch_size, num_workers=num_workers)
+        val_dl = torch.utils.data.DataLoader(
+            val_data,
+            batch_size=batch_size,
+            num_workers=num_workers,
+        )
         if uncertain_width and (not even_concepts):
             [val_dl] = inject_uncertainty(
                 val_dl,
@@ -380,14 +428,15 @@ def load_mnist_addition(
     x_train = torch.FloatTensor(x_train)
     if even_labels or (threshold_labels is not None):
         y_train = torch.FloatTensor(y_train)
-        print("y_train distr:", np.mean(y_train.detach().cpu().numpy(), axis=0))
     else:
         y_train = torch.LongTensor(y_train)
-        print("y_train distr:", np.mean(torch.nn.functional.one_hot(y_train).detach().cpu().numpy(), axis=0))
-    print("c_train distr:", np.mean(c_train, axis=0))
     c_train = torch.FloatTensor(c_train)
     train_data = torch.utils.data.TensorDataset(x_train, y_train, c_train)
-    train_dl = torch.utils.data.DataLoader(train_data, batch_size=batch_size, num_workers=num_workers)
+    train_dl = torch.utils.data.DataLoader(
+        train_data,
+        batch_size=batch_size,
+        num_workers=num_workers,
+    )
 
     if uncertain_width and (not even_concepts):
         [train_dl] = inject_uncertainty(
@@ -417,7 +466,10 @@ def generate_data(
     if not isinstance(selected_digits[0], list):
         selected_digits = [selected_digits[:] for _ in range(num_operands)]
     elif len(selected_digits) != num_operands:
-        raise ValueError("If selected_digits is a list of lists, it must have the same length as num_operands")
+        raise ValueError(
+            "If selected_digits is a list of lists, it must have the same "
+            "length as num_operands"
+        )
     even_concepts = config.get("even_concepts", False)
     even_labels = config.get("even_labels", False)
     threshold_labels = config.get("threshold_labels", None)
@@ -502,10 +554,13 @@ def generate_data(
             return sample[:, selected_concepts]
         num_concepts = new_n_concepts
         concept_group_map = new_concept_group
-        print("\t\tSelected concepts:", selected_concepts)
-        print(f"\t\tUpdated concept group map (with {len(concept_group_map)} groups):")
+        logging.debug("\t\tSelected concepts:", selected_concepts)
+        logging.debug(
+            f"\t\tUpdated concept group map "
+            f"(with {len(concept_group_map)} groups):"
+        )
         for k, v in concept_group_map.items():
-            print(f"\t\t\t{k} -> {v}")
+            logging.debug(f"\t\t\t{k} -> {v}")
     else:
         concept_transform = None
     train_dl, val_dl, test_dl = load_mnist_addition(
@@ -532,7 +587,10 @@ def generate_data(
         even_concepts=even_concepts,
         concept_transform=concept_transform,
         noise_level=config.get("noise_level", 0),
-        test_noise_level=config.get("test_noise_level", config.get("noise_level", 0)),
+        test_noise_level=config.get(
+            "test_noise_level",
+            config.get("noise_level", 0),
+        ),
     )
 
     if config.get('weight_loss', False):
@@ -551,4 +609,10 @@ def generate_data(
         imbalance = None
     if not output_dataset_vars:
         return train_dl, val_dl, test_dl, imbalance
-    return train_dl, val_dl, test_dl, imbalance, (num_concepts, n_tasks, concept_group_map)
+    return (
+        train_dl,
+        val_dl,
+        test_dl,
+        imbalance,
+        (num_concepts, n_tasks, concept_group_map)
+    )

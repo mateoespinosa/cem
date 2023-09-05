@@ -1,10 +1,16 @@
+"""
+Niche Impurity Score (NIS) taken from
+https://github.com/mateoespinosa/concept-quality.
+
+All credit goes to Espinosa Zarlenga et al. AAAI 2023.
+"""
 import numpy as np
-from sklearn.metrics import accuracy_score, roc_auc_score
-from sklearn.feature_selection import mutual_info_classif
+
 from scipy.special import softmax
-from collections import defaultdict
-from sklearn.neural_network import MLPClassifier
+from sklearn.feature_selection import mutual_info_classif
+from sklearn.metrics import accuracy_score, roc_auc_score
 from sklearn.model_selection import train_test_split
+from sklearn.neural_network import MLPClassifier
 from tqdm import tqdm
 
 
@@ -211,12 +217,21 @@ def niche_finding(c, y, mode='mi', threshold=0.5):
     return niches, niching_matrix
 
 
-def niching_high_dim(c_soft_train, c_true_train, c_soft_test, c_true_test, classifier, threshold=0.5):
+def niching_high_dim(
+    c_soft_train,
+    c_true_train,
+    c_soft_test,
+    c_true_test,
+    classifier,
+    threshold=0.5,
+):
     n_samples, h_concepts, n_concepts = c_soft_train.shape
     niching_matrix = np.zeros((n_concepts, n_concepts))
     for j in range(n_concepts):
         for i in range(n_concepts):
-            corrm = np.corrcoef(np.hstack([c_soft_train[:, :, i], c_true_train[:, j].reshape(-1, 1)]).T)
+            corrm = np.corrcoef(
+                np.hstack([c_soft_train[:, :, i], c_true_train[:, j].reshape(-1, 1)]).T
+            )
             nm = corrm[:h_concepts, h_concepts:]
             niching_matrix[i, j] = nm.max()
 

@@ -51,13 +51,19 @@ class BehavioralLearningPolicy(InterventionPolicy):
         self.group_based = group_based
         self.cbm = cbm
         self.include_prior = include_prior
-        teacher_policy_kwargs = teacher_policy_kwargs or {"include_prior": False}
+        teacher_policy_kwargs = teacher_policy_kwargs or {
+            "include_prior": False,
+        }
         self.emb_size = emb_size
         units = [
             n_concepts * self.emb_size + # Bottleneck
             n_concepts + # Prev interventions
             1 # Horizon
-        ] + [256, 128, len(self.concept_group_map) if use_concept_groups else n_concepts]
+        ] + [
+            256,
+            128,
+            len(self.concept_group_map) if use_concept_groups else n_concepts,
+        ]
         layers = []
         for i in range(1, len(units)):
             layers.append(torch.nn.Linear(units[i-1], units[i]))
@@ -128,8 +134,12 @@ class BehavioralLearningPolicy(InterventionPolicy):
         )
         # Zero out embeddings of previously intervened concepts
         if use_concept_groups:
-            available_groups = np.zeros((embeddings.shape[0], len(self.concept_group_map)))
-            for group_idx, (_, group_concepts) in enumerate(self.concept_group_map.items()):
+            available_groups = np.zeros(
+                (embeddings.shape[0], len(self.concept_group_map))
+            )
+            for group_idx, (_, group_concepts) in enumerate(
+                self.concept_group_map.items()
+            ):
                 available_groups[:, group_idx] = np.logical_not(np.any(
                     prev_interventions[:, group_concepts] > (1/len(self.concept_group_map)),
                 ))
@@ -192,11 +202,27 @@ class BehavioralLearningPolicy(InterventionPolicy):
                 min(int(horizon_limit), self.n_concepts),
             )
             # Generate a sample of inputs we will use to learn embeddings
-            selected_samples = np.random.choice(x_train.shape[0], replace=False, size=compute_batch_size)
-            current_horizon = min(current_horizon, self.n_concepts - initially_selected)
-            prev_interventions = np.zeros((len(selected_samples), self.n_concepts))
+            selected_samples = np.random.choice(
+                x_train.shape[0],
+                replace=False,
+                size=compute_batch_size,
+            )
+            current_horizon = min(
+                current_horizon,
+                self.n_concepts - initially_selected,
+            )
+            prev_interventions = np.zeros(
+                (len(selected_samples), self.n_concepts)
+            )
             for sample_idx in range(prev_interventions.shape[0]):
-                prev_interventions[sample_idx, np.random.choice(self.n_concepts, size=initially_selected, replace=False)] = 1
+                prev_interventions[
+                    sample_idx,
+                    np.random.choice(
+                        self.n_concepts,
+                        size=initially_selected,
+                        replace=False
+                    ),
+                ] = 1
 
 
             outputs = self.cbm._forward(
@@ -227,7 +253,10 @@ class BehavioralLearningPolicy(InterventionPolicy):
             )
             horizon_limit = min(horizon_rate * horizon_limit, max_horizon)
             inputs.append(next_inputs)
-            next_intervention = np.argmax(next_mask - prev_interventions, axis=-1)
+            next_intervention = np.argmax(
+                next_mask - prev_interventions,
+                axis=-1,
+            )
             targets.append(next_intervention)
         inputs = np.concatenate(inputs, axis=0)
         targets = np.concatenate(targets, axis=0)
@@ -289,13 +318,9 @@ class BehavioralLearningPolicy(InterventionPolicy):
             dim=-1
         ).detach().cpu().numpy()
 
-#         if prior_distribution is not None:
-#             # Then rescale the scores based on the prior
-#             if not isinstance(prior_distribution, np.ndarray):
-#                 prior_distribution = prior_distribution.detach().cpu().numpy()
-#             scores *= prior_distribution
         if prev_interventions is not None:
-            # Then zero out the scores of the concepts that have been previously intervened
+            # Then zero out the scores of the concepts that have been previously
+            # intervened
             scores = np.where(
                 prev_interventions == 1,
                 -float("inf"),
@@ -310,16 +335,27 @@ class BehavioralLearningPolicy(InterventionPolicy):
                 group_scores = np.zeros(len(self.concept_group_map))
                 group_names = []
                 for i, key in enumerate(self.concept_group_map):
-                    group_scores[i] = np.max(scores[sample_idx, self.concept_group_map[key]], axis=-1)
+                    group_scores[i] = np.max(
+                        scores[sample_idx, self.concept_group_map[key]],
+                        axis=-1,
+                    )
                     group_names.append(key)
                 # Sort them out
                 best_group_scores = np.argsort(-group_scores, axis=-1)
-                for selected_group in best_group_scores[: self.num_groups_intervened]:
-                    mask[sample_idx, self.concept_group_map[group_names[selected_group]]] = 1
+                for selected_group in (
+                    best_group_scores[: self.num_groups_intervened]
+                ):
+                    mask[
+                        sample_idx,
+                        self.concept_group_map[group_names[selected_group]],
+                    ] = 1
 
             else:
                 # Else, previous interventions do not affect future ones
-                mask[sample_idx, best_concepts[sample_idx, : self.num_groups_intervened]] = 1
+                mask[
+                    sample_idx,
+                    best_concepts[sample_idx, : self.num_groups_intervened],
+                ] = 1
         return mask
 
     def __call__(

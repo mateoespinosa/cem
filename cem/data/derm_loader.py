@@ -1,14 +1,13 @@
-import os
-import torch
 import numpy as np
-import torchvision.transforms as transforms
-from pytorch_lightning import seed_everything
-from collections import defaultdict
-
-from PIL import Image
-from torch.utils.data import Dataset, DataLoader
+import os
 import pandas as pd
 import sklearn.model_selection
+import torch
+import torchvision.transforms as transforms
+
+from PIL import Image
+from pytorch_lightning import seed_everything
+from torch.utils.data import DataLoader
 
 ########################################################
 ## GENERAL DATASET GLOBAL VARIABLES
@@ -17,7 +16,7 @@ import sklearn.model_selection
 NUM_CONCEPTS = 8
 
 # Derm7pt is obtained from : https://derm.cs.sfu.ca/Welcome.html
-DATASET_DIR = os.environ.get("DATASET_DIR", '/local/scratch-2/me466/derm7pt/')
+DATASET_DIR = os.environ.get("DATASET_DIR", 'cem/data/')
 
 # Derm data constants
 DATASET_DIR = "/path/to/derm7pt/"
@@ -41,121 +40,28 @@ class Derm7ptDataset(object):
         self.label_transform = label_transform
         self.label_key = label_key
         if fold == "train":
-            indexes = list(pd.read_csv(os.path.join(base_dir, "meta", "train_indexes.csv"))['indexes'])
+            indexes = list(
+                pd.read_csv(
+                    os.path.join(base_dir, "meta", "train_indexes.csv")
+                )['indexes']
+            )
         elif fold == "test":
-            indexes =list(pd.read_csv(os.path.join(base_dir, "meta", "valid_indexes.csv"))['indexes'])
+            indexes =list(
+                pd.read_csv(
+                    os.path.join(base_dir, "meta", "valid_indexes.csv")
+                )['indexes']
+            )
         else:
             raise ValueError(f"Invalid fold {fold}")
         self.posible_concept_vals = {}
         self.concept_map = {}
         self.meta = pd.read_csv(os.path.join(base_dir, "meta", "meta.csv"))
-        # current_index = 0
-        # self.posible_concept_vals["TypicalPigmentNetwork"] = [0, 1, unc_value]
-        # if self.use_full_concepts:
-        #     self.concept_map["TypicalPigmentNetwork"] = [current_index, current_index + 1, current_index + 2]
-        #     current_index += 3
-        # else:
-        #     self.concept_map["TypicalPigmentNetwork"] = [current_index]
-        #     current_index += 1
-        # self.meta["TypicalPigmentNetwork"] = self.meta.apply(
-        #     lambda row: {"absent": 0, "typical": 1, "atypical": unc_value}[row["pigment_network"]],
-        #     axis=1,
-        # )
-
-        # self.posible_concept_vals["AtypicalPigmentNetwork"] = [0, 1, unc_value]
-        # if self.use_full_concepts:
-        #     self.concept_map["AtypicalPigmentNetwork"] = [current_index, current_index + 1, current_index + 2]
-        #     current_index += 3
-        # else:
-        #     self.concept_map["AtypicalPigmentNetwork"] = [current_index]
-        #     current_index += 1
-        # self.meta["AtypicalPigmentNetwork"] = self.meta.apply(
-        #     lambda row: {"absent": 0, "typical": unc_value, "atypical": 1}[row["pigment_network"]],
-        #     axis=1,
-        # )
-
-
-        # self.posible_concept_vals["RegularStreaks"] = [0, 1, unc_value]
-        # if self.use_full_concepts:
-        #     self.concept_map["RegularStreaks"] = [current_index, current_index + 1, current_index + 2]
-        #     current_index += 3
-        # else:
-        #     self.concept_map["RegularStreaks"] = [current_index]
-        #     current_index += 1
-        # self.meta["RegularStreaks"] = self.meta.apply(
-        #     lambda row: {"absent": 0, "regular": 1, "irregular": unc_value}[row["streaks"]],
-        #     axis=1,
-        # )
-
-
-        # self.posible_concept_vals["IrregularStreaks"] = [0, 1, unc_value]
-        # if self.use_full_concepts:
-        #     self.concept_map["IrregularStreaks"] = [current_index, current_index + 1, current_index + 2]
-        #     current_index += 3
-        # else:
-        #     self.concept_map["IrregularStreaks"] = [current_index]
-        #     current_index += 1
-        # self.meta["IrregularStreaks"] = self.meta.apply(
-        #     lambda row: {"absent": 0, "regular": unc_value, "irregular": 1}[row["streaks"]],
-        #     axis=1,
-        # )
-
-
-        # self.posible_concept_vals["RegressionStructures"] = [0, 1]
-        # if self.use_full_concepts:
-        #     self.concept_map["RegressionStructures"] = [current_index, current_index + 1]
-        #     current_index += 2
-        # else:
-        #     self.concept_map["RegressionStructures"] = [current_index]
-        #     current_index += 1
-        # self.meta["RegressionStructures"] = self.meta.apply(
-        #     lambda row: (1-int(row["regression_structures"] == "absent")),
-        #     axis=1,
-        # )
-
-
-        # self.posible_concept_vals["RegularDG"] = [0, 1, unc_value]
-        # if self.use_full_concepts:
-        #     self.concept_map["RegularDG"] = [current_index, current_index + 1, current_index + 2]
-        #     current_index += 3
-        # else:
-        #     self.concept_map["RegularDG"] = [current_index]
-        #     current_index += 1
-        # self.meta["RegularDG"] = self.meta.apply(
-        #     lambda row: {"absent": 0, "regular": 1, "irregular": unc_value}[row["dots_and_globules"]],
-        #     axis=1,
-        # )
-
-
-        # self.posible_concept_vals["IrregularDG"] = [0, 1, unc_value]
-        # if self.use_full_concepts:
-        #     self.concept_map["IrregularDG"] = [current_index, current_index + 1, current_index + 2]
-        #     current_index += 3
-        # else:
-        #     self.concept_map["IrregularDG"] = [current_index]
-        #     current_index += 1
-        # self.meta["IrregularDG"] = self.meta.apply(
-        #     lambda row: {"absent": 0, "regular": unc_value, "irregular": 1}[row["dots_and_globules"]],
-        #     axis=1,
-        # )
-
-
-        # self.posible_concept_vals["BWV"] = [0, 1]
-        # if self.use_full_concepts:
-        #     self.concept_map["BWV"] = [current_index, current_index + 1]
-        #     current_index += 2
-        # else:
-        #     self.concept_map["BWV"] = [current_index]
-        #     current_index += 1
-        # self.meta["BWV"] = self.meta.apply(
-        #     lambda row: {"absent": 0, "present": 1}[row["blue_whitish_veil"]],
-        #     axis=1,
-        # )
 
         current_index = 0
         self.posible_concept_vals["TypicalPigmentNetwork"] = [0, 1, 2]
         if self.use_full_concepts:
-            self.concept_map["TypicalPigmentNetwork"] = [current_index, current_index + 1, current_index + 2]
+            self.concept_map["TypicalPigmentNetwork"] = \
+                [current_index, current_index + 1, current_index + 2]
             current_index += 3
         else:
             self.concept_map["TypicalPigmentNetwork"] = [current_index]
@@ -429,8 +335,6 @@ def generate_data(
                             )
         # And update the concept group map accordingly
         concept_group_map = new_concept_group
-        print("\t\tSelected concepts:", selected_concepts)
-        print(f"\t\tUpdated concept group map (with {len(concept_group_map)} groups):")
         for k, v in concept_group_map.items():
             print(f"\t\t\t{k} -> {v}")
 
@@ -463,18 +367,33 @@ def generate_data(
     val_size = config.get("val_size", 0.1)
     if not config.get("train_subsampling", 1) in [1, 0, None]:
         percent = config.get("train_subsampling", 1)
-        file_name = os.path.join(root_dir, f"train_valsize_{val_size}_idxs_subsample_{percent}.npy")
+        file_name = os.path.join(
+            root_dir,
+            f"train_valsize_{val_size}_idxs_subsample_{percent}.npy",
+        )
         if os.path.exists(
-            os.path.join(root_dir, f"train_valsize_{val_size}_initially_selected_{percent}.npy")
+            os.path.join(
+                root_dir,
+                f"train_valsize_{val_size}_initially_selected_{percent}.npy",
+            )
         ):
-            full_train_idxs = np.load(os.path.join(root_dir, f"train_valsize_{val_size}_initially_selected_{percent}.npy"))
+            full_train_idxs = np.load(os.path.join(
+                root_dir,
+                f"train_valsize_{val_size}_initially_selected_{percent}.npy",
+            ))
         else:
             full_train_idxs = np.random.choice(
                 list(range(len(og_train_dl.dataset))),
                 size=int(np.ceil(len(og_train_dl.dataset) * percent)),
                 replace=False,
             )
-            np.save(os.path.join(root_dir, f"train_valsize_{val_size}_initially_selected_{percent}.npy"), full_train_idxs)
+            np.save(
+                os.path.join(
+                    root_dir,
+                    f"train_valsize_{val_size}_initially_selected_{percent}.npy"
+                ),
+                full_train_idxs,
+            )
     else:
         file_name = os.path.join(root_dir, f"train_valsize_{val_size}_idxs.npy")
         full_train_idxs = list(range(len(og_train_dl.dataset)))
@@ -489,7 +408,10 @@ def generate_data(
             random_state=42,
         )
         np.save(file_name, train_idxs)
-        np.save(file_name.replace(f"train_valsize_{val_size}_idxs", "val_idxs"), val_idxs)
+        np.save(
+            file_name.replace(f"train_valsize_{val_size}_idxs", "val_idxs"),
+            val_idxs,
+        )
 
     val_dl = torch.utils.data.DataLoader(
         torch.utils.data.Subset(og_train_dl.dataset, val_idxs),
@@ -516,7 +438,8 @@ def generate_data(
         label_generating_fn=label_generating_fn,
     )
 
-    # Finally, determine whether or not we will need to compute the imbalance factors
+    # Finally, determine whether or not we will need to compute the imbalance
+    # factors
     if config.get('weight_loss', False):
         attribute_count = np.zeros((n_concepts,))
         samples_seen = 0
@@ -530,4 +453,10 @@ def generate_data(
 
     if not output_dataset_vars:
         return train_dl, val_dl, test_dl, imbalance
-    return train_dl, val_dl, test_dl, imbalance, (n_concepts, num_classes, concept_group_map)
+    return (
+        train_dl,
+        val_dl,
+        test_dl,
+        imbalance,
+        (n_concepts, num_classes, concept_group_map),
+    )

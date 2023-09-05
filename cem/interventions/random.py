@@ -47,15 +47,21 @@ class IndependentRandomMaskIntPolicy(InterventionPolicy):
         else:
             mask = np.zeros((x.shape[0], c.shape[-1]), dtype=np.int64)
         group_mask = np.zeros((x.shape[0], len(concept_group_map)))
-        for group_idx, (_, group_concepts) in enumerate(concept_group_map.items()):
-            group_mask[:, group_idx] = np.all(mask[:, group_concepts] > 0, axis=-1).astype(np.int64)
+        for group_idx, (_, group_concepts) in enumerate(
+            concept_group_map.items()
+        ):
+            group_mask[:, group_idx] = np.all(
+                mask[:, group_concepts] > 0,
+                axis=-1,
+            ).astype(np.int64)
         prev_intervened_groups = np.sum(group_mask, axis=-1)
         if prior_distribution is None:
             prior_distribution = np.array([
                 [
                     1/(
-                        (len(self.concept_group_map) - prev_intervened_groups[idx])
-                        if prev_intervened_groups[idx] else len(self.concept_group_map)
+                        len(self.concept_group_map) - prev_intervened_groups[idx]
+                        if prev_intervened_groups[idx]
+                        else len(self.concept_group_map)
                     )
                     if group_mask[idx, group_idx] == 0 else 0
                     for group_idx in range(group_mask.shape[-1])

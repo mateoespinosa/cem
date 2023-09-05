@@ -1,24 +1,13 @@
-import sklearn.metrics
-import torch
+import numpy as np
 import pytorch_lightning as pl
-from cem.models.cbm import ConceptBottleneckModel, compute_accuracy
-import cem.train.utils as utils
+import torch
 
 from torchvision.models import resnet50
-import numpy as np
 
+from cem.metrics.accs import compute_accuracy
+from cem.models.cbm import ConceptBottleneckModel
+import cem.train.utils as utils
 
-################################################################################
-## HELPER LAYERS
-################################################################################
-
-
-class LambdaLayer(torch.nn.Module):
-    def __init__(self, lambd):
-        super(LambdaLayer, self).__init__()
-        self.lambd = lambd
-    def forward(self, x):
-        return self.lambd(x)
 
 
 ################################################################################
@@ -58,7 +47,7 @@ class ConceptEmbeddingModel(ConceptBottleneckModel):
         use_concept_groups=False,
         include_certainty=True,
 
-        top_k_accuracy=2,
+        top_k_accuracy=None,
         gpu=int(torch.cuda.is_available()),
     ):
         """
@@ -318,10 +307,15 @@ class ConceptEmbeddingModel(ConceptBottleneckModel):
         output_embeddings=False,
         output_latent=None,
         output_interventions=None,
-        threshold_concepts=False,
     ):
-        output_interventions = output_interventions if output_interventions is not None else self.output_interventions
-        output_latent = output_latent if output_latent is not None else self.output_latent
+        output_interventions = (
+            output_interventions if output_interventions is not None
+            else self.output_interventions
+        )
+        output_latent = (
+            output_latent if output_latent is not None
+            else self.output_latent
+        )
         if latent is None:
             pre_c = self.pre_concept_model(x)
             contexts = []
@@ -390,8 +384,6 @@ class ConceptEmbeddingModel(ConceptBottleneckModel):
             train=train,
             competencies=competencies,
         )
-        if threshold_concepts:
-            probs = (probs >= 0.5).type(probs.type())
         # Then time to mix!
         c_pred = contexts[:, :, :self.emb_size] * torch.unsqueeze(probs, dim=-1) + (
             contexts[:, :, self.emb_size:] * (1 - torch.unsqueeze(probs, dim=-1))
@@ -400,7 +392,10 @@ class ConceptEmbeddingModel(ConceptBottleneckModel):
         y = self.c2y_model(c_pred)
         tail_results = []
         if output_interventions:
-            if (intervention_idxs is not None) and isinstance(intervention_idxs, np.ndarray):
+            if (
+                (intervention_idxs is not None) and
+                isinstance(intervention_idxs, np.ndarray)
+            ):
                 intervention_idxs = torch.FloatTensor(
                     intervention_idxs
                 ).to(x.device)

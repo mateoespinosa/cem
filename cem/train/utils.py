@@ -1,16 +1,93 @@
-import torch
-import sklearn.metrics
-import pytorch_lightning as pl
-import os
-import numpy as np
+import joblib
 import logging
+import multiprocessing
+import numpy as np
+import os
+import pytorch_lightning as pl
+import sklearn.metrics
+import torch
 
-from torchvision.models import densenet121
 from pathlib import Path
+from torchvision.models import densenet121
+
 
 ################################################################################
 ## HELPER FUNCTIONS
 ################################################################################
+
+def _save_result(fun, kwargs, output_filepath):
+    result = fun(**kwargs)
+    joblib.dump(result, output_filepath)
+    return result
+
+def execute_and_save(
+    fun,
+    kwargs,
+    result_dir,
+    filename,
+    rerun=False,
+):
+    output_filepath = os.path.join(
+        result_dir,
+        filename,
+    )
+    if (not rerun) and os.path.exists(output_filepath):
+        return joblib.load(output_filepath)
+    context = multiprocessing.get_context('spawn')
+    p = context.Process(
+        target=_save_result,
+        kwargs=dict(
+            fun=fun,
+            kwargs=kwargs,
+            output_filepath=output_filepath,
+        ),
+    )
+    p.start()
+    p.join()
+    if p.exitcode:
+        raise ValueError(
+            f'Subprocess failed!'
+        )
+    p.kill()
+    return joblib.load(output_filepath)
+
+def load_call(
+    function,
+    keys,
+    full_run_name,
+    old_results=None,
+    rerun=False,
+    kwargs=None,
+):
+    old_results = old_results or {}
+    kwargs = kwargs or {}
+    if not isinstance(keys, (tuple, list)):
+        keys = [keys]
+
+    outputs = []
+    for key in keys:
+        if key.endswith("_" + full_run_name):
+            real_key = key[:len(full_run_name) + 1]
+            search_key = key
+        else:
+            real_key = key
+            search_key = key + "_" + full_run_name
+        rerun = rerun or (
+            os.environ.get(f"RERUN_METRIC_{real_key.upper()}", "0") == "1"
+        )
+        if search_key in old_results:
+            outputs.append(old_results[search_key])
+        else:
+            rerun = True
+            logging.debug(
+                f"Restarting run because we could not find {search_key} in "
+                f"old results."
+            )
+            break
+    if not rerun:
+        return outputs, True
+
+    return function(**kwargs), False
 
 
 def _to_val(x):
@@ -98,17 +175,7 @@ def compute_accuracy(
 def wrap_pretrained_model(c_extractor_arch, pretrain_model=True):
     def _result_x2c_fun(output_dim):
         try:
-            attempt = 0
-            while attempt < 5:
-                try:
-                    model = c_extractor_arch(pretrained=pretrain_model)
-                    break
-                except Exception as e:
-                    attempt += 1
-                    print(e)
-                    logging.warning(f"Attempt {attempt} of loading pretrained model failed!")
-            if attempt == 5:
-                raise Exception("Could not load pretrained model!")
+            model = c_extractor_arch(pretrained=pretrain_model)
             if output_dim:
                 if c_extractor_arch == densenet121:
                     model.classifier = torch.nn.Linear(

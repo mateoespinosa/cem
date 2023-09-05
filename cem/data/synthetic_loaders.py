@@ -1,7 +1,6 @@
 import numpy as np
 import torch
 
-from pathlib import Path
 from pytorch_lightning import seed_everything
 
 def generate_xor_data(size):
@@ -101,15 +100,24 @@ class SyntheticGenerator(object):
             batch_size = config["batch_size"]
             x, c, y = generate_data(int(dataset_size * 0.7))
             train_data = torch.utils.data.TensorDataset(x, y, c)
-            train_dl = torch.utils.data.DataLoader(train_data, batch_size=batch_size)
+            train_dl = torch.utils.data.DataLoader(
+                train_data,
+                batch_size=batch_size,
+            )
 
             x_test, c_test, y_test = generate_data(int(dataset_size * 0.2))
             test_data = torch.utils.data.TensorDataset(x_test, y_test, c_test)
-            test_dl = torch.utils.data.DataLoader(test_data, batch_size=batch_size)
+            test_dl = torch.utils.data.DataLoader(
+                test_data,
+                batch_size=batch_size,
+            )
 
             x_val, c_val, y_val = generate_data(int(dataset_size * 0.1))
             val_data = torch.utils.data.TensorDataset(x_val, y_val, c_val)
-            val_dl = torch.utils.data.DataLoader(val_data, batch_size=batch_size)
+            val_dl = torch.utils.data.DataLoader(
+                val_data,
+                batch_size=batch_size,
+            )
 
             if config.get('weight_loss', False):
                 attribute_count = np.zeros((num_concepts,))
@@ -124,7 +132,13 @@ class SyntheticGenerator(object):
             if not output_dataset_vars:
                 return train_dl, val_dl, test_dl, imbalance
             concept_group_map = dict([(i, [i]) for i in range(num_concepts)])
-            return train_dl, val_dl, test_dl, imbalance, (num_concepts, n_tasks, concept_group_map)
+            return (
+                train_dl,
+                val_dl,
+                test_dl,
+                imbalance,
+                (num_concepts, n_tasks, concept_group_map),
+            )
         self.generate_data = _data_loader
 
 def get_synthetic_num_features(dataset_name):
