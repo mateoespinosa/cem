@@ -175,7 +175,7 @@ Our **CEM module** takes the following initialization arguments:
 - `emb_size` (int): The size of each concept embedding. Defaults to 16.
 - `training_intervention_prob` (float): RandInt probability. Defaults
     to 0.25.
-- `embeding_activation` (str): A valid nonlinearity name to use for the
+- `embedding_activation` (str): A valid nonlinearity name to use for the
     generated embeddings. It must be one of [None, "sigmoid", "relu",
     "leakyrelu"] and defaults to "leakyrelu".
 - `shared_prob_gen` (Bool): Whether or not weights are shared across

@@ -6,12 +6,17 @@ import pytorch_lightning as pl
 import torch
 import logging
 import time
+from tqdm import tqdm
+from scipy.special import expit
 
 from pytorch_lightning import seed_everything
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 from pytorch_lightning.loggers import WandbLogger
 from torchvision.models import resnet18, resnet34, resnet50, densenet121
 import multiprocessing
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import accuracy_score
+import tensorflow as tf
 
 import cem.models.cem as models_cem
 import cem.models.cbm as models_cbm
@@ -20,6 +25,7 @@ import cem.train.utils as utils
 import cem.metrics.homogeneity as homogeneity
 import cem.metrics.oracle as oracle
 import cem.metrics.niching as niching
+from cem.interventions.global_policies import ConstantMaskPolicy
 
 def _save_result(fun, kwargs, output_filepath):
     result = fun(**kwargs)
@@ -1587,6 +1593,69 @@ def update_statistics(results, config, model, test_results, save_model=True):
             top_k = int(key[len("test_y_top_"):-len("_accuracy")])
             results[f'test_top_{top_k}_acc_y_{full_run_name}'] = val
 
+def representation_avg_task_pred(
+    c_embs_train,
+    c_embs_test,
+    y_train,
+    y_test,
+    predictor_train_kwags=None,
+):
+    n_samples, n_concepts, concept_emb_dims = c_embs_train.shape
+    n_classes = len(np.unique(y_train))
+    predictor_train_kwags = predictor_train_kwags or {
+        'epochs': 100,
+        'batch_size': min(512, n_samples),
+        'verbose': 0,
+    }
+    accs = []
+    for concept_idx in tqdm(range(n_concepts)):
+        classifier = tf.keras.models.Sequential([
+            tf.keras.layers.Dense(
+                32,
+                activation='relu',
+                name="predictor_fc_1",
+            ),
+            tf.keras.layers.Dense(
+                n_classes if n_classes > 2 else 1,
+                # We will merge the activation into the loss for numerical
+                # stability
+                activation=None,
+                name="predictor_fc_out",
+            ),
+        ])
+
+        loss = (
+            tf.keras.losses.SparseCategoricalCrossentropy(
+                from_logits=True
+            ) if n_classes > 2 else
+            tf.keras.losses.BinaryCrossentropy(
+                from_logits=True,
+            )
+        )
+        classifier.compile(
+            # Use ADAM optimizer by default
+            optimizer='adam',
+            # Note: we assume labels come without a one-hot-encoding in the
+            #       case when the concepts are categorical.
+            loss=loss,
+        )
+        # classifier = LogisticRegression(
+        #     penalty='none',
+        #     random_state=42,
+        #     max_iter=predictor_train_kwags.get('max_iter', 100),
+        # )
+        classifier.fit(
+            c_embs_train[:,concept_idx,:],
+            y_train,
+            **predictor_train_kwags,
+        )
+        # y_test_pred = classifier.predict_proba(c_embs_test[:, concept_idx, :])
+        y_test_pred = classifier.predict(c_embs_test[:, concept_idx, :])
+        if n_classes > 2:
+            accs.append(accuracy_score(y_test, np.argmax(y_test_pred, axis=-1)))
+        else:
+            accs.append(accuracy_score(y_test, expit(y_test_pred) >=0.5))
+    return np.mean(accs)
 
 
 def evaluate_representation_metrics(
@@ -1596,6 +1665,7 @@ def evaluate_representation_metrics(
     test_dl,
     full_run_name,
     split=0,
+    train_dl=None,
     imbalance=None,
     result_dir=None,
     sequential=False,
@@ -1607,6 +1677,7 @@ def evaluate_representation_metrics(
     old_results=None,
     test_subsampling=1,
 ):
+    result_dict = {}
     if config.get("rerun_repr_evaluation", False):
         rerun = True
     if config.get("skip_repr_evaluation", False):
@@ -1681,160 +1752,416 @@ def evaluate_representation_metrics(
     )
 
     c_pred = np.reshape(c_pred, (c_test.shape[0], n_concepts, -1))
-    # We now need to reshuffle the c_pred matrix to recover is concept
-    # structure
-    ois_key = f'test_ois_{full_run_name}'
-    print(f"Computing OIS score...")
+
     oracle_matrix = None
-    if os.path.exists(
-        os.path.join(result_dir, f'oracle_matrix.npy')
-    ):
-        oracle_matrix = np.load(os.path.join(result_dir, f'oracle_matrix.npy'))
-    ois, loaded = _execute_and_save(
-        fun=load_call,
-        kwargs=dict(
-            keys=[ois_key],
-            old_results=old_results,
-            rerun=rerun,
-            function=oracle.oracle_impurity_score,
-            full_run_name=full_run_name,
+    if config.get("run_ois", True):
+        ois_key = f'test_ois_{full_run_name}'
+        print(f"Computing OIS score...")
+        if os.path.exists(
+            os.path.join(result_dir, f'oracle_matrix.npy')
+        ):
+            oracle_matrix = np.load(os.path.join(result_dir, f'oracle_matrix.npy'))
+        ois, loaded = _execute_and_save(
+            fun=load_call,
             kwargs=dict(
-                c_soft=np.transpose(c_pred, (0, 2, 1)),
-                c_true=c_test,
-                predictor_train_kwags={
-                    'epochs': config.get("ois_epochs", 50),
-                    'batch_size': min(2048, c_test.shape[0]),
-                    'verbose': 0,
-                },
-                test_size=0.2,
-                oracle_matrix=oracle_matrix,
-                jointly_learnt=True,
+                keys=[ois_key],
+                old_results=old_results,
+                rerun=rerun,
+                function=oracle.oracle_impurity_score,
+                full_run_name=full_run_name,
+                kwargs=dict(
+                    c_soft=np.transpose(c_pred, (0, 2, 1)),
+                    c_true=c_test,
+                    predictor_train_kwags={
+                        'epochs': config.get("ois_epochs", 50),
+                        'batch_size': min(2048, c_test.shape[0]),
+                        'verbose': 0,
+                    },
+                    test_size=0.2,
+                    oracle_matrix=oracle_matrix,
+                    jointly_learnt=True,
+                    output_matrices=True,
+                ),
+            ),
+            result_dir=result_dir,
+            filename=f'{ois_key}_split_{split}.joblib',
+            rerun=rerun,
+        )
+        if isinstance(ois, (tuple, list)):
+            if len(ois) == 3:
+                (ois, _, oracle_matrix) = ois
+            else:
+                ois = ois[0]
+        print(f"\tDone....OIS score is {ois*100:.2f}%")
+        if (oracle_matrix is not None) and (not os.path.exists(
+            os.path.join(result_dir, f'oracle_matrix.npy')
+        )):
+            np.save(
+                os.path.join(result_dir, f'oracle_matrix.npy'),
+                oracle_matrix,
             )
-        ),
-        result_dir=result_dir,
-        filename=f'{ois_key}_split_{split}.joblib',
-        rerun=rerun,
-    )
-    if isinstance(ois, (tuple, list)):
-        if len(ois) == 3:
-            (ois, _, oracle_matrix) = ois
-        else:
-            ois = ois[0]
-    print(f"\tDone....OIS score is {ois*100:.2f}%")
-    if (oracle_matrix is not None) and (not os.path.exists(
-        os.path.join(result_dir, f'oracle_matrix.npy')
-    )):
-        np.save(
-            os.path.join(result_dir, f'oracle_matrix.npy'),
-            oracle_matrix,
+        result_dict[ois_key] = ois
+
+    if config.get("run_ois_no_diag", False):
+        ois_no_diag_key = f'test_ois_no_diag_{full_run_name}'
+        print(f"Computing OIS without taking into account the diagonal...")
+        ois_no_diag, loaded = _execute_and_save(
+            fun=load_call,
+            kwargs=dict(
+                keys=[ois_no_diag_key],
+                old_results=old_results,
+                rerun=rerun,
+                function=oracle.oracle_impurity_score,
+                full_run_name=full_run_name,
+                kwargs=dict(
+                    c_soft=np.transpose(c_pred, (0, 2, 1)),
+                    c_true=c_test,
+                    predictor_train_kwags={
+                        'epochs': config.get("ois_epochs", 50),
+                        'batch_size': min(2048, c_test.shape[0]),
+                        'verbose': 0,
+                    },
+                    test_size=0.2,
+                    oracle_matrix=oracle_matrix,
+                    jointly_learnt=True,
+                    include_diagonal=False,
+                    output_matrices=True,
+                ),
+            ),
+            result_dir=result_dir,
+            filename=f'{ois_no_diag_key}_split_{split}.joblib',
+            rerun=rerun,
+        )
+        if isinstance(ois_no_diag, (tuple, list)):
+            if len(ois_no_diag) == 3:
+                (ois_no_diag, _, oracle_matrix) = ois_no_diag
+            else:
+                ois_no_diag = ois_no_diag[0]
+        print(f"\tDone....ois_no_diag score is {ois_no_diag*100:.2f}%")
+        if (oracle_matrix is not None) and (not os.path.exists(
+            os.path.join(result_dir, f'oracle_matrix.npy')
+        )):
+            np.save(
+                os.path.join(result_dir, f'oracle_matrix.npy'),
+                oracle_matrix,
+            )
+        result_dict[ois_no_diag_key] = ois_no_diag
+
+
+    # Then let's try and see how predictive each representation is of the
+    # downstream task
+    if train_dl is not None and (
+        config.get("run_repr_avg_pred", False)
+    ):
+        x_train, y_train, c_train = [], [], []
+        for ds_data in train_dl:
+            if len(ds_data) == 2:
+                x, (y, c) = ds_data
+            else:
+                (x, y, c) = ds_data
+            x_type = x.type()
+            y_type = y.type()
+            c_type = c.type()
+            x_train.append(x)
+            y_train.append(y)
+            c_train.append(c)
+        x_train = np.concatenate(x_train, axis=0)
+        y_train = np.concatenate(y_train, axis=0)
+        c_train = np.concatenate(c_train, axis=0)
+
+        used_train_dl = torch.utils.data.DataLoader(
+            dataset=torch.utils.data.TensorDataset(
+                torch.FloatTensor(x_train).type(x_type),
+                torch.FloatTensor(y_train).type(y_type),
+                torch.FloatTensor(c_train).type(c_type),
+            ),
+            batch_size=32,
+            num_workers=train_dl.num_workers,
         )
 
-    nis_key = f'test_nis_{full_run_name}'
-    print(f"Computing NIS score...")
-    nis, loaded = _execute_and_save(
-        fun=load_call,
-        kwargs=dict(
-            keys=[ois_key],
-            old_results=old_results,
-            rerun=rerun,
-            function=niching.niche_impurity_score,
-            full_run_name=full_run_name,
+        train_batch_results = trainer.predict(cbm, used_train_dl)
+        c_pred_train = np.concatenate(
+            list(map(lambda x: x[1].detach().cpu().numpy(), train_batch_results)),
+            axis=0,
+        )
+
+        c_pred_train = np.reshape(
+            c_pred_train,
+            (c_pred_train.shape[0], n_concepts, -1),
+        )
+
+        repr_task_pred_key = f'test_repr_task_pred_{full_run_name}'
+        print(f"Computing avg task predictibility from learnt concept reprs...")
+        repr_task_pred, loaded = _execute_and_save(
+            fun=load_call,
             kwargs=dict(
-                c_soft=np.transpose(c_pred, (0, 2, 1)),
-                c_true=c_test,
-                test_size=0.2,
+                keys=[repr_task_pred_key],
+                old_results=old_results,
+                rerun=rerun,
+                function=representation_avg_task_pred,
+                full_run_name=full_run_name,
+                kwargs=dict(
+                    c_embs_train=c_pred_train,
+                    c_embs_test=c_pred,
+                    y_train=y_train,
+                    y_test=y_test,
+                ),
             ),
-        ),
-        result_dir=result_dir,
-        filename=f'{nis_key}_split_{split}.joblib',
-        rerun=rerun,
-    )
-    if isinstance(nis, (tuple, list)):
-        assert len(nis) == 1
-        nis = nis[0]
-    print("nis", nis)
-    print(f"\tDone....NIS score is {nis*100:.2f}%")
-
-
-    cas_key = f'test_cas_{full_run_name}'
-    print(f"Computing entire representation CAS score with c_pred.shape =", c_pred.shape, "...")
-    cas, loaded = _execute_and_save(
-        fun=load_call,
-        kwargs=dict(
-            keys=[cas_key],
-            old_results=old_results,
+            result_dir=result_dir,
+            filename=f'{repr_task_pred_key}_split_{split}.joblib',
             rerun=rerun,
-            function=homogeneity.embedding_homogeneity,
-            full_run_name=full_run_name,
-            kwargs=dict(
-                c_vec=c_pred,
-                c_test=c_test,
-                y_test=y_test,
-                step=config.get('cas_step', 2),
-            ),
-        ),
-        result_dir=result_dir,
-        filename=f'{cas_key}_split_{split}.joblib',
-        rerun=rerun,
-    )
-    if isinstance(cas, (tuple, list)):
-        cas = cas[0]
-    print(f"\tDone....CAS score is {cas*100:.2f}%")
+        )
+        print("repr_task_pred =", repr_task_pred)
+        print(f"\tDone....average repr_task_pred is {repr_task_pred*100:.2f}%")
 
-    prob_cas_key = f'test_cas_probs_only_{full_run_name}'
-    print(f"Computing probability only CAS score with c_sem.shape =", c_sem.shape, "...")
-    prob_cas, loaded = _execute_and_save(
-        fun=load_call,
-        kwargs=dict(
-            keys=[prob_cas_key],
-            old_results=old_results,
+        # prev_int_policy = cbm.intervention_policy
+        # cbm.intervention_policy = ConstantMaskPolicy(
+        #     cbm=cbm,
+        #     mask=np.ones((n_concepts,)),
+        #     num_groups_intervened=n_concepts,
+        #     group_based=False,
+        #     include_prior=False,
+        # )
+        # train_batch_results = trainer.predict(cbm, used_train_dl)
+
+        # cbm.intervention_policy = prev_int_policy
+        # c_pred_train = np.concatenate(
+        #     list(map(lambda x: x[1].detach().cpu().numpy(), train_batch_results)),
+        #     axis=0,
+        # )
+
+        # c_pred_train = np.reshape(
+        #     c_pred_train,
+        #     (c_pred_train.shape[0], n_concepts, -1),
+        # )
+
+        # test_batch_results = trainer.predict(cbm, test_dl)
+        # c_pred_test = np.concatenate(
+        #     list(map(lambda x: x[1].detach().cpu().numpy(), test_batch_results)),
+        #     axis=0,
+        # )
+
+        # c_pred_test = np.reshape(
+        #     c_pred_test,
+        #     (c_pred_test.shape[0], n_concepts, -1),
+        # )
+
+        # pure_repr_task_pred_key = f'test_pure_repr_task_pred_{full_run_name}'
+        # print(f"Computing PURE avg task predictibility from learnt concept reprs...")
+        # pure_repr_task_pred, loaded = _execute_and_save(
+        #     fun=load_call,
+        #     kwargs=dict(
+        #         keys=[pure_repr_task_pred_key],
+        #         old_results=old_results,
+        #         rerun=rerun,
+        #         function=representation_avg_task_pred,
+        #         full_run_name=full_run_name,
+        #         kwargs=dict(
+        #             c_embs_train=c_pred_train,
+        #             c_embs_test=c_pred_test,
+        #             y_train=y_train,
+        #             y_test=y_test,
+        #         ),
+        #     ),
+        #     result_dir=result_dir,
+        #     filename=f'{pure_repr_task_pred_key}_split_{split}.joblib',
+        #     rerun=rerun,
+        # )
+        # print(f"\tDone....average pure_repr_task_pred is {pure_repr_task_pred*100:.2f}%")
+
+        result_dict.update({
+            repr_task_pred_key: repr_task_pred,
+            # pure_repr_task_pred_key: pure_repr_task_pred,
+        })
+
+    if config.get("run_ois_prob", False):
+        # OIS but using only the predicted probabilities
+        ois_prob_key = f'test_ois_prob_{full_run_name}'
+        print(f"Computing ois_prob score...")
+        oracle_matrix = None
+        if os.path.exists(
+            os.path.join(result_dir, f'oracle_matrix.npy')
+        ):
+            oracle_matrix = np.load(os.path.join(result_dir, f'oracle_matrix.npy'))
+        ois_prob, loaded = _execute_and_save(
+            fun=load_call,
+            kwargs=dict(
+                keys=[ois_prob_key],
+                old_results=old_results,
+                rerun=rerun,
+                function=oracle.oracle_impurity_score,
+                full_run_name=full_run_name,
+                kwargs=dict(
+                    c_soft=c_sem,
+                    c_true=c_test,
+                    predictor_train_kwags={
+                        'epochs': config.get("ois_prob_epochs", 50),
+                        'batch_size': min(2048, c_test.shape[0]),
+                        'verbose': 0,
+                    },
+                    test_size=0.2,
+                    oracle_matrix=oracle_matrix,
+                    jointly_learnt=True,
+                ),
+            ),
+            result_dir=result_dir,
+            filename=f'{ois_prob_key}_split_{split}.joblib',
             rerun=rerun,
-            function=homogeneity.embedding_homogeneity,
-            full_run_name=full_run_name,
-            kwargs=dict(
-                c_vec=c_sem,
-                c_test=c_test,
-                y_test=y_test,
-                step=config.get('cas_step', 2),
-            ),
-        ),
-        result_dir=result_dir,
-        filename=f'{prob_cas_key}_split_{split}.joblib',
-        rerun=rerun,
-    )
-    if isinstance(prob_cas, (tuple, list)):
-        prob_cas = prob_cas[0]
-    print(f"\tDone....Probability CAS score is {prob_cas*100:.2f}%")
+        )
+        if isinstance(ois_prob, (tuple, list)):
+            if len(ois_prob) == 3:
+                (ois_prob, _, oracle_matrix) = ois_prob
+            else:
+                ois_prob = ois_prob[0]
+        print(f"\tDone....ois_prob score is {ois_prob*100:.2f}%")
+        result_dict[ois_prob_key] = ois_prob
 
-    comb_cas_key = f'test_cas_comb_{full_run_name}'
-    print(f"Computing combined CAS score with c_sem.shape =", c_sem.shape, "...")
-    comb_cas, loaded = _execute_and_save(
-        fun=load_call,
-        kwargs=dict(
-            keys=[comb_cas_key],
-            old_results=old_results,
+    if config.get("run_nis", True):
+        # Niche impurity score now
+        nis_key = f'test_nis_{full_run_name}'
+        print(f"Computing NIS score...")
+        nis, loaded = _execute_and_save(
+            fun=load_call,
+            kwargs=dict(
+                keys=[nis_key],
+                old_results=old_results,
+                rerun=rerun,
+                function=niching.niche_impurity_score,
+                full_run_name=full_run_name,
+                kwargs=dict(
+                    c_soft=np.transpose(c_pred, (0, 2, 1)),
+                    c_true=c_test,
+                    test_size=0.2,
+                ),
+            ),
+            result_dir=result_dir,
+            filename=f'{nis_key}_split_{split}.joblib',
             rerun=rerun,
-            function=homogeneity.embedding_homogeneity,
-            full_run_name=full_run_name,
-            kwargs=dict(
-                c_vec=np.concatenate([c_pred, np.expand_dims(c_sem, axis=-1)], axis=-1),
-                c_test=c_test,
-                y_test=y_test,
-                step=config.get('cas_step', 2),
-            ),
-        ),
-        result_dir=result_dir,
-        filename=f'{comb_cas_key}_split_{split}.joblib',
-        rerun=rerun,
-    )
-    if isinstance(comb_cas, (tuple, list)):
-        comb_cas = comb_cas[0]
-    print(f"\tDone....combined CAS score is {comb_cas*100:.2f}%")
+        )
+        if isinstance(nis, (tuple, list)):
+            assert len(nis) == 1
+            nis = nis[0]
+        print("nis", nis)
+        print(f"\tDone....NIS score is {nis*100:.2f}%")
+        result_dict[nis_key] = nis
 
-    return {
-        cas_key: cas,
-        prob_cas_key: prob_cas,
-        comb_cas_key: comb_cas,
-        nis_key: nis,
-        ois_key: ois,
-    }
+    if config.get("run_nis_prob", False):
+        # And let's do the NIS but only from the predicted probabilities
+        nis_prob_key = f'test_nis_prob_{full_run_name}'
+        print(f"Computing nis_prob score...")
+        nis_prob, loaded = _execute_and_save(
+            fun=load_call,
+            kwargs=dict(
+                keys=[nis_prob_key],
+                old_results=old_results,
+                rerun=rerun,
+                function=niching.niche_impurity_score,
+                full_run_name=full_run_name,
+                kwargs=dict(
+                    c_soft=c_sem,
+                    c_true=c_test,
+                    test_size=0.2,
+                ),
+            ),
+            result_dir=result_dir,
+            filename=f'{nis_prob_key}_split_{split}.joblib',
+            rerun=rerun,
+        )
+        if isinstance(nis_prob, (tuple, list)):
+            assert len(nis_prob) == 1
+            nis_prob = nis_prob[0]
+        print("nis_prob", nis_prob)
+        print(f"\tDone....nis_prob score is {nis_prob*100:.2f}%")
+        result_dict[nis_prob_key] = nis_prob
+
+
+    if config.get("run_cas", True):
+        cas_key = f'test_cas_{full_run_name}'
+        print(
+            f"Computing entire representation CAS score with c_pred.shape =",
+            c_pred.shape,
+            "...",
+        )
+        cas, loaded = _execute_and_save(
+            fun=load_call,
+            kwargs=dict(
+                keys=[cas_key],
+                old_results=old_results,
+                rerun=rerun,
+                function=homogeneity.embedding_homogeneity,
+                full_run_name=full_run_name,
+                kwargs=dict(
+                    c_vec=c_pred,
+                    c_test=c_test,
+                    y_test=y_test,
+                    step=config.get('cas_step', 2),
+                ),
+            ),
+            result_dir=result_dir,
+            filename=f'{cas_key}_split_{split}.joblib',
+            rerun=rerun,
+        )
+        if isinstance(cas, (tuple, list)):
+            cas = cas[0]
+        print(f"\tDone....CAS score is {cas*100:.2f}%")
+        result_dict[cas_key] = cas
+
+    if config.get("run_cas_probs_only", True):
+        prob_cas_key = f'test_cas_probs_only_{full_run_name}'
+        print(
+            f"Computing probability only CAS score with c_sem.shape =",
+            c_sem.shape,
+            "..."
+        )
+        prob_cas, loaded = _execute_and_save(
+            fun=load_call,
+            kwargs=dict(
+                keys=[prob_cas_key],
+                old_results=old_results,
+                rerun=rerun,
+                function=homogeneity.embedding_homogeneity,
+                full_run_name=full_run_name,
+                kwargs=dict(
+                    c_vec=c_sem,
+                    c_test=c_test,
+                    y_test=y_test,
+                    step=config.get('cas_step', 2),
+                ),
+            ),
+            result_dir=result_dir,
+            filename=f'{prob_cas_key}_split_{split}.joblib',
+            rerun=rerun,
+        )
+        if isinstance(prob_cas, (tuple, list)):
+            prob_cas = prob_cas[0]
+        print(f"\tDone....Probability CAS score is {prob_cas*100:.2f}%")
+        result_dict[prob_cas_key] = prob_cas
+
+    if config.get("run_cas_comb", True):
+        comb_cas_key = f'test_cas_comb_{full_run_name}'
+        print(f"Computing combined CAS score with c_sem.shape =", c_sem.shape, "...")
+        comb_cas, loaded = _execute_and_save(
+            fun=load_call,
+            kwargs=dict(
+                keys=[comb_cas_key],
+                old_results=old_results,
+                rerun=rerun,
+                function=homogeneity.embedding_homogeneity,
+                full_run_name=full_run_name,
+                kwargs=dict(
+                    c_vec=np.concatenate([c_pred, np.expand_dims(c_sem, axis=-1)], axis=-1),
+                    c_test=c_test,
+                    y_test=y_test,
+                    step=config.get('cas_step', 2),
+                ),
+            ),
+            result_dir=result_dir,
+            filename=f'{comb_cas_key}_split_{split}.joblib',
+            rerun=rerun,
+        )
+        if isinstance(comb_cas, (tuple, list)):
+            comb_cas = comb_cas[0]
+        print(f"\tDone....combined CAS score is {comb_cas*100:.2f}%")
+        result_dict[comb_cas_key] = comb_cas
+
+    return result_dict
