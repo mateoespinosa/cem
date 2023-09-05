@@ -1,6 +1,5 @@
 trials: 5
-results_dir: results/rollout_ablation_cub/ #results/rollout_ablation_cub_0.25_groups/
-dataset: cub
+results_dir: results/rollout_ablation_cub/
 num_workers: 8
 batch_size: 512 # 256
 
