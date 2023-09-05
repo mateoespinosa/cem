@@ -158,6 +158,10 @@ trainer = pl.Trainer(
 trainer.fit(cem_model, train_dl, val_dl)
 ```
 
+For a **full example** showing how to generate a dataset and configure a CEM
+**for training on your own custom dataset**, please see our [Dot example notebook](https://github.com/mateoespinosa/cem/blob/main/examples/dot_cem_train_walkthrough.ipynb)
+for a step-by-step walkthrough on how to set things up for your own work.
+
 ## Included Models
 Besides CEMs, this repository also includes a PyTorch implementation of
 Concept Bottleneck Models (CBMs), which should be trainable out of the box.
@@ -255,9 +259,10 @@ from the input to the bottleneck).
 In order to be able to properly run our experiments, you will
 have to **download** the pre-processed *CUB dataset* found [here](https://worksheets.codalab.org/bundles/0xd013a7ba2e88481bbc07e787f73109f5) to
 `cem/data/CUB200/` and the *CelebA dataset* found
-[here](https://mmlab.ie.cuhk.edu.hk/projects/CelebA.html) to `cem/data/celeba`. You may opt to download them to
-different locations but their paths will have to be modified in the respective
-experiment scripts or via the `DATASET_DIR` environment variable.
+[here](https://mmlab.ie.cuhk.edu.hk/projects/CelebA.html) to `cem/data/celeba`.
+You may opt to download them to different locations but their paths will have to
+be modified in the respective experiment configs (via the `root_dir` parameter)
+or via the `DATASET_DIR` environment variable.
 
 
 ## Running Experiments
@@ -268,26 +273,24 @@ indicated above. For example, to run our experiments on the DOT dataset
 (see our paper), you can execute the following command:
 
 ```bash
-$ python experiments/synthetic_datasets_experiments.py dot -o dot_results/
+$ python experiments/run_experiments.py -c experiments/configs/dot_config.yaml
 ```
 This should generate a summary of all the results after execution has
-terminated and dump all results/trained models/logs into the given
-output directory (`dot_results/` in this case).
+terminated in the form of a table and should dump all results/trained
+models/logs into the given output directory (`dot_results/` in this case).
 
 Similarly, you can recreate our `CUB` and `CelebA` experiments by running
 
 ```bash
-$ python experiments/run_experiments.py dot {cub/celeba}
+$ python experiments/run_experiments.py -c experiments/configs/{cub/celeba}_config.yaml
 ```
 
-Our intervention experiments can be further recreated by running
-```bash
-$ python experiments/intervention_experiments.py dot {cub/celeba}
-```
+These scripts will also run the intervention experiments and generate the test
+accuracies for all models as one intervenes on an increasing number of concepts.
 
-All of these scripts will dump all testing results/statistics summarized over
-5 random initializations in a single `results.joblib` dictionary which
-you can then analyze.
+Once an experiment is over, the script will dump all testing results/statistics
+summarized over 5 random initializations in a single `results.joblib` dictionary
+which you can then analyze.
 
 
 
