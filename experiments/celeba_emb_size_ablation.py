@@ -10,7 +10,7 @@ from pathlib import Path
 from pytorch_lightning import seed_everything
 from torchvision import transforms
 
-import experiments.celeba_experiments as celeba_experiments
+import cem.data.celeba_loader as celeba_loader
 import cem.train.training as training
 import cem.train.utils as utils
 
@@ -23,7 +23,7 @@ def main(
     num_workers=8,
     single_frequency_epochs=0,
     global_params=None,
-    data_root=celeba_experiments.CELEBA_ROOT,
+    data_root=celeba_loader.DATASET_DIR,
 ):
     seed_everything(42)
     # parameters for data, model, and training
@@ -197,9 +197,9 @@ def main(
                 train_idxs,
             )
     else:
-        concept_selection = list(range(0, len(CONCEPT_SEMANTICS)))
+        concept_selection = list(range(0, len(celeba_loader.CONCEPT_SEMANTICS)))
         if og_config.get('selected_concepts', False):
-            concept_selection = SELECTED_CONCEPTS
+            concept_selection = celeba_loader.SELECTED_CONCEPTS
         celeba_train_data = torchvision.datasets.CelebA(
             root=data_root,
             split='all',

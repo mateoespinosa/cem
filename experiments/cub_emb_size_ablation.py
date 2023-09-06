@@ -9,7 +9,7 @@ from cem.data.CUB200.cub_loader import load_data, find_class_imbalance
 from pathlib import Path
 from pytorch_lightning import seed_everything
 
-import experiments.cub_experiments as cub
+import cem.data.CUB200.cub_loader as cub
 import cem.train.training as training
 import cem.train.utils as utils
 
@@ -56,7 +56,8 @@ def main(
     )
 
     utils.extend_with_global_params(og_config, global_params or [])
-    train_data_path = os.path.join(cub.BASE_DIR, 'train.pkl')
+    base_dir = os.path.join(cub.DATASET_DIR, 'class_attr_data_10')
+    train_data_path = os.path.join(base_dir, 'train.pkl')
     if og_config['weight_loss']:
         imbalance = find_class_imbalance(train_data_path, True)
     else:
@@ -99,7 +100,7 @@ def main(
             n_class_attr=2,
             image_dir='images',
             resampling=False,
-            root_dir=cub.CUB_DIR,
+            root_dir=cub.DATASET_DIR,
             num_workers=og_config['num_workers'],
             concept_transform=subsample_transform,
         )
@@ -112,7 +113,7 @@ def main(
             n_class_attr=2,
             image_dir='images',
             resampling=False,
-            root_dir=cub.CUB_DIR,
+            root_dir=cub.DATASET_DIR,
             num_workers=og_config['num_workers'],
             concept_transform=subsample_transform,
         )
@@ -125,7 +126,7 @@ def main(
             n_class_attr=2,
             image_dir='images',
             resampling=False,
-            root_dir=cub.CUB_DIR,
+            root_dir=cub.DATASET_DIR,
             num_workers=og_config['num_workers'],
             concept_transform=subsample_transform,
         )
@@ -141,7 +142,7 @@ def main(
             n_class_attr=2,
             image_dir='images',
             resampling=False,
-            root_dir=cub.CUB_DIR,
+            root_dir=cub.DATASET_DIR,
             num_workers=og_config['num_workers'],
         )
         val_dl = load_data(
@@ -153,7 +154,7 @@ def main(
             n_class_attr=2,
             image_dir='images',
             resampling=False,
-            root_dir=cub.CUB_DIR,
+            root_dir=cub.DATASET_DIR,
             num_workers=og_config['num_workers'],
         )
         test_dl = load_data(
@@ -165,7 +166,7 @@ def main(
             n_class_attr=2,
             image_dir='images',
             resampling=False,
-            root_dir=cub.CUB_DIR,
+            root_dir=cub.DATASET_DIR,
             num_workers=og_config['num_workers'],
         )
 

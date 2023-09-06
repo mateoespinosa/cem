@@ -21,7 +21,6 @@ c2y_layers: [128, 128]
 intervention_freq: 1
 intervention_batch_size: 2048
 intervention_policies:
-    # - "intcem_policy"
     - "group_random"
     - "group_random_no_prior"
     - "group_coop_no_prior"

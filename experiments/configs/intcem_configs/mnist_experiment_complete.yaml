@@ -7,25 +7,12 @@ num_operands: 6
 uncertain_width: 0.25
 mixing: True
 threshold: True
-selected_digits: [0,1] #[1,7]
-  # - [0,1,2]
-  # - [0,1,2]
-  # - [0,1,2]
-  # - [0,1,2]
-  # - [0,1,2,3,4]
-  # - [0,1,2,3,4]
-  # - [0,1,2,3,4]
-  # - [0,1,2,3,4]
-  # - [0,1,2,3,4,5,6,7,8,9]
-  # - [0,1,2,3,4,5,6,7,8,9]
-  # - [0,1,2,3,4,5,6,7,8,9]
-  # - [0,1,2,3,4,5,6,7,8,9]
-# threshold_labels: 3
+selected_digits: [0,1]
 noise_level: 0
 max_epochs: 500
 train_dataset_size: 5000
 test_dataset_size: 5000
-sampling_percent: 1 #0.83
+sampling_percent: 1
 sampling_groups: True
 skip_repr_evaluation: True
 c2y_layers: [128, 128]
@@ -34,7 +21,6 @@ c2y_layers: [128, 128]
 intervention_freq: 1
 intervention_batch_size: 2048
 intervention_policies:
-    # - "intcem_policy"
     - "group_random"
     - "group_random_no_prior"
     - "group_coop_no_prior"

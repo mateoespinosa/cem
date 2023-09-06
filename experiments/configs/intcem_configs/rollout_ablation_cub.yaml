@@ -1,11 +1,11 @@
 trials: 5
 results_dir: results/rollout_ablation_cub/
 num_workers: 8
-batch_size: 512 # 256
+batch_size: 512
 
 # DATASET VARIABLES
 root_dir: /homes/me466/UncertaintyIntervention/cem/data/CUB200/
-sampling_percent: 1 #0.25
+sampling_percent: 1
 sampling_groups: True
 test_subsampling: 0.5
 skip_repr_evaluation: True
@@ -14,7 +14,6 @@ skip_repr_evaluation: True
 intervention_freq: 1
 intervention_batch_size: 512
 intervention_policies:
-    # - "intcem_policy"
     - "group_random"
     - "group_random_no_prior"
     - "group_coop_no_prior"
@@ -65,7 +64,7 @@ runs:
       use_horizon: False
       model_pretrain_path: null
       pretrain_intcem: False
-      intervention_weight: [1] #[5,0.1]
+      intervention_weight: [1]
       initial_horizon: 2
       include_probs: False
       use_full_mask_distr: True

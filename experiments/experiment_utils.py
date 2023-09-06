@@ -117,7 +117,7 @@ def print_table(
     # CAS, if we chose to compute it (off by default as it may be
     # computationally expensive)
     if (
-        shared_params.get("skip_repr_evaluation", False) and
+        (not shared_params.get("skip_repr_evaluation", False)) and
         shared_params.get("run_cas", True)
     ):
         field_names.append("CAS")
