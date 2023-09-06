@@ -1,8 +1,8 @@
+import logging
 import numpy as np
 import os
 import torch
 import torchvision
-import logging
 
 from pathlib import Path
 from pytorch_lightning import seed_everything
@@ -106,7 +106,12 @@ CONCEPT_SEMANTICS = [
 ##########################################################
 
 
-def generate_data(config, root_dir=DATASET_DIR, seed=42, output_dataset_vars=False):
+def generate_data(
+    config,
+    root_dir=DATASET_DIR,
+    seed=42,
+    output_dataset_vars=False,
+):
     if root_dir is None:
         root_dir = DATASET_DIR
     concept_group_map = None
@@ -263,7 +268,9 @@ def generate_data(config, root_dir=DATASET_DIR, seed=42, output_dataset_vars=Fal
             lambda x: x[0],
             sorted(zip(vals, counts), key=lambda x: -x[1])
         ))
-        logging.debug(f"Selecting {config['num_classes']} out of {len(vals)} classes")
+        logging.debug(
+            f"Selecting {config['num_classes']} out of {len(vals)} classes"
+        )
         result_dir = config.get('result_dir', None)
         if result_dir:
             Path(result_dir).mkdir(parents=True, exist_ok=True)
@@ -292,8 +299,9 @@ def generate_data(config, root_dir=DATASET_DIR, seed=42, output_dataset_vars=Fal
             ]),
             target_transform=lambda x: [
                 torch.tensor(
-                    # If it is not in our map, then we make it be the token label
-                    # config['num_classes'] which will be removed afterwards
+                    # If it is not in our map, then we make it be the token
+                    # label config['num_classes'] which will be removed
+                    # afterwards
                     label_remap.get(
                         x[0].cpu().detach().item() - 1,
                         config['num_classes']
@@ -348,8 +356,8 @@ def generate_data(config, root_dir=DATASET_DIR, seed=42, output_dataset_vars=Fal
         num_workers=config['num_workers'],
     )
 
-
-    # Finally, determine whether or not we will need to compute the imbalance factors
+    # Finally, determine whether or not we will need to compute the imbalance
+    # factors
     if config.get('weight_loss', False):
         attribute_count = np.zeros((num_concepts,))
         samples_seen = 0
@@ -362,4 +370,10 @@ def generate_data(config, root_dir=DATASET_DIR, seed=42, output_dataset_vars=Fal
         imbalance = None
     if not output_dataset_vars:
         return train_dl, val_dl, test_dl, imbalance
-    return train_dl, val_dl, test_dl, imbalance, (num_concepts, len(label_remap), concept_group_map)
+    return (
+        train_dl,
+        val_dl,
+        test_dl,
+        imbalance,
+        (num_concepts, len(label_remap), concept_group_map),
+    )

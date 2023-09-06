@@ -1,0 +1,129 @@
+trials: 5
+results_dir: results/celeba/
+
+
+# DATASET VARIABLES
+dataset: celeba
+root_dir: cem/data/
+image_size: 64
+num_classes: 1000
+batch_size: 512
+use_imbalance: True
+use_binary_vector_class: True
+num_concepts: 6
+label_binary_width: 1
+label_dataset_subsample: 12
+num_hidden_concepts: 2
+selected_concepts: False
+num_workers: 8
+sampling_percent: 1
+test_subsampling: 1
+
+
+# Intervention Parameters
+intervention_freq: 1
+intervention_batch_size: 1024
+intervention_policies:
+    - "group_random_no_prior"
+
+competence_levels: [1, 0]
+incompetence_intervention_policies:
+    - "group_random_no_prior"
+
+# Metrics to run for the learnt representations. Currently skipping all of them
+# for efficiency purposes but feel free to change this after training and
+# rerunning as it can reuse trained models :)
+skip_repr_evaluation: True
+
+shared_params:
+    top_k_accuracy: [3, 5, 10]
+    save_model: True
+    max_epochs: 200
+    patience: 15
+    emb_size: 16
+    extra_dims: 0
+    concept_loss_weight: 1
+    learning_rate: 0.005
+    weight_decay: 0.000004
+    weight_loss: False
+    c_extractor_arch: resnet34
+    optimizer: sgd
+    early_stopping_monitor: val_loss
+    early_stopping_mode: min
+    early_stopping_delta: 0.0
+    momentum: 0.9
+    sigmoidal_prob: False
+
+runs:
+    - architecture: 'ConceptEmbeddingModel'
+      extra_name: ""
+      shared_prob_gen: True
+      sigmoidal_prob: True
+      sigmoidal_embedding: False
+      training_intervention_prob: 0.25
+      concat_prob: False
+      embedding_activation: "leakyrelu"
+
+    - architecture: 'ConceptBottleneckModel'
+      extra_name: "Bool"
+      bool: True
+      extra_dims: 0
+      sigmoidal_prob: True
+
+    - architecture: 'ConceptBottleneckModel'
+      extra_name: "Sigmoid"
+      bool: False
+      extra_dims: 0
+      sigmoidal_prob: True
+
+    - architecture: 'ConceptBottleneckModel'
+      extra_name: "Logit"
+      embedding_activation: "leakyrelu"
+      bool: False
+      extra_dims: 0
+      sigmoidal_prob: False
+
+    - architecture: 'ConceptBottleneckModel'
+      extra_name: "Hybrid_Sigmoid"
+      bool: False
+      extra_dims: "{{({emb_size} - 1) * {n_concepts}}}"
+      bottleneck_nonlinear: "leakyrelu"
+      sigmoidal_extra_capacity: False
+      sigmoidal_prob: True
+
+    - architecture: 'ConceptBottleneckModel'
+      extra_name: "Hybrid_Logit"
+      bool: False
+      extra_dims: "{{({emb_size} - 1) * {n_concepts}}}"
+      bottleneck_nonlinear: "leakyrelu"
+      sigmoidal_extra_capacity: False
+      sigmoidal_prob: False
+
+    - architecture: 'SequentialConceptBottleneckModel'
+      extra_name: ""
+      sigmoidal_embedding: False
+      concat_prob: False
+      embedding_activation: "leakyrelu"
+      bool: False
+      extra_dims: 0
+      sigmoidal_extra_capacity: False
+      sigmoidal_prob: True
+
+    - architecture: 'IndependentConceptBottleneckModel'
+      extra_name: ""
+      sigmoidal_embedding: False
+      concat_prob: False
+      embedding_activation: "leakyrelu"
+      bool: False
+      extra_dims: 0
+      sigmoidal_extra_capacity: False
+      sigmoidal_prob: True
+
+    - architecture: 'ConceptBottleneckModel'
+      extra_name: "_BlackBox"
+      bool: False
+      extra_dims:  "{{({emb_size} - 1) * {n_concepts}}}"
+      bottleneck_nonlinear: "leakyrelu"
+      sigmoidal_extra_capacity: False
+      sigmoidal_prob: True
+      concept_loss_weight: 0

@@ -3,86 +3,9 @@ import torch
 import pytorch_lightning as pl
 from torchvision.models import resnet50, densenet121
 import numpy as np
+
 import cem.train.utils as utils
-
-
-################################################################################
-## HELPER FUNCTIONS
-################################################################################
-
-def compute_bin_accuracy(c_pred, y_pred, c_true, y_true):
-    c_pred = c_pred.reshape(-1).cpu().detach() > 0.5
-    y_probs = y_pred.cpu().detach()
-    y_pred = y_probs > 0.5
-    c_true = c_true.reshape(-1).cpu().detach()
-    y_true = y_true.reshape(-1).cpu().detach()
-    c_accuracy = sklearn.metrics.accuracy_score(c_true, c_pred)
-    c_auc = sklearn.metrics.roc_auc_score(c_true, c_pred, multi_class='ovo')
-    c_f1 = sklearn.metrics.f1_score(c_true, c_pred, average='macro')
-    y_accuracy = sklearn.metrics.accuracy_score(y_true, y_pred)
-    y_auc = sklearn.metrics.roc_auc_score(y_true, y_probs)
-    y_f1 = sklearn.metrics.f1_score(y_true, y_pred)
-    return (c_accuracy, c_auc, c_f1), (y_accuracy, y_auc, y_f1)
-
-
-def compute_accuracy(
-    c_pred,
-    y_pred,
-    c_true,
-    y_true,
-):
-    if (len(y_pred.shape) < 2) or (y_pred.shape[-1] == 1):
-        return compute_bin_accuracy(
-            c_pred,
-            y_pred,
-            c_true,
-            y_true,
-        )
-    c_pred = (c_pred.cpu().detach().numpy() >= 0.5).astype(np.int32)
-    # Doing the following transformation for when labels are not
-    # fully certain
-    c_true = (c_true.cpu().detach().numpy() > 0.5).astype(np.int32)
-    y_probs = torch.nn.Softmax(dim=-1)(y_pred).cpu().detach()
-#     used_classes = np.unique(y_true.cpu().detach())
-#     y_probs = y_probs[:, sorted(list(used_classes))]
-    y_pred = y_pred.argmax(dim=-1).cpu().detach()
-    y_true = y_true.cpu().detach()
-
-    c_accuracy = c_auc = c_f1 = 0
-    for i in range(c_true.shape[-1]):
-        true_vars = c_true[:, i]
-        pred_vars = c_pred[:, i]
-        c_accuracy += sklearn.metrics.accuracy_score(
-            true_vars, pred_vars
-        ) / c_true.shape[-1]
-
-        if len(np.unique(true_vars)) == 1:
-            c_auc += np.mean(true_vars == pred_vars)/c_true.shape[-1]
-        else:
-            c_auc += sklearn.metrics.roc_auc_score(
-                true_vars,
-                pred_vars,
-            )/c_true.shape[-1]
-        c_f1 += sklearn.metrics.f1_score(
-            true_vars,
-            pred_vars,
-            average='macro',
-        )/c_true.shape[-1]
-    y_accuracy = sklearn.metrics.accuracy_score(y_true, y_pred)
-    try:
-        y_auc = sklearn.metrics.roc_auc_score(
-            y_true,
-            y_probs,
-            multi_class='ovo',
-        )
-    except Exception as e:
-        y_auc = 0.0
-    try:
-        y_f1 = sklearn.metrics.f1_score(y_true, y_pred, average='macro')
-    except:
-        y_f1 = 0.0
-    return (c_accuracy, c_auc, c_f1), (y_accuracy, y_auc, y_f1)
-
+from cem.metrics.accs import compute_accuracy
 
 ################################################################################
 ## BASELINE MODEL
@@ -119,9 +42,11 @@ class ConceptBottleneckModel(pl.LightningModule):
         active_intervention_values=None,
         inactive_intervention_values=None,
         intervention_policy=None,
+        output_interventions=False,
+        use_concept_groups=False,
+        include_certainty=True,
 
         top_k_accuracy=None,
-        gpu=int(torch.cuda.is_available()),
     ):
         """
         Constructs a joint Concept Bottleneck Model (CBM) as defined by
@@ -218,13 +143,13 @@ class ConceptBottleneckModel(pl.LightningModule):
 
         :param List[int] top_k_accuracy: List of top k values to report accuracy
             for during training/testing when the number of tasks is high.
-        :param Bool gpu: whether or not to use a GPU device or not.
         """
-        gpu = int(gpu)
         super().__init__()
+        self.include_certainty = include_certainty
         self.n_concepts = n_concepts
         self.intervention_policy = intervention_policy
         self.output_latent = output_latent
+        self.output_interventions = output_interventions
         if x2c_model is not None:
             # Then this is assumed to be a module already provided as
             # the input to concepts method
@@ -249,29 +174,28 @@ class ConceptBottleneckModel(pl.LightningModule):
             self.c2y_model = torch.nn.Sequential(*layers)
 
         # Intervention-specific fields/handlers:
-        init_fun = torch.cuda.FloatTensor if gpu else torch.FloatTensor
         if active_intervention_values is not None:
-            self.active_intervention_values = init_fun(
+            self.active_intervention_values = torch.FloatTensor(
                 active_intervention_values
             )
         else:
             # Setting to 5 for prob = 1 (as that would result in its sigmoid
             # value being very close to 1) and -5 if prob=0 (as that will
             # go to zero when applied a sigmoid)
-            self.active_intervention_values = init_fun(
+            self.active_intervention_values = torch.FloatTensor(
                 [1 for _ in range(n_concepts)]
             ) * (
                 5.0 if not sigmoidal_prob else 1.0
             )
         if inactive_intervention_values is not None:
-            self.inactive_intervention_values = init_fun(
+            self.inactive_intervention_values = torch.FloatTensor(
                 inactive_intervention_values
             )
         else:
             # Setting to 5 for prob = 1 (as that would result in its sigmoid
             # value being very close to 1) and -5 if prob=0 (as that will
             # go to zero when applied a sigmoid)
-            self.inactive_intervention_values = init_fun(
+            self.inactive_intervention_values = torch.FloatTensor(
                 [1 for _ in range(n_concepts)]
             ) * (
                 -5.0 if not sigmoidal_prob else 0.0
@@ -302,7 +226,7 @@ class ConceptBottleneckModel(pl.LightningModule):
         self.loss_task = (
             torch.nn.CrossEntropyLoss(weight=task_class_weights)
             if n_tasks > 1 else torch.nn.BCEWithLogitsLoss(
-                weight=task_class_weights
+                pos_weight=task_class_weights
             )
         )
         self.bool = bool
@@ -317,6 +241,7 @@ class ConceptBottleneckModel(pl.LightningModule):
         self.n_tasks = n_tasks
         self.sigmoidal_prob = sigmoidal_prob
         self.sigmoidal_extra_capacity = sigmoidal_extra_capacity
+        self.use_concept_groups = use_concept_groups
 
     def _unpack_batch(self, batch):
         x = batch[0]
@@ -324,7 +249,15 @@ class ConceptBottleneckModel(pl.LightningModule):
             y, c = batch[1]
         else:
             y, c = batch[1], batch[2]
-        return x, y, c
+        if len(batch) > 3:
+            competencies = batch[3]
+        else:
+            competencies = None
+        if len(batch) > 4:
+            prev_interventions = batch[4]
+        else:
+            prev_interventions = None
+        return x, y, (c, competencies, prev_interventions)
 
     def _standardize_indices(self, intervention_idxs, batch_size):
         if isinstance(intervention_idxs, list):
@@ -351,12 +284,13 @@ class ConceptBottleneckModel(pl.LightningModule):
         elif len(intervention_idxs.shape) == 2:
             assert intervention_idxs.shape[0] == batch_size, (
                 f'Expected intervention indices to have batch size {batch_size} '
-                f'but got intervention indices with shape {intervention_idxs.shape}.'
+                f'but got intervention indices with '
+                f'shape {intervention_idxs.shape}.'
             )
         else:
             raise ValueError(
-                f'Intervention indices should have 1 or 2 dimensions. Instead we got '
-                f'indices with shape {intervention_idxs.shape}.'
+                f'Intervention indices should have 1 or 2 dimensions. Instead '
+                f'we got indices with shape {intervention_idxs.shape}.'
             )
         if intervention_idxs.shape[-1] == self.n_concepts:
             # We still need to check the corner case here where all indices are
@@ -381,13 +315,40 @@ class ConceptBottleneckModel(pl.LightningModule):
             result[:, intervention_idxs] = 1
             intervention_idxs = result
         assert intervention_idxs.shape[-1] == self.n_concepts, (
-                f'Unsupported intervention indices with shape {intervention_idxs.shape}.'
+                f'Unsupported intervention indices with '
+                f'shape {intervention_idxs.shape}.'
             )
         if isinstance(intervention_idxs, np.ndarray):
             # Time to make it into a torch Tensor!
             intervention_idxs = torch.BoolTensor(intervention_idxs)
         intervention_idxs = intervention_idxs.to(dtype=torch.bool)
         return intervention_idxs
+
+    def _extra_losses(
+        self,
+        x,
+        y,
+        c,
+        y_pred,
+        c_sem,
+        c_pred,
+        competencies=None,
+        prev_interventions=None,
+    ):
+        return 0
+
+    def _prior_int_distribution(
+        self,
+        c,
+        prob,
+        pos_embeddings,
+        neg_embeddings,
+        competencies=None,
+        prev_interventions=None,
+        train=False,
+        horizon=1,
+    ):
+        return None
 
     def _concept_intervention(
         self,
@@ -403,20 +364,35 @@ class ConceptBottleneckModel(pl.LightningModule):
             batch_size=c_pred.shape[0],
         )
         intervention_idxs = intervention_idxs.to(c_pred.device)
-        if self.sigmoidal_prob:
-            c_pred_copy[intervention_idxs] = c_true[intervention_idxs]
+        # Check whether the mask needs to be extended because of
+        # extra dimensions
+        if self.extra_dims:
+            set_intervention_idxs = torch.nn.functional.pad(
+                intervention_idxs,
+                pad=(0, self.extra_dims),  # Just pads the last dimension
+            )
         else:
+            set_intervention_idxs = intervention_idxs
+        if self.sigmoidal_prob:
+            c_pred_copy[set_intervention_idxs] = c_true[intervention_idxs]
+        else:
+            active_intervention_values = self.active_intervention_values.to(
+                c_pred.device
+            )
             batched_active_intervention_values =  torch.tile(
-                torch.unsqueeze(self.active_intervention_values, 0),
+                torch.unsqueeze(active_intervention_values, 0),
                 (c_pred.shape[0], 1),
-            )
+            ).to(c_true.device)
 
+            inactive_intervention_values = self.inactive_intervention_values.to(
+                c_pred.device
+            )
             batched_inactive_intervention_values =  torch.tile(
-                torch.unsqueeze(self.inactive_intervention_values, 0),
+                torch.unsqueeze(inactive_intervention_values, 0),
                 (c_pred.shape[0], 1),
-            )
+            ).to(c_true.device)
 
-            c_pred_copy[intervention_idxs] = (
+            c_pred_copy[set_intervention_idxs] = (
                 (
                     c_true[intervention_idxs] *
                     batched_active_intervention_values[intervention_idxs]
@@ -426,18 +402,30 @@ class ConceptBottleneckModel(pl.LightningModule):
                     -batched_inactive_intervention_values[intervention_idxs]
                 )
             )
-
         return c_pred_copy
 
     def _forward(
         self,
         x,
         intervention_idxs=None,
+        competencies=None,
+        prev_interventions=None,
         c=None,
         y=None,
         train=False,
         latent=None,
+        output_latent=None,
+        output_embeddings=False,
+        output_interventions=None,
     ):
+        output_interventions = (
+            output_interventions if output_interventions is not None
+            else self.output_interventions
+        )
+        output_latent = (
+            output_latent if output_latent is not None
+            else self.output_latent
+        )
         if latent is None:
             latent = self.x2c_model(x)
         if self.sigmoidal_prob or self.bool:
@@ -459,16 +447,111 @@ class ConceptBottleneckModel(pl.LightningModule):
                 c_sem = self.sig(latent[:, :-self.extra_dims])
             else:
                 c_sem = self.sig(latent)
+        if output_embeddings or (
+            (intervention_idxs is None) and (c is not None) and (
+            self.intervention_policy is not None
+        )):
+            pos_embeddings = torch.ones(c_sem.shape).to(x.device)
+            neg_embeddings = torch.zeros(c_sem.shape).to(x.device)
+            if not (self.sigmoidal_prob or self.bool):
+                if (
+                    (self.active_intervention_values is not None) and
+                    (self.inactive_intervention_values is not None)
+                ):
+                    active_intervention_values = \
+                        self.active_intervention_values.to(
+                            c_pred.device
+                        )
+                    pos_embeddings = torch.tile(
+                        active_intervention_values,
+                        (c.shape[0], 1),
+                    ).to(active_intervention_values.device)
+                    inactive_intervention_values = \
+                        self.inactive_intervention_values.to(
+                            c_pred.device
+                        )
+                    neg_embeddings = torch.tile(
+                        inactive_intervention_values,
+                        (c.shape[0], 1),
+                    ).to(inactive_intervention_values.device)
+                else:
+                    out_embs = c_pred.detach().cpu().numpy()
+                    for concept_idx in range(self.n_concepts):
+                        pos_embeddings[:, concept_idx] = np.percentile(
+                            out_embs[:, concept_idx],
+                            95,
+                        )
+                        neg_embeddings[:, concept_idx] = np.percentile(
+                            out_embs[:, concept_idx],
+                            5,
+                        )
+            pos_embeddings = torch.unsqueeze(pos_embeddings, dim=-1)
+            neg_embeddings = torch.unsqueeze(neg_embeddings, dim=-1)
         # Now include any interventions that we may want to include
         if (intervention_idxs is None) and (c is not None) and (
             self.intervention_policy is not None
         ):
-            intervention_idxs, c_int = self.intervention_policy(
-                x=x,
-                c=c,
-                pred_c=c_sem,
-                y=y,
-            )
+            if not self.include_certainty:
+                # For now, we will only intervene on the concepts that are
+                # fully determined (i.e., there is no uncertainty)
+                indices = torch.logical_or(c == 1, c == 0).type(torch.bool)
+                if torch.any(indices):
+                    prior_distribution = self._prior_int_distribution(
+                        c=c[indices],
+                        prob=c_sem[indices],
+                        pos_embeddings=pos_embeddings[indices],
+                        neg_embeddings=neg_embeddings[indices],
+                        competencies=(
+                            competencies[indices] if competencies is not None
+                            else None
+                        ),
+                        prev_interventions=(
+                            prev_interventions[indices]
+                            if prev_interventions is not None else None
+                        ),
+                        train=train,
+                        horizon=1,
+                    )
+                    current_intervention_idxs, current_c_int = \
+                        self.intervention_policy(
+                            x=x[indices],
+                            c=c[indices],
+                            pred_c=c_sem[indices],
+                            y=y[indices],
+                            competencies=(
+                                competencies[indices]
+                                if competencies is not None else None
+                            ),
+                            prev_interventions=(
+                                prev_interventions[indices]
+                                if prev_interventions is not None else None
+                            ),
+                            prior_distribution=prior_distribution,
+                        )
+                    intervention_idxs = torch.zeros(c.shape).to(c.device)
+                    c_int = torch.zeros(c.shape).to(c.device)
+                    intervention_idxs[indices] = current_intervention_idxs
+                    c_int[indices] = current_c_int
+            else:
+                prior_distribution = self._prior_int_distribution(
+                    c=c,
+                    prob=c_sem,
+                    pos_embeddings=pos_embeddings,
+                    neg_embeddings=neg_embeddings,
+                    competencies=competencies,
+                    prev_interventions=prev_interventions,
+                    train=train,
+                    horizon=1,
+                )
+                intervention_idxs, c_int = self.intervention_policy(
+                    x=x,
+                    c=c,
+                    pred_c=c_sem,
+                    y=y,
+                    competencies=competencies,
+                    prev_interventions=prev_interventions,
+                    prior_distribution=prior_distribution,
+                )
         else:
             c_int = c
         c_pred = self._concept_intervention(
@@ -480,16 +563,39 @@ class ConceptBottleneckModel(pl.LightningModule):
             y = self.c2y_model((c_pred > 0.5).float())
         else:
             y = self.c2y_model(c_pred)
-        if self.output_latent:
-            return c_sem, c_pred, y, latent
-        return c_sem, c_pred, y
+        tail_results = []
+        if output_interventions:
+            if intervention_idxs is None:
+                intervention_idxs = None
+            if isinstance(intervention_idxs, np.ndarray):
+                intervention_idxs = torch.FloatTensor(
+                    intervention_idxs
+                ).to(x.device)
+            tail_results.append(intervention_idxs)
+        if output_latent:
+            tail_results.append(latent)
+        if output_embeddings:
+            tail_results.append(pos_embeddings)
+            tail_results.append(neg_embeddings)
+        return tuple([c_sem, c_pred, y] + tail_results)
 
-    def forward(self, x, c=None, y=None, latent=None, intervention_idxs=None):
+    def forward(
+        self,
+        x,
+        c=None,
+        y=None,
+        latent=None,
+        intervention_idxs=None,
+        competencies=None,
+        prev_interventions=None,
+    ):
         return self._forward(
             x,
             train=False,
             c=c,
             y=y,
+            competencies=competencies,
+            prev_interventions=prev_interventions,
             intervention_idxs=intervention_idxs,
             latent=latent,
         )
@@ -501,13 +607,15 @@ class ConceptBottleneckModel(pl.LightningModule):
         intervention_idxs=None,
         dataloader_idx=0,
     ):
-        x, y, c = self._unpack_batch(batch)
+        x, y, (c, competencies, prev_interventions) = self._unpack_batch(batch)
         return self._forward(
             x,
             intervention_idxs=intervention_idxs,
             c=c,
             y=y,
             train=False,
+            competencies=competencies,
+            prev_interventions=prev_interventions,
         )
 
     def _run_step(
@@ -517,23 +625,17 @@ class ConceptBottleneckModel(pl.LightningModule):
         train=False,
         intervention_idxs=None,
     ):
-        x, y, c = self._unpack_batch(batch)
-        if self.output_latent:
-            c_sem, c_logits, y_logits, _ = self._forward(
-                x,
-                intervention_idxs=intervention_idxs,
-                c=c,
-                y=y,
-                train=train,
-            )
-        else:
-            c_sem, c_logits, y_logits = self._forward(
-                x,
-                intervention_idxs=intervention_idxs,
-                c=c,
-                y=y,
-                train=train,
-            )
+        x, y, (c, competencies, prev_interventions) = self._unpack_batch(batch)
+        outputs = self._forward(
+            x,
+            intervention_idxs=intervention_idxs,
+            c=c,
+            y=y,
+            train=train,
+            competencies=competencies,
+            prev_interventions=prev_interventions,
+        )
+        c_sem, c_logits, y_logits = outputs[0], outputs[1], outputs[2]
         if self.task_loss_weight != 0:
             task_loss = self.loss_task(
                 y_logits if y_logits.shape[-1] > 1 else y_logits.reshape(-1),
@@ -547,11 +649,41 @@ class ConceptBottleneckModel(pl.LightningModule):
             # We separate this so that we are allowed to
             # use arbitrary activations (i.e., not necessarily in [0, 1])
             # whenever no concept supervision is provided
-            concept_loss = self.loss_concept(c_sem, c)
-            loss = self.concept_loss_weight * concept_loss + task_loss
-            concept_loss_scalar = concept_loss.detach()
+            # Will only compute the concept loss for concepts whose certainty
+            # values are fully given
+            if self.include_certainty:
+                concept_loss = self.loss_concept(c_sem, c)
+                concept_loss_scalar = concept_loss.detach()
+            else:
+                c_sem_used = torch.where(
+                    torch.logical_or(c == 0, c == 1),
+                    c_sem,
+                    c,
+                ) # This forces zero loss when c is uncertain
+                concept_loss = self.loss_concept(c_sem_used, c)
+                concept_loss_scalar = concept_loss.detach()
+            loss = self.concept_loss_weight * concept_loss + task_loss + \
+                self._extra_losses(
+                    x=x,
+                    y=y,
+                    c=c,
+                    c_sem=c_sem,
+                    c_pred=c_logits,
+                    y_pred=y_logits,
+                    competencies=competencies,
+                    prev_interventions=prev_interventions,
+                )
         else:
-            loss = task_loss
+            loss = task_loss + self._extra_losses(
+                x=x,
+                y=y,
+                c=c,
+                c_sem=c_sem,
+                c_pred=c_logits,
+                y_pred=y_logits,
+                competencies=competencies,
+                prev_interventions=prev_interventions,
+            )
             concept_loss_scalar = 0.0
         # compute accuracy
         (c_accuracy, c_auc, c_f1), (y_accuracy, y_auc, y_f1) = compute_accuracy(
@@ -576,20 +708,42 @@ class ConceptBottleneckModel(pl.LightningModule):
             y_true = y.reshape(-1).cpu().detach()
             y_pred = y_logits.cpu().detach()
             labels = list(range(self.n_tasks))
-            for top_k_val in self.top_k_accuracy:
-                y_top_k_accuracy = sklearn.metrics.top_k_accuracy_score(
-                    y_true,
-                    y_pred,
-                    k=top_k_val,
-                    labels=labels,
-                )
-                result[f'y_top_{top_k_val}_accuracy'] = y_top_k_accuracy
+            if isinstance(self.top_k_accuracy, int):
+                top_k_accuracy = list(range(1, self.top_k_accuracy))
+            else:
+                top_k_accuracy = self.top_k_accuracy
+
+            for top_k_val in top_k_accuracy:
+                if top_k_val:
+                    y_top_k_accuracy = sklearn.metrics.top_k_accuracy_score(
+                        y_true,
+                        y_pred,
+                        k=top_k_val,
+                        labels=labels,
+                    )
+                    result[f'y_top_{top_k_val}_accuracy'] = y_top_k_accuracy
         return loss, result
 
     def training_step(self, batch, batch_no):
         loss, result = self._run_step(batch, batch_no, train=True)
         for name, val in result.items():
-            self.log(name, val, prog_bar=("accuracy" in name))
+            if self.n_tasks <= 2:
+                prog_bar = (
+                    ("auc" in name) or
+                    ("mask_accuracy" in name) or
+                    ("current_steps" in name) or
+                    ("num_rollouts" in name)
+                )
+            else:
+                prog_bar = (
+                    ("c_auc" in name) or
+                    ("y_accuracy" in name) or
+                    ("mask_accuracy" in name) or
+                    ("current_steps" in name) or
+                    ("num_rollouts" in name)
+
+                )
+            self.log(name, val, prog_bar=prog_bar)
         return {
             "loss": loss,
             "log": {
@@ -607,13 +761,18 @@ class ConceptBottleneckModel(pl.LightningModule):
         }
 
     def validation_step(self, batch, batch_no):
-        loss, result = self._run_step(batch, batch_no, train=False)
+        _, result = self._run_step(batch, batch_no, train=False)
         for name, val in result.items():
-            self.log("val_" + name, val, prog_bar=("accuracy" in name))
-        return {
+            if self.n_tasks <= 2:
+                prog_bar = (("auc" in name))
+            else:
+                prog_bar = (("c_auc" in name) or ("y_accuracy" in name))
+            self.log("val_" + name, val, prog_bar=prog_bar)
+        result = {
             "val_" + key: val
             for key, val in result.items()
         }
+        return result
 
     def test_step(self, batch, batch_no):
         loss, result = self._run_step(batch, batch_no, train=False)
@@ -635,7 +794,10 @@ class ConceptBottleneckModel(pl.LightningModule):
                 momentum=self.momentum,
                 weight_decay=self.weight_decay,
             )
-        lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer)
+        lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+            optimizer,
+            verbose=True,
+        )
         return {
             "optimizer": optimizer,
             "lr_scheduler": lr_scheduler,

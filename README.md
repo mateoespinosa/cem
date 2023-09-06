@@ -150,13 +150,18 @@ cem_model = ConceptEmbeddingModel(
 #####
 
 trainer = pl.Trainer(
-    gpus=1,
+    accelerator="gpu",  # or "cpu" if no GPU available
+    devices="auto",
     max_epochs=100,
     check_val_every_n_epoch=5,
 )
 # train_dl and val_dl are datasets previously built...
 trainer.fit(cem_model, train_dl, val_dl)
 ```
+
+For a **full example** showing how to generate a dataset and configure a CEM
+**for training on your own custom dataset**, please see our [Dot example notebook](https://github.com/mateoespinosa/cem/blob/main/examples/dot_cem_train_walkthrough.ipynb)
+for a step-by-step walkthrough on how to set things up for your own work.
 
 ## Included Models
 Besides CEMs, this repository also includes a PyTorch implementation of
@@ -175,7 +180,7 @@ Our **CEM module** takes the following initialization arguments:
 - `emb_size` (int): The size of each concept embedding. Defaults to 16.
 - `training_intervention_prob` (float): RandInt probability. Defaults
     to 0.25.
-- `embeding_activation` (str): A valid nonlinearity name to use for the
+- `embedding_activation` (str): A valid nonlinearity name to use for the
     generated embeddings. It must be one of [None, "sigmoid", "relu",
     "leakyrelu"] and defaults to "leakyrelu".
 - `shared_prob_gen` (Bool): Whether or not weights are shared across
@@ -240,7 +245,6 @@ Our **CEM module** takes the following initialization arguments:
     intervene on.
 - `top_k_accuracy` (List[int]): List of top k values to report accuracy
     for during training/testing when the number of tasks is high.
-- `gpu` (Bool): whether or not to use a GPU device or not.
 
 
 Notice that our **[CBM module](https://github.com/mateoespinosa/cem/blob/main/cem/models/cbm.py) takes similar arguments**, albeit some extra ones
@@ -255,9 +259,10 @@ from the input to the bottleneck).
 In order to be able to properly run our experiments, you will
 have to **download** the pre-processed *CUB dataset* found [here](https://worksheets.codalab.org/bundles/0xd013a7ba2e88481bbc07e787f73109f5) to
 `cem/data/CUB200/` and the *CelebA dataset* found
-[here](https://mmlab.ie.cuhk.edu.hk/projects/CelebA.html) to `cem/data/celeba`. You may opt to download them to
-different locations but their paths will have to be modified in the respective
-experiment scripts or via the `DATASET_DIR` environment variable.
+[here](https://mmlab.ie.cuhk.edu.hk/projects/CelebA.html) to `cem/data/celeba`.
+You may opt to download them to different locations but their paths will have to
+be modified in the respective experiment configs (via the `root_dir` parameter)
+or via the `DATASET_DIR` environment variable.
 
 
 ## Running Experiments
@@ -268,26 +273,24 @@ indicated above. For example, to run our experiments on the DOT dataset
 (see our paper), you can execute the following command:
 
 ```bash
-$ python experiments/run_experiments.py dot -o dot_results/
+$ python experiments/run_experiments.py -c experiments/configs/dot_config.yaml
 ```
 This should generate a summary of all the results after execution has
-terminated and dump all results/trained models/logs into the given
-output directory (`dot_results/` in this case).
+terminated in the form of a table and should dump all results/trained
+models/logs into the given output directory (`dot_results/` in this case).
 
 Similarly, you can recreate our `CUB` and `CelebA` experiments (or those on any other synthetic dataset) by running
 
 ```bash
-$ python experiments/run_experiments.py dot {cub/celeba/xor/trig/dot}
+$ python experiments/run_experiments.py -c experiments/configs/{cub/celeba}_config.yaml
 ```
 
-Our intervention experiments can be further recreated by running
-```bash
-$ python experiments/intervention_experiments.py dot {cub/celeba}
-```
+These scripts will also run the intervention experiments and generate the test
+accuracies for all models as one intervenes on an increasing number of concepts.
 
-All of these scripts will dump all testing results/statistics summarized over
-5 random initializations in a single `results.joblib` dictionary which
-you can then analyze.
+Once an experiment is over, the script will dump all testing results/statistics
+summarized over 5 random initializations in a single `results.joblib` dictionary
+which you can then analyze.
 
 
 

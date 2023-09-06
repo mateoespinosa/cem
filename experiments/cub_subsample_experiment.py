@@ -1,15 +1,12 @@
 import argparse
 import copy
 import joblib
-import numpy as np
 import os
-import torch
-import cem.data.CUB200.cub_loader as cub_data_module
 
-from cem.data.CUB200.cub_loader import load_data, find_class_imbalance
 from pathlib import Path
 from pytorch_lightning import seed_everything
 
+import cem.data.CUB200.cub_loader as cub_data_module
 import cem.train.training as training
 import cem.train.utils as utils
 
@@ -55,7 +52,7 @@ def main(
         sigmoidal_prob=False,
         sigmoidal_embedding=False,
         training_intervention_prob=0.0,
-        embeding_activation=None,
+        embedding_activation=None,
         concat_prob=False,
     )
 
@@ -84,11 +81,12 @@ def main(
 
             results[sampling_percent][f'{split}'] = {}
 
-            train_dl, val_dl, test_dl, imbalance, (new_n_concepts, n_tasks, _) = cub_data_module.generate_data(
-                config=og_config,
-                seed=42,
-                output_dataset_vars=True,
-            )
+            train_dl, val_dl, test_dl, imbalance, (new_n_concepts, n_tasks, _) = \
+                cub_data_module.generate_data(
+                    config=og_config,
+                    seed=42,
+                    output_dataset_vars=True,
+                )
             print(
                 f'\tExperiment {split+1}/{og_config["cv"]} with sampling '
                 f'rate {sampling_percent *100}% and {new_n_concepts} concepts'
@@ -250,7 +248,7 @@ def main(
             config['training_intervention_prob'] = 0.25
             config['concat_prob'] = False
             config['emb_size'] = config['emb_size']
-            config["embeding_activation"] = "leakyrelu"
+            config["embedding_activation"] = "leakyrelu"
             mixed_emb_shared_prob_model,  mixed_emb_shared_prob_test_results = \
                 training.train_model(
                     n_concepts=new_n_concepts,

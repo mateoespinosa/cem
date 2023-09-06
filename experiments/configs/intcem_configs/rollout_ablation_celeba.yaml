@@ -1,0 +1,90 @@
+trials: 5
+results_dir: /local/scratch-2/me466/intervention_experiment_results/rollout_ablation_celeba
+num_workers: 8
+
+# DATASET VARIABLES
+dataset: "celeba"
+image_size: 64
+num_classes: 1000
+batch_size: 512
+root_dir: /local/scratch/me466/
+use_imbalance: True
+use_binary_vector_class: True
+num_concepts: 6
+label_binary_width: 1
+label_dataset_subsample: 12
+num_hidden_concepts: 2
+selected_concepts: False
+skip_repr_evaluation: True
+
+# Intervention Parameters
+intervention_freq: 1
+intervention_batch_size: 1024
+intervention_policies:
+    - "group_random"
+    - "group_random_no_prior"
+    - "group_coop_no_prior"
+    - "behavioural_cloning_no_prior"
+    - "group_uncertainty_no_prior"
+    - "optimal_greedy_no_prior"
+    - "global_val_error_no_prior"
+    - "global_val_improvement_no_prior"
+
+shared_params:
+    top_k_accuracy: [3, 5, 10]
+    save_model: True
+    max_epochs: 200
+    patience: 15
+    emb_size: 16
+    extra_dims: 0
+    concept_loss_weight: 1
+    learning_rate: 0.005
+    weight_decay: 0.000004
+    weight_loss: False
+    c_extractor_arch: resnet34
+    optimizer: sgd
+    bool: False
+    early_stopping_monitor: val_loss
+    early_stopping_mode: min
+    early_stopping_delta: 0.0
+    momentum: 0.9
+    sigmoidal_prob: False
+    training_intervention_prob: 0.25
+
+runs:
+    - architecture: "IntAwareConceptEmbeddingModel"
+      extra_name: "_intervention_weight_{intervention_weight}_rollouts_{num_rollouts}"
+      horizon_binary_representation:  True
+      include_task_trajectory_loss: True
+      include_only_last_trajectory_loss: True
+      average_trajectory: False
+      task_loss_weight: 0
+      use_concept_groups: True
+      embedding_activation: "leakyrelu"
+      tau: 1
+      max_horizon: 28
+      horizon_uniform_distr: True
+      beta_a: 1
+      beta_b: 3
+      use_horizon: False
+      model_pretrain_path: null
+      pretrain_intcem: False
+      intervention_weight: [1]
+      initial_horizon: 2
+      include_probs: False
+      use_full_mask_distr: True
+      int_model_use_bn: True
+      int_model_layers: [128,128,64,64]
+      intervention_discount: 1.05
+      horizon_rate: 1
+      intcem_task_loss_weight: 0
+      intervention_task_discount: 1.05
+      intervention_task_loss_weight: 1
+      initialize_discount: True
+      training_intervention_prob: 0.25
+      propagate_target_gradients: True
+      num_rollouts: [1, 5, 10, 15]
+      grid_variables:
+          - intervention_weight
+          - num_rollouts
+      grid_search_mode: exhaustive

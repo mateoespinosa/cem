@@ -1,9 +1,11 @@
-import torch
-import sklearn.metrics
-import pytorch_lightning as pl
-import os
-import numpy as np
+import joblib
 import logging
+import multiprocessing
+import numpy as np
+import os
+import pytorch_lightning as pl
+import sklearn.metrics
+import torch
 
 from pathlib import Path
 from torchvision.models import densenet121
@@ -13,11 +15,84 @@ from torchvision.models import densenet121
 ## HELPER FUNCTIONS
 ################################################################################
 
+def _save_result(fun, kwargs, output_filepath):
+    result = fun(**kwargs)
+    joblib.dump(result, output_filepath)
+    return result
+
+def execute_and_save(
+    fun,
+    kwargs,
+    result_dir,
+    filename,
+    rerun=False,
+):
+    output_filepath = os.path.join(
+        result_dir,
+        filename,
+    )
+    if (not rerun) and os.path.exists(output_filepath):
+        return joblib.load(output_filepath)
+    context = multiprocessing.get_context('spawn')
+    p = context.Process(
+        target=_save_result,
+        kwargs=dict(
+            fun=fun,
+            kwargs=kwargs,
+            output_filepath=output_filepath,
+        ),
+    )
+    p.start()
+    p.join()
+    if p.exitcode:
+        raise ValueError(
+            f'Subprocess failed!'
+        )
+    p.kill()
+    return joblib.load(output_filepath)
+
+def load_call(
+    function,
+    keys,
+    full_run_name,
+    old_results=None,
+    rerun=False,
+    kwargs=None,
+):
+    old_results = old_results or {}
+    kwargs = kwargs or {}
+    if not isinstance(keys, (tuple, list)):
+        keys = [keys]
+
+    outputs = []
+    for key in keys:
+        if key.endswith("_" + full_run_name):
+            real_key = key[:len(full_run_name) + 1]
+            search_key = key
+        else:
+            real_key = key
+            search_key = key + "_" + full_run_name
+        rerun = rerun or (
+            os.environ.get(f"RERUN_METRIC_{real_key.upper()}", "0") == "1"
+        )
+        if search_key in old_results:
+            outputs.append(old_results[search_key])
+        else:
+            rerun = True
+            logging.debug(
+                f"Restarting run because we could not find {search_key} in "
+                f"old results."
+            )
+            break
+    if not rerun:
+        return outputs, True
+
+    return function(**kwargs), False
+
 
 def _to_val(x):
     if len(x) >= 2 and (x[0] == "[") and (x[-1] == "]"):
-        vals = list(map(lambda x: x.strip(), x[1:-1].split(",")))
-        return list(map(_to_val, vals))
+        return eval(x)
     try:
         return int(x)
     except ValueError:
@@ -30,9 +105,9 @@ def _to_val(x):
         # Then this is not an float
         pass
 
-    if x.lower() in ["true"]:
+    if x.lower().strip() in ["true"]:
         return True
-    if x.lower() in ["false"]:
+    if x.lower().strip() in ["false"]:
         return False
 
     return x
@@ -241,6 +316,8 @@ class WrapperModule(pl.LightningModule):
         self.learning_rate = learning_rate
         self.optimizer_name = optimizer
         self.weight_decay = weight_decay
+        if (not isinstance(top_k_accuracy, list)) and top_k_accuracy:
+            top_k_accuracy = [top_k_accuracy]
         self.top_k_accuracy = top_k_accuracy
         if sigmoidal_output:
             self.sig = torch.nn.Sigmoid()
@@ -286,12 +363,13 @@ class WrapperModule(pl.LightningModule):
             y_pred = y_logits.cpu().detach()
             labels = list(range(self.n_tasks))
             for top_k_val in self.top_k_accuracy:
-                y_top_k_accuracy = sklearn.metrics.top_k_accuracy_score(
-                    y_true,
-                    y_pred,
-                    k=top_k_val,
-                    labels=labels,
-                )
+                if top_k_val:
+                    y_top_k_accuracy = sklearn.metrics.top_k_accuracy_score(
+                        y_true,
+                        y_pred,
+                        k=top_k_val,
+                        labels=labels,
+                    )
                 result[f'y_top_{top_k_val}_accuracy'] = y_top_k_accuracy
         return loss, result
 

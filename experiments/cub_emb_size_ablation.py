@@ -51,16 +51,17 @@ def main(
         sigmoidal_prob=False,
         sigmoidal_embedding=False,
         training_intervention_prob=0.0,
-        embeding_activation=None,
+        embedding_activation=None,
         concat_prob=False,
     )
 
     utils.extend_with_global_params(og_config, global_params or [])
-    train_dl, val_dl, test_dl, imbalance, (n_concepts, n_tasks, _) = cub_data_module.generate_data(
-        config=og_config,
-        seed=42,
-        output_dataset_vars=True,
-    )
+    train_dl, val_dl, test_dl, imbalance, (n_concepts, n_tasks, _) = \
+        cub_data_module.generate_data(
+            config=og_config,
+            seed=42,
+            output_dataset_vars=True,
+        )
 
     if result_dir and activation_freq:
         # Then let's save the testing data for furter analysis later on
@@ -121,7 +122,7 @@ def main(
             config['training_intervention_prob'] = 0.25
             config['concat_prob'] = False
             config['emb_size'] = emb_size
-            config["embeding_activation"] = "leakyrelu"
+            config["embedding_activation"] = "leakyrelu"
             mixed_emb_shared_prob_model,  mixed_emb_shared_prob_test_results = \
                 training.train_model(
                     n_concepts=n_concepts,
