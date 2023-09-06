@@ -5,7 +5,7 @@ results_dir: results/cub/
 # DATASET VARIABLES
 dataset: cub
 root_dir: cem/data/CUB200/
-batch_size: 256
+batch_size: 128
 num_workers: 8
 sampling_percent: 1
 test_subsampling: 1
@@ -21,12 +21,10 @@ competence_levels: [1, 0]
 incompetence_intervention_policies:
     - "group_random_no_prior"
 
-# Metrics to run for the learnt representations
-skip_repr_evaluation: False
-run_ois: False
-run_nis: False
-run_cas: True
-cas_step: 50
+# Metrics to run for the learnt representations. Currently skipping all of them
+# for efficiency purposes but feel free to change this after training and
+# rerunning as it can reuse trained models :)
+skip_repr_evaluation: True
 
 shared_params:
     top_k_accuracy: null

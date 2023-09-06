@@ -1288,25 +1288,24 @@ def test_interventions(
             results[key] = int_results
             results[int_time_key] = avg_time
             results[construction_times_key] = constr_time
-            if loaded:
-                if avg_time:
-                    extra = (
-                        f" (avg int time is {avg_time:.5f}s and construction "
-                        f"time is {constr_time:.5f}s)"
+            if avg_time:
+                extra = (
+                    f" (avg int time is {avg_time:.5f}s and construction "
+                    f"time is {constr_time:.5f}s)"
+                )
+            else:
+                extra = ""
+            for num_groups_intervened, val in enumerate(int_results):
+                if n_tasks > 1:
+                    logging.debug(
+                        f"\t\tTest accuracy when intervening "
+                        f"with {num_groups_intervened} "
+                        f"concept groups is {val * 100:.2f}%{extra}."
                     )
                 else:
-                    extra = ""
-                for num_groups_intervened, val in enumerate(int_results):
-                    if n_tasks > 1:
-                        logging.debug(
-                            f"\t\tTest accuracy when intervening "
-                            f"with {num_groups_intervened} "
-                            f"concept groups is {val * 100:.2f}%{extra}."
-                        )
-                    else:
-                        logging.debug(
-                            f"\t\tTest AUC when intervening "
-                            f"with {num_groups_intervened} "
-                            f"concept groups is {val * 100:.2f}%{extra}."
-                        )
+                    logging.debug(
+                        f"\t\tTest AUC when intervening "
+                        f"with {num_groups_intervened} "
+                        f"concept groups is {val * 100:.2f}%{extra}."
+                    )
     return results
