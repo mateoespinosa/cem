@@ -47,7 +47,6 @@ class ConceptBottleneckModel(pl.LightningModule):
         include_certainty=True,
 
         top_k_accuracy=None,
-        gpu=int(torch.cuda.is_available()),
     ):
         """
         Constructs a joint Concept Bottleneck Model (CBM) as defined by
@@ -144,9 +143,7 @@ class ConceptBottleneckModel(pl.LightningModule):
 
         :param List[int] top_k_accuracy: List of top k values to report accuracy
             for during training/testing when the number of tasks is high.
-        :param Bool gpu: whether or not to use a GPU device or not.
         """
-        gpu = int(gpu)
         super().__init__()
         self.include_certainty = include_certainty
         self.n_concepts = n_concepts
@@ -177,29 +174,28 @@ class ConceptBottleneckModel(pl.LightningModule):
             self.c2y_model = torch.nn.Sequential(*layers)
 
         # Intervention-specific fields/handlers:
-        init_fun = torch.cuda.FloatTensor if gpu else torch.FloatTensor
         if active_intervention_values is not None:
-            self.active_intervention_values = init_fun(
+            self.active_intervention_values = torch.FloatTensor(
                 active_intervention_values
             )
         else:
             # Setting to 5 for prob = 1 (as that would result in its sigmoid
             # value being very close to 1) and -5 if prob=0 (as that will
             # go to zero when applied a sigmoid)
-            self.active_intervention_values = init_fun(
+            self.active_intervention_values = torch.FloatTensor(
                 [1 for _ in range(n_concepts)]
             ) * (
                 5.0 if not sigmoidal_prob else 1.0
             )
         if inactive_intervention_values is not None:
-            self.inactive_intervention_values = init_fun(
+            self.inactive_intervention_values = torch.FloatTensor(
                 inactive_intervention_values
             )
         else:
             # Setting to 5 for prob = 1 (as that would result in its sigmoid
             # value being very close to 1) and -5 if prob=0 (as that will
             # go to zero when applied a sigmoid)
-            self.inactive_intervention_values = init_fun(
+            self.inactive_intervention_values = torch.FloatTensor(
                 [1 for _ in range(n_concepts)]
             ) * (
                 -5.0 if not sigmoidal_prob else 0.0
@@ -380,13 +376,19 @@ class ConceptBottleneckModel(pl.LightningModule):
         if self.sigmoidal_prob:
             c_pred_copy[set_intervention_idxs] = c_true[intervention_idxs]
         else:
+            active_intervention_values = self.active_intervention_values.to(
+                c_pred.device
+            )
             batched_active_intervention_values =  torch.tile(
-                torch.unsqueeze(self.active_intervention_values, 0),
+                torch.unsqueeze(active_intervention_values, 0),
                 (c_pred.shape[0], 1),
             ).to(c_true.device)
 
+            inactive_intervention_values = self.inactive_intervention_values.to(
+                c_pred.device
+            )
             batched_inactive_intervention_values =  torch.tile(
-                torch.unsqueeze(self.inactive_intervention_values, 0),
+                torch.unsqueeze(inactive_intervention_values, 0),
                 (c_pred.shape[0], 1),
             ).to(c_true.device)
 
@@ -453,17 +455,25 @@ class ConceptBottleneckModel(pl.LightningModule):
             neg_embeddings = torch.zeros(c_sem.shape).to(x.device)
             if not (self.sigmoidal_prob or self.bool):
                 if (
-                    (self.inactive_intervention_values is not None) and
+                    (self.active_intervention_values is not None) and
                     (self.inactive_intervention_values is not None)
                 ):
+                    active_intervention_values = \
+                        self.active_intervention_values.to(
+                            c_pred.device
+                        )
                     pos_embeddings = torch.tile(
-                        self.active_intervention_values,
+                        active_intervention_values,
                         (c.shape[0], 1),
-                    ).to(self.active_intervention_values.device)
+                    ).to(active_intervention_values.device)
+                    inactive_intervention_values = \
+                        self.inactive_intervention_values.to(
+                            c_pred.device
+                        )
                     neg_embeddings = torch.tile(
-                        self.inactive_intervention_values,
+                        inactive_intervention_values,
                         (c.shape[0], 1),
-                    ).to(self.inactive_intervention_values.device)
+                    ).to(inactive_intervention_values.device)
                 else:
                     out_embs = c_pred.detach().cpu().numpy()
                     for concept_idx in range(self.n_concepts):

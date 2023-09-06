@@ -137,7 +137,8 @@ def main(
     single_frequency_epochs=0,
     global_params=None,
     og_config=None,
-    gpu=torch.cuda.is_available(),
+    accelerator="auto",
+    devices="auto",
 ):
     seed_everything(42)
     # parameters for data, model, and training
@@ -148,7 +149,6 @@ def main(
     og_config['num_workers'] = num_workers
     utils.extend_with_global_params(og_config, global_params or [])
 
-    gpu = 1 if gpu else 0
     utils.extend_with_global_params(og_config, global_params or [])
 
     train_dl, val_dl, test_dl, imbalance, (n_concepts, n_tasks, _) = data_module.generate_data(

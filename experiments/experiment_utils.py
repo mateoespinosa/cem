@@ -84,32 +84,60 @@ def print_table(
     split=0,
     result_table_fields=None,
     sort_key="model",
+    config=None,
 ):
+    config = config or {}
     # Initialise output table
     results_table = PrettyTable()
     field_names = [
         "Method",
         "Task Accuracy",
-        "Task AUC",
-        "Concept Accuracy",
-        "Concept AUC",
-        "CAS",
-        "25% Int Acc",
-        "50% Int Acc",
-        "75% Int Acc",
-        "100% Int Acc",
+
     ]
     result_table_fields_keys = [
         "test_acc_y",
-        "test_auc_y",
+    ]
+
+    # Add AUC only when it is a binary class
+    shared_params = config.get("shared_params", {})
+    if shared_params.get("n_tasks", 3) <= 2:
+        field_names.append("Task AUC")
+        result_table_fields_keys.append("test_auc_y")
+
+    # Now add concept evaluation metrics
+    field_names.extend([
+        "Concept Accuracy",
+        "Concept AUC",
+    ])
+    result_table_fields_keys.extend([
         "test_acc_c",
         "test_auc_c",
-        "test_cas",
-        "test_acc_y_group_random_no_prior_ints_25%",
-        "test_acc_y_group_random_no_prior_ints_50%",
-        "test_acc_y_group_random_no_prior_ints_75%",
-        "test_acc_y_group_random_no_prior_ints_100%",
-    ]
+    ])
+
+    # CAS, if we chose to compute it (off by default as it may be
+    # computationally expensive)
+    if (
+        shared_params.get("skip_repr_evaluation", False) and
+        shared_params.get("run_cas", True)
+    ):
+        field_names.append("CAS")
+        result_table_fields_keys.append("test_cas")
+
+    # And intervention summaries if we chose to also include them
+    if len(shared_params.get("intervention_policies", [])) > 0:
+        field_names.extend([
+            "25% Int Acc",
+            "50% Int Acc",
+            "75% Int Acc",
+            "100% Int Acc",
+        ])
+        result_table_fields_keys.extend([
+            "test_acc_y_group_random_no_prior_ints_25%",
+            "test_acc_y_group_random_no_prior_ints_50%",
+            "test_acc_y_group_random_no_prior_ints_75%",
+            "test_acc_y_group_random_no_prior_ints_100%",
+        ])
+
     if result_table_fields is not None:
         for field in result_table_fields:
             if not isinstance(field, (tuple, list)):

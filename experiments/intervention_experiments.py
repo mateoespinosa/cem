@@ -6,7 +6,6 @@ import os
 
 import logging
 import torch
-import scipy.special
 from pytorch_lightning import seed_everything
 
 import cem.data.CUB200.cub_loader as cub_data_module
@@ -87,7 +86,8 @@ def main(
     project_name='',
     num_workers=8,
     global_params=None,
-    gpu=torch.cuda.is_available(),
+    accelerator="auto",
+    devices="auto",
     og_config=None,
 ):
     seed_everything(42)
@@ -98,7 +98,6 @@ def main(
     og_config = copy.deepcopy(og_config)
     og_config['num_workers'] = num_workers
 
-    gpu = 1 if gpu else 0
     utils.extend_with_global_params(og_config, global_params or [])
 
     train_dl, val_dl, test_dl, imbalance, (n_concepts, n_tasks, concept_map) = \
@@ -200,7 +199,8 @@ def main(
         cem,  cem_results = \
             training.train_model(
                 task_class_weights=task_class_weights,
-                gpu=gpu if gpu else 0,
+                accelerator=accelerator,
+                devices=devices,
                 n_concepts=n_concepts,
                 n_tasks=n_tasks,
                 config=config,
@@ -236,7 +236,8 @@ def main(
             result_dir=result_dir,
             concept_map=concept_map,
             intervened_groups=intervened_groups,
-            gpu=gpu,
+            accelerator=accelerator,
+            devices=devices,
             split=split,
             rerun=rerun,
             old_results=old_results,
@@ -253,7 +254,8 @@ def main(
             sequential=False,
             independent=False,
             task_class_weights=task_class_weights,
-            gpu=gpu,
+            accelerator=accelerator,
+            devices=devices,
             rerun=rerun,
             seed=42,
             old_results=old_results,
@@ -366,7 +368,8 @@ def main(
                                     intcem,  intcem_results = \
                                         training.train_model(
                                             task_class_weights=task_class_weights,
-                                            gpu=gpu if gpu else 0,
+                                            accelerator=accelerator,
+                                            devices=devices,
                                             n_concepts=n_concepts,
                                             n_tasks=n_tasks,
                                             config=config,
@@ -402,7 +405,8 @@ def main(
                                         result_dir=result_dir,
                                         concept_map=concept_map,
                                         intervened_groups=intervened_groups,
-                                        gpu=gpu,
+                                        accelerator=accelerator,
+                                        devices=devices,
                                         split=split,
                                         rerun=rerun,
                                         old_results=old_results,
@@ -420,7 +424,8 @@ def main(
                                         sequential=False,
                                         independent=False,
                                         task_class_weights=task_class_weights,
-                                        gpu=gpu,
+                                            devices=devices,
+                                            devices=devices,
                                         rerun=rerun,
                                         seed=42,
                                         old_results=old_results,
@@ -484,7 +489,8 @@ def main(
                             intcem,  intcem_results = \
                                 training.train_model(
                                     task_class_weights=task_class_weights,
-                                    gpu=gpu if gpu else 0,
+                                    accelerator=accelerator,
+                                    devices=devices,
                                     n_concepts=n_concepts,
                                     n_tasks=n_tasks,
                                     config=config,
@@ -520,7 +526,8 @@ def main(
                                 result_dir=result_dir,
                                 concept_map=concept_map,
                                 intervened_groups=intervened_groups,
-                                gpu=gpu,
+                                accelerator=accelerator,
+                                devices=devices,
                                 split=split,
                                 rerun=rerun,
                                 old_results=old_results,
@@ -579,7 +586,8 @@ def main(
 #                         intcem,  intcem_results = \
 #                             training.train_model(
 #                                 task_class_weights=task_class_weights,
-#                                 gpu=gpu if gpu else 0,
+#                                 accelerator=accelerator,
+#                                 devices=devices,
 #                                 n_concepts=n_concepts,
 #                                 n_tasks=n_tasks,
 #                                 config=config,
@@ -619,7 +627,8 @@ def main(
 #                             result_dir=result_dir,
 #                             concept_map=concept_map,
 #                             intervened_groups=intervened_groups,
-#                             gpu=gpu,
+#                             accelerator=accelerator,
+#                             devices=devices,
 #                             split=split,
 #                             rerun=rerun,
 #                             old_results=old_results,
@@ -682,7 +691,8 @@ def main(
                             intcem, intcem_results = \
                                 training.train_model(
                                     task_class_weights=task_class_weights,
-                                    gpu=gpu if gpu else 0,
+                                    accelerator=accelerator,
+                                    devices=devices,
                                     n_concepts=n_concepts,
                                     n_tasks=n_tasks,
                                     config=config,
@@ -718,7 +728,8 @@ def main(
                                 result_dir=result_dir,
                                 concept_map=concept_map,
                                 intervened_groups=intervened_groups,
-                                gpu=gpu,
+                                accelerator=accelerator,
+                                devices=devices,
                                 split=split,
                                 rerun=rerun,
                                 old_results=old_results,
@@ -776,7 +787,8 @@ def main(
                             intcem,  intcem_results = \
                                 training.train_model(
                                     task_class_weights=task_class_weights,
-                                    gpu=gpu if gpu else 0,
+                                    accelerator=accelerator,
+                                    devices=devices,
                                     n_concepts=n_concepts,
                                     n_tasks=n_tasks,
                                     config=config,
@@ -812,7 +824,8 @@ def main(
                                 result_dir=result_dir,
                                 concept_map=concept_map,
                                 intervened_groups=intervened_groups,
-                                gpu=gpu,
+                                accelerator=accelerator,
+                                devices=devices,
                                 split=split,
                                 rerun=rerun,
                                 old_results=old_results,
@@ -874,7 +887,8 @@ def main(
 #                         intcem, intcem_results = \
 #                             training.train_model(
 #                                 task_class_weights=task_class_weights,
-#                                 gpu=gpu if gpu else 0,
+#                                 accelerator=accelerator,
+#                                 devices=devices,
 #                                 n_concepts=n_concepts,
 #                                 n_tasks=n_tasks,
 #                                 config=config,
@@ -910,7 +924,8 @@ def main(
 #                             result_dir=result_dir,
 #                             concept_map=concept_map,
 #                             intervened_groups=intervened_groups,
-#                             gpu=gpu,
+#                             accelerator=accelerator,
+#                             devices=devices,
 #                             split=split,
 #                             rerun=rerun,
 #                             old_results=old_results,
@@ -954,7 +969,8 @@ def main(
         cbm_sigmoid_model, cbm_sigmoid_test_results = \
             training.train_model(
                 task_class_weights=task_class_weights,
-                gpu=gpu if gpu else None,
+                accelerator=accelerator,
+                devices=devices,
                 n_concepts=n_concepts,
                 n_tasks=n_tasks,
                 config=config,
@@ -990,7 +1006,8 @@ def main(
             result_dir=result_dir,
             concept_map=concept_map,
             intervened_groups=intervened_groups,
-            gpu=gpu,
+            accelerator=accelerator,
+            devices=devices,
             split=split,
             rerun=rerun,
             old_results=old_results,
@@ -1007,7 +1024,8 @@ def main(
             sequential=False,
             independent=False,
             task_class_weights=task_class_weights,
-            gpu=gpu,
+            accelerator=accelerator,
+            devices=devices,
             rerun=rerun,
             seed=42,
             old_results=old_results,
@@ -1050,7 +1068,8 @@ def main(
         cbm_logit_model, cbm_logit_test_results = \
             training.train_model(
                 task_class_weights=task_class_weights,
-                gpu=gpu if gpu else None,
+                accelerator=accelerator,
+                devices=devices,
                 n_concepts=n_concepts,
                 n_tasks=n_tasks,
                 config=config,
@@ -1086,7 +1105,8 @@ def main(
             result_dir=result_dir,
             concept_map=concept_map,
             intervened_groups=intervened_groups,
-            gpu=gpu,
+            accelerator=accelerator,
+            devices=devices,
             split=split,
             rerun=rerun,
             old_results=old_results,
@@ -1103,7 +1123,8 @@ def main(
             sequential=False,
             independent=False,
             task_class_weights=task_class_weights,
-            gpu=gpu,
+            accelerator=accelerator,
+            devices=devices,
             rerun=rerun,
             seed=42,
             old_results=old_results,
@@ -1185,7 +1206,8 @@ def main(
             result_dir=result_dir,
             concept_map=concept_map,
             intervened_groups=intervened_groups,
-            gpu=gpu,
+            accelerator=accelerator,
+            devices=devices,
             split=split,
             rerun=rerun,
             old_results=ind_old_results,
@@ -1223,7 +1245,8 @@ def main(
             result_dir=result_dir,
             concept_map=concept_map,
             intervened_groups=intervened_groups,
-            gpu=gpu,
+            accelerator=accelerator,
+            devices=devices,
             split=split,
             rerun=rerun,
             old_results=seq_old_results,
@@ -1424,6 +1447,9 @@ if __name__ == '__main__':
         project_name=args.project_name,
         num_workers=args.num_workers,
         global_params=args.param,
-        gpu=(not args.force_cpu) and (torch.cuda.is_available()),
+        accelerator=(
+            "gpu" if (not args.force_cpu) and (torch.cuda.is_available())
+            else "cpu"
+        ),
         og_config=og_config,
     )

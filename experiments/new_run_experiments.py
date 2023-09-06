@@ -45,7 +45,8 @@ def main(
     project_name='',
     num_workers=8,
     global_params=None,
-    gpu=torch.cuda.is_available(),
+    accelerator="auto",
+    devices="auto",
     result_table_fields=None,
     sort_key="Task Accuracy",
     single_frequency_epochs=0,
@@ -62,7 +63,6 @@ def main(
             experiment_config['shared_params'][key] = vals
     experiment_config['shared_params']['num_workers'] = num_workers
 
-    gpu = 1 if gpu else 0
     utils.extend_with_global_params(
         experiment_config['shared_params'], global_params or []
     )
@@ -307,7 +307,8 @@ def main(
                             result_dir=result_dir,
                             concept_map=concept_map,
                             intervened_groups=intervened_groups,
-                            gpu=gpu,
+                            accelerator=accelerator,
+                            devices=devices,
                             split=split,
                             rerun=current_rerun,
                             old_results=ind_old_results,
@@ -358,7 +359,8 @@ def main(
                             result_dir=result_dir,
                             concept_map=concept_map,
                             intervened_groups=intervened_groups,
-                            gpu=gpu,
+                            accelerator=accelerator,
+                            devices=devices,
                             split=split,
                             rerun=current_rerun,
                             old_results=seq_old_results,
@@ -410,7 +412,8 @@ def main(
                     model, model_results = \
                         training.train_model(
                             task_class_weights=task_class_weights,
-                            gpu=gpu if gpu else 0,
+                            accelerator=accelerator,
+                            devices=devices,
                             n_concepts=n_concepts,
                             n_tasks=n_tasks,
                             config=run_config,
@@ -452,7 +455,8 @@ def main(
                             result_dir=result_dir,
                             concept_map=concept_map,
                             intervened_groups=intervened_groups,
-                            gpu=gpu,
+                            accelerator=accelerator,
+                            devices=devices,
                             split=split,
                             rerun=current_rerun,
                             old_results=old_results,
@@ -475,7 +479,8 @@ def main(
                             sequential=False,
                             independent=False,
                             task_class_weights=task_class_weights,
-                            gpu=gpu,
+                            accelerator=accelerator,
+                            devices=devices,
                             rerun=current_rerun,
                             seed=42,
                             old_results=old_results,
@@ -535,6 +540,7 @@ def main(
                 )
             print(f"********** Results in between trial {split + 1} **********")
             print_table(
+                config=experiment_config,
                 results=results,
                 result_table_fields=result_table_fields,
                 sort_key=sort_key,
@@ -544,6 +550,7 @@ def main(
             logging.debug(f"\t\tDone with trial {split + 1}")
     print(f"********** Results after trial {split + 1} **********")
     print_table(
+        config=experiment_config,
         results=results,
         result_table_fields=result_table_fields,
         sort_key=sort_key,
@@ -821,7 +828,10 @@ if __name__ == '__main__':
         project_name=args.project_name,
         num_workers=args.num_workers,
         global_params=args.param,
-        gpu=(not args.force_cpu) and (torch.cuda.is_available()),
+        accelerator=(
+            "gpu" if (not args.force_cpu) and (torch.cuda.is_available())
+            else "cpu"
+        ),
         experiment_config=loaded_config,
         activation_freq=args.activation_freq,
         single_frequency_epochs=args.single_frequency_epochs,

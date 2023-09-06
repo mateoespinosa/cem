@@ -27,7 +27,8 @@ def intervene_in_cbm(
     independent=False,
     concept_group_map=None,
     intervened_groups=None,
-    gpu=int(torch.cuda.is_available()),
+    accelerator="auto",
+    devices="auto",
     split=0,
     concept_selection_policy=IndependentRandomMaskIntPolicy,
     rerun=False,
@@ -112,7 +113,8 @@ def intervene_in_cbm(
             )
 
             trainer = pl.Trainer(
-                gpus=gpu,
+                accelerator=accelerator,
+                devices=devices,
             )
             f = io.StringIO()
             with redirect_stdout(f):

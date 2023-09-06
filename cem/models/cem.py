@@ -48,7 +48,6 @@ class ConceptEmbeddingModel(ConceptBottleneckModel):
         include_certainty=True,
 
         top_k_accuracy=None,
-        gpu=int(torch.cuda.is_available()),
     ):
         """
         Constructs a Concept Embedding Model (CEM) as defined by
@@ -126,7 +125,6 @@ class ConceptEmbeddingModel(ConceptBottleneckModel):
 
         :param List[int] top_k_accuracy: List of top k values to report accuracy
             for during training/testing when the number of tasks is high.
-        :param Bool gpu: whether or not to use a GPU device or not.
         """
         pl.LightningModule.__init__(self)
         self.n_concepts = n_concepts

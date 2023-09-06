@@ -37,9 +37,10 @@ class BehavioralLearningPolicy(InterventionPolicy):
         num_groups_intervened=0,
         group_based=True,
         include_prior=False,
-        dataset_size=256, #5000,
+        dataset_size=5000,
         horizon_rate=1.001,
-        gpu=int(torch.cuda.is_available()),
+        accelerator="auto",
+        devices="auto",
         rerun=False,
         **kwargs
     ):
@@ -99,7 +100,8 @@ class BehavioralLearningPolicy(InterventionPolicy):
                 batch_size=batch_size,
             )
             trainer = pl.Trainer(
-                gpus=gpu,
+                accelerator=accelerator,
+                devices=devices,
                 max_epochs=train_epochs,
                 logger=False,
             )

@@ -150,7 +150,8 @@ cem_model = ConceptEmbeddingModel(
 #####
 
 trainer = pl.Trainer(
-    gpus=1,
+    accelerator="gpu",  # or "cpu" if no GPU available
+    devices="auto",
     max_epochs=100,
     check_val_every_n_epoch=5,
 )
@@ -244,7 +245,6 @@ Our **CEM module** takes the following initialization arguments:
     intervene on.
 - `top_k_accuracy` (List[int]): List of top k values to report accuracy
     for during training/testing when the number of tasks is high.
-- `gpu` (Bool): whether or not to use a GPU device or not.
 
 
 Notice that our **[CBM module](https://github.com/mateoespinosa/cem/blob/main/cem/models/cbm.py) takes similar arguments**, albeit some extra ones
