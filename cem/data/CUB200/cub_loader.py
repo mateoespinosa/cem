@@ -673,7 +673,9 @@ CONCEPT_SEMANTICS = [
 # Generate a mapping containing all concept groups in CUB generated
 # using a simple prefix tree
 CONCEPT_GROUP_MAP = defaultdict(list)
-for i, concept_name in enumerate(list(np.array(CONCEPT_SEMANTICS)[SELECTED_CONCEPTS])):
+for i, concept_name in enumerate(list(
+    np.array(CONCEPT_SEMANTICS)[SELECTED_CONCEPTS]
+)):
     group = concept_name[:concept_name.find("::")]
     CONCEPT_GROUP_MAP[group].append(i)
 
@@ -821,7 +823,9 @@ class CUBDataset(Dataset):
                 attr_label = self.concept_transform(attr_label)
             if self.no_img:
                 if self.n_class_attr == 3:
-                    one_hot_attr_label = np.zeros((len(SELECTED_CONCEPTS), self.n_class_attr))
+                    one_hot_attr_label = np.zeros(
+                        (len(SELECTED_CONCEPTS), self.n_class_attr)
+                    )
                     one_hot_attr_label[np.arange(len(SELECTED_CONCEPTS)), attr_label] = 1
                     return one_hot_attr_label, class_label
                 else:
@@ -833,7 +837,8 @@ class CUBDataset(Dataset):
 
 
 class ImbalancedDatasetSampler(torch.utils.data.sampler.Sampler):
-    """Samples elements randomly from a given list of indices for imbalanced dataset
+    """Samples elements randomly from a given list of indices for
+    imbalanced dataset
     Arguments:
         indices (list, optional): a list of indices
         num_samples (int, optional): number of samples to draw
@@ -894,8 +899,10 @@ def load_data(
 ):
     """
     Note: Inception needs (299,299,3) images with inputs scaled between -1 and 1
-    Loads data with transformations applied, and upsample the minority class if there is class imbalance and weighted loss is not used
-    NOTE: resampling is customized for first attribute only, so change sampler.py if necessary
+    Loads data with transformations applied, and upsample the minority class if
+    there is class imbalance and weighted loss is not used
+    NOTE: resampling is customized for first attribute only, so change
+    sampler.py if necessary
     """
     resized_resol = int(resol * 256/224)
     is_training = any(['train.pkl' in f for f in pkl_paths])
@@ -1137,4 +1144,10 @@ def generate_data(
     )
     if not output_dataset_vars:
         return train_dl, val_dl, test_dl, imbalance
-    return train_dl, val_dl, test_dl, imbalance, (n_concepts, N_CLASSES, concept_group_map)
+    return (
+        train_dl,
+        val_dl,
+        test_dl,
+        imbalance,
+        (n_concepts, N_CLASSES, concept_group_map),
+    )

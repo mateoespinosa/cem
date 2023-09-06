@@ -228,6 +228,9 @@ class ActivationMonitorWrapper:
         self.epoch = 0
         self.trainer = trainer
         self.model = model
+    @property
+    def current_epoch(self):
+        return self.trainer.current_epoch
 
     def fit(self, *args, **kwargs):
         if self.epoch == 0:

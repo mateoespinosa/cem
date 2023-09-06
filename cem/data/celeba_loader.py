@@ -356,7 +356,6 @@ def generate_data(
         num_workers=config['num_workers'],
     )
 
-
     # Finally, determine whether or not we will need to compute the imbalance
     # factors
     if config.get('weight_loss', False):

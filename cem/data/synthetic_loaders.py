@@ -122,7 +122,7 @@ class SyntheticGenerator(object):
             if config.get('weight_loss', False):
                 attribute_count = np.zeros((num_concepts,))
                 samples_seen = 0
-                for i, (_, y, c) in enumerate(train_dl):
+                for _, (_, y, c) in enumerate(train_dl):
                     c = c.cpu().detach().numpy()
                     attribute_count += np.sum(c, axis=0)
                     samples_seen += c.shape[0]

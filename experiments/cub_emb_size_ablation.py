@@ -9,7 +9,7 @@ from cem.data.CUB200.cub_loader import load_data, find_class_imbalance
 from pathlib import Path
 from pytorch_lightning import seed_everything
 
-import cem.data.CUB200.cub_loader as cub
+import cem.data.CUB200.cub_loader as cub_data_module
 import cem.train.training as training
 import cem.train.utils as utils
 
@@ -56,118 +56,11 @@ def main(
     )
 
     utils.extend_with_global_params(og_config, global_params or [])
-    base_dir = os.path.join(cub.DATASET_DIR, 'class_attr_data_10')
-    train_data_path = os.path.join(base_dir, 'train.pkl')
-    if og_config['weight_loss']:
-        imbalance = find_class_imbalance(train_data_path, True)
-    else:
-        imbalance = None
-
-    val_data_path = train_data_path.replace('train.pkl', 'val.pkl')
-    test_data_path = train_data_path.replace('train.pkl', 'test.pkl')
-    sampling_percent = og_config.get("sampling_percent", 1)
-    n_concepts, n_tasks = 112, 200
-
-    if sampling_percent != 1:
-        # Do the subsampling
-        new_n_concepts = int(np.ceil(n_concepts * sampling_percent))
-        selected_concepts_file = os.path.join(
-            result_dir,
-            f"selected_concepts_sampling_{sampling_percent}.npy",
-        )
-        if (not rerun) and os.path.exists(selected_concepts_file):
-            selected_concepts = np.load(selected_concepts_file)
-        else:
-            selected_concepts = sorted(
-                np.random.permutation(n_concepts)[:new_n_concepts]
-            )
-            np.save(selected_concepts_file, selected_concepts)
-        print("\t\tSelected concepts:", selected_concepts)
-        def subsample_transform(sample):
-            if isinstance(sample, list):
-                sample = np.array(sample)
-            return sample[selected_concepts]
-
-        if og_config['weight_loss']:
-            imbalance = np.array(imbalance)[selected_concepts]
-
-        train_dl = load_data(
-            pkl_paths=[train_data_path],
-            use_attr=True,
-            no_img=False,
-            batch_size=og_config['batch_size'],
-            uncertain_label=False,
-            n_class_attr=2,
-            image_dir='images',
-            resampling=False,
-            root_dir=cub.DATASET_DIR,
-            num_workers=og_config['num_workers'],
-            concept_transform=subsample_transform,
-        )
-        val_dl = load_data(
-            pkl_paths=[val_data_path],
-            use_attr=True,
-            no_img=False,
-            batch_size=og_config['batch_size'],
-            uncertain_label=False,
-            n_class_attr=2,
-            image_dir='images',
-            resampling=False,
-            root_dir=cub.DATASET_DIR,
-            num_workers=og_config['num_workers'],
-            concept_transform=subsample_transform,
-        )
-        test_dl = load_data(
-            pkl_paths=[test_data_path],
-            use_attr=True,
-            no_img=False,
-            batch_size=og_config['batch_size'],
-            uncertain_label=False,
-            n_class_attr=2,
-            image_dir='images',
-            resampling=False,
-            root_dir=cub.DATASET_DIR,
-            num_workers=og_config['num_workers'],
-            concept_transform=subsample_transform,
-        )
-        # And set the right number of concepts to be used
-        n_concepts = new_n_concepts
-    else:
-        train_dl = load_data(
-            pkl_paths=[train_data_path],
-            use_attr=True,
-            no_img=False,
-            batch_size=og_config['batch_size'],
-            uncertain_label=False,
-            n_class_attr=2,
-            image_dir='images',
-            resampling=False,
-            root_dir=cub.DATASET_DIR,
-            num_workers=og_config['num_workers'],
-        )
-        val_dl = load_data(
-            pkl_paths=[val_data_path],
-            use_attr=True,
-            no_img=False,
-            batch_size=og_config['batch_size'],
-            uncertain_label=False,
-            n_class_attr=2,
-            image_dir='images',
-            resampling=False,
-            root_dir=cub.DATASET_DIR,
-            num_workers=og_config['num_workers'],
-        )
-        test_dl = load_data(
-            pkl_paths=[test_data_path],
-            use_attr=True,
-            no_img=False,
-            batch_size=og_config['batch_size'],
-            uncertain_label=False,
-            n_class_attr=2,
-            image_dir='images',
-            resampling=False,
-            root_dir=cub.DATASET_DIR,
-            num_workers=og_config['num_workers'],
+    train_dl, val_dl, test_dl, imbalance, (n_concepts, n_tasks, _) = \
+        cub_data_module.generate_data(
+            config=og_config,
+            seed=42,
+            output_dataset_vars=True,
         )
 
     if result_dir and activation_freq:
@@ -424,9 +317,6 @@ if __name__ == '__main__':
         default=[],
     )
     args = parser.parse_args()
-    if args.project_name:
-        # Lazy import to avoid importing unless necessary
-        import wandb
     main(
         rerun=args.rerun,
         result_dir=args.output_dir,

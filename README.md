@@ -279,7 +279,7 @@ This should generate a summary of all the results after execution has
 terminated in the form of a table and should dump all results/trained
 models/logs into the given output directory (`dot_results/` in this case).
 
-Similarly, you can recreate our `CUB` and `CelebA` experiments by running
+Similarly, you can recreate our `CUB` and `CelebA` experiments (or those on any other synthetic dataset) by running
 
 ```bash
 $ python experiments/run_experiments.py -c experiments/configs/{cub/celeba}_config.yaml
