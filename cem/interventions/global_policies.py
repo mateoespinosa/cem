@@ -157,7 +157,8 @@ class GlobalValidationImprovementPolicy(GlobalValidationPolicy):
         cbm.intervention_policy = None
         self.scores = np.zeros((n_concepts,))
         trainer = pl.Trainer(
-            gpus=int(torch.cuda.is_available()),
+            accelerator=kwargs.get("accelerator", "auto"),
+            devices=kwargs.get("devices", "auto"),
             logger=False,
         )
         f = io.StringIO()

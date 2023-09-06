@@ -23,7 +23,7 @@ def concept_alignment_score(
     :param c_vec: predicted concept representations (can be concept embeddings)
     :param c_test: concept ground truth labels
     :param y_test: task ground truth labels
-    :param step: integration step
+    :param step: number of integration steps
     :return: concept alignment AUC, task alignment AUC
     """
 
@@ -49,8 +49,11 @@ def concept_alignment_score(
     n_clusters = np.linspace(
         2,
         c_vec.shape[0],
-        (c_vec.shape[0] - 2)//step,
+        step,
     ).astype(int)
+    print("in cas c_vec shape is", c_vec.shape)
+    print("n_clusters is", n_clusters)
+    print("step is", step)
     max_auc = np.trapz(np.ones(len(n_clusters)))
 
     # for each concept:

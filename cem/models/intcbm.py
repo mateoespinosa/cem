@@ -74,8 +74,6 @@ class IntAwareConceptBottleneckModel(ConceptBottleneckModel):
         backprop_masks=True,
         legacy_mode=False,
         hard_intervention=True,
-
-        gpu=int(torch.cuda.is_available()),
     ):
         self.hard_intervention = hard_intervention
         self.legacy_mode = legacy_mode
@@ -121,7 +119,6 @@ class IntAwareConceptBottleneckModel(ConceptBottleneckModel):
             output_interventions=output_interventions,
             top_k_accuracy=top_k_accuracy,
             use_concept_groups=use_concept_groups,
-            gpu=gpu,
             include_certainty=include_certainty,
         )
 
@@ -975,8 +972,6 @@ class IntAwareConceptEmbeddingModel(
         backprop_masks=True,
         legacy_mode=False,
         hard_intervention=True,
-
-        gpu=int(torch.cuda.is_available()),
     ):
         self.hard_intervention = hard_intervention
         self.legacy_mode = legacy_mode
@@ -1021,7 +1016,6 @@ class IntAwareConceptEmbeddingModel(
             output_interventions=output_interventions,
             top_k_accuracy=top_k_accuracy,
             tau=tau,
-            gpu=gpu,
             use_concept_groups=use_concept_groups,
             include_certainty=include_certainty,
         )

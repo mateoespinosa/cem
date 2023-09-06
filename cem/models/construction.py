@@ -359,7 +359,8 @@ def load_trained_model(
     sequential=False,
     logger=False,
     independent=False,
-    gpu=int(torch.cuda.is_available()),
+    accelerator="auto",
+    devices="auto",
     intervention_policy=None,
     intervene=False,
     output_latent=False,
@@ -411,7 +412,8 @@ def load_trained_model(
         )
         model.load_state_dict(torch.load(model_saved_path))
         trainer = pl.Trainer(
-            gpus=gpu,
+            accelerator=accelerator,
+            devices=devices,
             logger=logger,
             enable_checkpointing=enable_checkpointing,
         )
@@ -429,20 +431,13 @@ def load_trained_model(
             inactive_intervention_values.append(
                 np.percentile(out_embs[:, idx], 5)
             )
-        if gpu:
-            active_intervention_values = torch.cuda.FloatTensor(
-                active_intervention_values
-            )
-            inactive_intervention_values = torch.cuda.FloatTensor(
-                inactive_intervention_values
-            )
-        else:
-            active_intervention_values = torch.FloatTensor(
-                active_intervention_values
-            )
-            inactive_intervention_values = torch.FloatTensor(
-                inactive_intervention_values
-            )
+
+        active_intervention_values = torch.FloatTensor(
+            active_intervention_values
+        )
+        inactive_intervention_values = torch.FloatTensor(
+            inactive_intervention_values
+        )
     else:
         active_intervention_values = inactive_intervention_values = None
     if independent or sequential:

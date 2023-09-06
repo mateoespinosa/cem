@@ -22,7 +22,10 @@ from cem.interventions.coop import CooPEntropy, CooP,CompetenceCooPEntropy
 from cem.interventions.optimal import GreedyOptimal, TrueOptimal
 from cem.interventions.behavioural_learning import BehavioralLearningPolicy
 from cem.interventions.intcem_policy import IntCemInterventionPolicy
-from cem.interventions.global_policies import (GlobalValidationPolicy, GlobalValidationImprovementPolicy)
+from cem.interventions.global_policies import (
+    GlobalValidationPolicy,
+    GlobalValidationImprovementPolicy,
+)
 
 
 ################################################################################
@@ -134,7 +137,8 @@ def adversarial_intervene_in_cbm(
     independent=False,
     concept_group_map=None,
     intervened_groups=None,
-    gpu=int(torch.cuda.is_available()),
+    accelerator="auto",
+    devices="auto",
     split=0,
     concept_selection_policy=IndependentRandomMaskIntPolicy,
     rerun=False,
@@ -168,7 +172,8 @@ def adversarial_intervene_in_cbm(
         independent=independent,
         concept_group_map=concept_group_map,
         intervened_groups=intervened_groups,
-        gpu=gpu,
+        accelerator=accelerator,
+        devices=devices,
         split=split,
         concept_selection_policy=concept_selection_policy,
         rerun=rerun,
@@ -196,7 +201,8 @@ def intervene_in_cbm(
     independent=False,
     concept_group_map=None,
     intervened_groups=None,
-    gpu=int(torch.cuda.is_available()),
+    accelerator="auto",
+    devices="auto",
     split=0,
     concept_selection_policy=IndependentRandomMaskIntPolicy,
     rerun=False,
@@ -361,7 +367,8 @@ def intervene_in_cbm(
             num_groups_intervened - prev_num_groups_intervened
         )
         trainer = pl.Trainer(
-            gpus=gpu,
+            accelerator=accelerator,
+            devices=devices,
             logger=False,
         )
         if int(os.environ.get("VERBOSE_INTERVENTIONS", "0")):
@@ -485,7 +492,8 @@ def fine_tune_coop(
     key_name="",
     sequential=False,
     independent=False,
-    gpu=int(torch.cuda.is_available()),
+    accelerator="auto",
+    devices="auto",
     rerun=False,
     batch_size=None,
     include_prior=False,
@@ -540,7 +548,8 @@ def fine_tune_coop(
     groups = intervened_groups or list(range(0, len(concept_group_map) + 1, 1))
 
     trainer = pl.Trainer(
-        gpus=gpu,
+        accelerator=accelerator,
+        devices=devices,
         logger=False,
     )
     f = io.StringIO()
@@ -648,7 +657,8 @@ def generate_policy_training_data(
     sequential=False,
     independent=False,
     task_class_weights=None,
-    gpu=int(torch.cuda.is_available()),
+    accelerator="auto",
+    devices="auto",
     rerun=False,
     batch_size=None,
     seed=None,
@@ -688,7 +698,8 @@ def generate_policy_training_data(
         shuffle=False,
     )
     trainer = pl.Trainer(
-        gpus=gpu,
+        accelerator=accelerator,
+        devices=devices,
         logger=False,
     )
     batch_results = trainer.predict(cbm, unshuffle_dl)
@@ -774,7 +785,8 @@ def get_int_policy(
     rerun=False,
     sequential=False,
     independent=False,
-    gpu=torch.cuda.is_available(),
+    accelerator="auto",
+    devices="auto",
     intervention_batch_size=1024,
 ):
     intervention_batch_size = config.get(
@@ -870,7 +882,8 @@ def get_int_policy(
                 sequential=sequential,
                 independent=independent,
                 rerun=rerun,
-                gpu=gpu,
+                accelerator=accelerator,
+                devices=devices,
                 seed=(42 + split),
             )
             policy_params["val_c_aucs"] = val_c_aucs
@@ -987,7 +1000,8 @@ def get_int_policy(
                     sequential=sequential,
                     independent=independent,
                     rerun=rerun,
-                    gpu=gpu,
+                    accelerator=accelerator,
+                    devices=devices,
                     seed=(42 + split),
                 )
             policy_params["x_train"] = x_train
@@ -1098,7 +1112,8 @@ def test_interventions(
     used_policies=None,
     intervention_batch_size=1024,
     competence_levels=[1],
-    gpu=1,
+    accelerator="auto",
+    devices="auto",
     split=0,
     rerun=False,
     sequential=False,
@@ -1156,12 +1171,17 @@ def test_interventions(
                     1,
                     size=(c.shape[0], len(concept_group_map)),
                 )
-                batch_concept_level_competencies = np.ones((c.shape[0], c.shape[1]))
-                for group_idx, (_, group_concepts) in enumerate(concept_group_map.items()):
-                    batch_concept_level_competencies[:, group_concepts] = np.expand_dims(
-                        batch_group_level_competencies[:, group_idx],
-                        axis=-1,
-                    )
+                batch_concept_level_competencies = np.ones(
+                    (c.shape[0], c.shape[1])
+                )
+                for group_idx, (_, group_concepts) in enumerate(
+                    concept_group_map.items()
+                ):
+                    batch_concept_level_competencies[:, group_concepts] = \
+                        np.expand_dims(
+                            batch_group_level_competencies[:, group_idx],
+                            axis=-1,
+                        )
                 return batch_concept_level_competencies
             return np.ones(c.shape) * competence_level
         if competence_level == 1:
@@ -1197,7 +1217,8 @@ def test_interventions(
                 intervened_groups=config.get('tune_intervened_groups', None),
                 val_dl=val_dl,
                 train_dl=train_dl,
-                gpu=gpu if gpu else None,
+                accelerator=accelerator,
+                devices=devices,
                 imbalance=imbalance,
                 split=split,
                 rerun=_rerun_policy(rerun, policy, config, split),
@@ -1240,7 +1261,8 @@ def test_interventions(
                     policy_params=policy_params_fn,
                     concept_group_map=concept_map,
                     intervened_groups=used_intervened_groups,
-                    gpu=gpu if gpu else None,
+                    accelerator=accelerator,
+                    devices=devices,
                     config=config,
                     test_dl=test_dl,
                     train_dl=train_dl,

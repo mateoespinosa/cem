@@ -17,7 +17,7 @@ import cem.train.utils as utils
 
 def main(
     rerun=False,
-    result_dir='results/cub_emb_size_ablation/',
+    result_dir='results/celeba_emb_size_ablation/',
     project_name='',
     activation_freq=0,
     num_workers=8,
