@@ -296,7 +296,6 @@ class CooP(InterventionPolicy):
                         prior_distribution[:, group_idx]
             prior_distribution = new_prior_distribution
         for concept_idx in range(c.shape[-1]):
-            logging.debug(f"\tFinding score for concept {concept_idx}...")
             # If there is at least one element in the batch that has this
             # concept unintervened, then we will have to evaluate its score for
             # all of them
@@ -434,10 +433,6 @@ class CooP(InterventionPolicy):
         if self.num_groups_intervened == len(self.concept_group_map):
             return np.ones(c.shape, dtype=np.int64), c
         for i in range(self.num_groups_intervened):
-            logging.debug(
-                f"Intervening with {i + 1}/{self.num_groups_intervened} "
-                f"concepts in CooP"
-            )
             mask, latent, y_preds = self._coop_step(
                 x=x,
                 c=c,
