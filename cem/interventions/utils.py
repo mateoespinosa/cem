@@ -102,15 +102,59 @@ class AllInterventionPolicy(object):
         mask = np.ones(c.shape, dtype=np.int32)
         return mask, c
 
-def concepts_from_competencies(c, competencies):
-    correct_interventions = np.random.binomial(
-        n=1,
-        p=competencies,
-        size=c.shape,
-    )
-    return (
-        c * correct_interventions + (1 - c) * (1 - correct_interventions)
-    ).type(torch.FloatTensor)
+def concepts_from_competencies(
+        c,
+        competencies,
+        use_concept_groups=False,
+        concept_map=None,
+        assume_mutually_exclusive=False,
+    ):
+    if concept_map is None:
+        concept_map = {i : [i] for i in range(c.shape[-1])}
+
+    if use_concept_groups:
+        # Then we will have to generate one-hot labels for concept groups
+        # one concept at a time
+        c_updated = c.clone()
+        for batch_idx in range(c.shape[0]):
+            for group_idx, (concept_name, group_concepts) in enumerate(
+                concept_map.items()
+            ):
+                group_size = len(group_concepts)
+                wrong_concept_probs = (
+                    (1 - competencies[batch_idx, group_idx]) / (
+                        group_size - 1
+                    )
+                ) if group_size > 1 else 1 - competencies[batch_idx, group_idx]
+                sample_probs = [
+                    competencies[batch_idx, group_idx]
+                    if c[batch_idx, concept_idx] == 1 else
+                    wrong_concept_probs for concept_idx in group_concepts
+                ]
+                if assume_mutually_exclusive:
+                    selected = np.random.choice(
+                        list(range(group_size)),
+                        replace=False,
+                        p=sample_probs,
+                    )
+                    selected_group_label = torch.nn.functional.one_hot(
+                        torch.LongTensor([selected]),
+                        num_classes=group_size,
+                    ).type(c_updated.type()).to(c_updated.device)
+                    c_updated[batch_idx, group_concepts] = selected_group_label
+                else:
+                    c_updated[batch_idx, group_concepts] = torch.bernoulli(
+                        torch.FloatTensor(sample_probs),
+                    ).to(c.device)
+
+    else:
+        # Else we assume we are given binary competencies
+        correctly_selected = torch.bernoulli(competencies).to(c.device)
+        c_updated = (
+            c * correctly_selected +
+            (1 - c) * (1 - correctly_selected)
+        )
+    return c_updated.type(torch.FloatTensor).to(c.device)
 
 def _default_competence_generator(
     x,
@@ -119,6 +163,15 @@ def _default_competence_generator(
     concept_group_map,
 ):
     return np.ones(c.shape)
+
+
+def _random_uniform_competence(
+    x,
+    y,
+    c,
+    concept_group_map,
+):
+    return np.random.uniform(low=0.5, high=1.0, size=c.shape)
 
 ################################################################################
 ## MAIN INTERVENTION FUNCTION
@@ -196,6 +249,7 @@ def intervene_in_cbm(
     imbalance=None,
     task_class_weights=None,
     competence_generator=_default_competence_generator,
+    group_level_competencies=False,
     train_dl=None,
     sequential=False,
     independent=False,
@@ -332,7 +386,12 @@ def intervene_in_cbm(
         c=c_test,
         concept_group_map=concept_group_map,
     )
-    c_test = concepts_from_competencies(c_test, competencies_test)
+    c_test = concepts_from_competencies(
+        c=c_test,
+        competencies=competencies_test,
+        use_concept_groups=group_level_competencies,
+        concept_map=concept_group_map,
+    )
     competencies_test = torch.FloatTensor(competencies_test)
     test_dl = torch.utils.data.DataLoader(
         dataset=torch.utils.data.TensorDataset(
@@ -1112,6 +1171,7 @@ def test_interventions(
     used_policies=None,
     intervention_batch_size=1024,
     competence_levels=[1],
+    group_level_competencies=False,
     accelerator="auto",
     devices="auto",
     split=0,
@@ -1160,30 +1220,44 @@ def test_interventions(
             c,
             concept_group_map,
         ):
+            if group_level_competencies:
+                # Then we will operate at a group level, so we need to make
+                # sure we distribute competence correctly across different
+                # members of a given group!
+                if competence_level == "unif":
+                    # When using uniform competence, we will assign the same
+                    # competencies to all concepts within the same group based
+                    # on the cardinallity of the groups (assuming all groups
+                    # correspond to mutually exclusive concepts!)
+                    batch_group_level_competencies = np.zeros(
+                        (c.shape[0], len(concept_group_map))
+                    )
+                    for batch_idx in range(c.shape[0]):
+                        for group_idx, (_, concept_members) in enumerate(
+                            concept_map.items()
+                        ):
+                            batch_group_level_competencies[
+                                batch_idx,
+                                group_idx,
+                            ] = np.random.uniform(1/len(concept_members), 1)
+                else:
+                    batch_group_level_competencies = np.ones(
+                        (c.shape[0], len(concept_group_map))
+                    ) * competence_level
+                return batch_group_level_competencies
+
             if competence_level == "unif":
-                # When using uniform competence, we will assign the same
-                # competence level to the same batch index
-                # The same competence is assigned to all concepts within the same
-                # group
-                np.random.seed(42)
-                batch_group_level_competencies = np.random.uniform(
+                # Then we will sample from a uniform distribution all concepts
+                # regardless of their group!
+                return np.random.uniform(
                     0.5,
                     1,
-                    size=(c.shape[0], len(concept_group_map)),
+                    size=c.shape,
                 )
-                batch_concept_level_competencies = np.ones(
-                    (c.shape[0], c.shape[1])
-                )
-                for group_idx, (_, group_concepts) in enumerate(
-                    concept_group_map.items()
-                ):
-                    batch_concept_level_competencies[:, group_concepts] = \
-                        np.expand_dims(
-                            batch_group_level_competencies[:, group_idx],
-                            axis=-1,
-                        )
-                return batch_concept_level_competencies
+            # Else we simply assign the same competency to all concepts in
+            # all groups!
             return np.ones(c.shape) * competence_level
+
         if competence_level == 1:
             currently_used_policies = used_policies
         else:
@@ -1237,18 +1311,32 @@ def test_interventions(
                     f'construction_time_{policy}_ints_{full_run_name}'
                 )
             else:
-                key = (
-                    f'test_acc_y_{policy}_ints_co_{competence_level}_'
-                    f'{full_run_name}'
-                )
-                int_time_key = (
-                    f'avg_int_time_{policy}_ints_co_{competence_level}_'
-                    f'{full_run_name}'
-                )
-                construction_times_key = (
-                    f'construction_time_{policy}_ints_co_{competence_level}_'
-                    f'{full_run_name}'
-                )
+                if group_level_competencies:
+                    key = (
+                        f'test_acc_y_{policy}_ints_co_{competence_level}_gl_'
+                        f'{full_run_name}'
+                    )
+                    int_time_key = (
+                        f'avg_int_time_{policy}_ints_co_{competence_level}_gl_'
+                        f'{full_run_name}'
+                    )
+                    construction_times_key = (
+                        f'construction_time_{policy}_ints_'
+                        f'co_{competence_level}_gl_{full_run_name}'
+                    )
+                else:
+                    key = (
+                        f'test_acc_y_{policy}_ints_co_{competence_level}_'
+                        f'{full_run_name}'
+                    )
+                    int_time_key = (
+                        f'avg_int_time_{policy}_ints_co_{competence_level}_'
+                        f'{full_run_name}'
+                    )
+                    construction_times_key = (
+                        f'construction_time_{policy}_ints_co_{competence_level}_'
+                        f'{full_run_name}'
+                    )
 
             (int_results, avg_time, constr_time), loaded = load_call(
                 function=intervene_in_cbm,
@@ -1275,6 +1363,7 @@ def test_interventions(
                     batch_size=intervention_batch_size,
                     key_name=key,
                     competence_generator=competence_generator,
+                    group_level_competencies=group_level_competencies,
                     x_test=x_test,
                     y_test=y_test,
                     c_test=c_test,
@@ -1297,13 +1386,13 @@ def test_interventions(
                 extra = ""
             for num_groups_intervened, val in enumerate(int_results):
                 if n_tasks > 1:
-                    logging.debug(
+                    logging.info(
                         f"\t\tTest accuracy when intervening "
                         f"with {num_groups_intervened} "
                         f"concept groups is {val * 100:.2f}%{extra}."
                     )
                 else:
-                    logging.debug(
+                    logging.info(
                         f"\t\tTest AUC when intervening "
                         f"with {num_groups_intervened} "
                         f"concept groups is {val * 100:.2f}%{extra}."

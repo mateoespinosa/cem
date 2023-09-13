@@ -45,23 +45,14 @@ class IntAwareConceptBottleneckModel(ConceptBottleneckModel):
         intervention_discount=1,
         intervention_task_discount=1.1,
         intervention_weight=5,
-        horizon_rate=1.005,
         tau=1,
         average_trajectory=True,
         concept_map=None,
         use_concept_groups=False,
-        max_horizon=5,
         include_task_trajectory_loss=False,
         include_only_last_trajectory_loss=False,
-        horizon_binary_representation=False,
         intervention_task_loss_weight=1,
-        initial_horizon=1,
-        horizon_uniform_distr=True,
-        beta_a=1,
-        beta_b=3,
-        use_horizon=True,
         rollout_init_steps=0,
-        include_probs=False,
         use_full_mask_distr=False,
         int_model_layers=None,
         int_model_use_bn=False,
@@ -72,8 +63,28 @@ class IntAwareConceptBottleneckModel(ConceptBottleneckModel):
         max_num_rollouts=None,
         rollout_aneal_rate=1,
         backprop_masks=True,
-        legacy_mode=False,
         hard_intervention=True,
+
+        # Competency Awareness
+        comp_aware=False,    # Whether we make interventions be competency aware
+        comp_as_model_input=False,  # Whether or not the competencies are provided as input to the policy model!
+        group_based_competencies=None,  # Whether we use group-level competencies or competencies are given at a concept-label level. If None, it will be set to use_concept_groups.
+
+        # Parameters regarding how we select how many concepts to intervene on
+        # in the horizon of a current trajectory (this is the lenght of the
+        # trajectory)
+        # Consider deprecating
+        max_horizon=6,   # Change: it used to be defaulted to 5!
+        initial_horizon=2,  # Change: it used to be defaulted to 1!
+        horizon_rate=1.005,
+        horizon_uniform_distr=True,
+        beta_a=1,
+        beta_b=3,
+
+        use_horizon=False,  # Deprecated and to be removed!! Originally set to default as "True"
+        horizon_binary_representation=False,  # Deprecated and to be removed!!
+        legacy_mode=False,  # Depreacted and to be removed!!
+        include_probs=False,  # Deprecated and to be removed! Whether or not we include the predicted concept probabilities as part of the intervention policy's input
     ):
         self.hard_intervention = hard_intervention
         self.legacy_mode = legacy_mode
@@ -92,6 +103,14 @@ class IntAwareConceptBottleneckModel(ConceptBottleneckModel):
         self.concept_map = concept_map
         if len(concept_map) == n_concepts:
             use_concept_groups = False
+
+        self.comp_aware = comp_aware
+        self.comp_as_model_input = comp_as_model_input
+        self.group_based_competencies = (
+            group_based_competencies
+            if group_based_competencies is not None else use_concept_groups
+        )
+
         super(IntAwareConceptBottleneckModel, self).__init__(
             n_concepts=n_concepts,
             n_tasks=n_tasks,
@@ -133,7 +152,12 @@ class IntAwareConceptBottleneckModel(ConceptBottleneckModel):
             (
                 max_horizon_val if use_horizon and horizon_binary_representation
                 else int(use_horizon)
-            ) # Horizon
+            ) + # Horizon
+            (
+                max_horizon_val if (
+                    self.comp_as_model_input and self.comp_aware
+                ) else 0
+            )  # Competency inputs into model
         ] + (int_model_layers or [256, 128]) + [
             len(self.concept_map) if self.use_concept_groups else n_concepts
         ]
@@ -242,8 +266,15 @@ class IntAwareConceptBottleneckModel(ConceptBottleneckModel):
             prev_interventions = torch.zeros(prob.shape).to(
                 pos_embeddings.device
             )
-        if competencies is None:
-            competencies = torch.ones(prob.shape).to(pos_embeddings.device)
+        if competencies is None or (not self.comp_aware):
+            # Then we will always see competencies as perfect if they are not
+            # given or if we are asked to explicitly ignore them
+            if self.use_concept_groups:
+                competencies = torch.ones(
+                    (prob.shape[0], len(self.concept_map))
+                ).to(pos_embeddings.device)
+            else:
+                competencies = torch.ones(prob.shape).to(pos_embeddings.device)
         # Shape is [B, n_concepts, emb_size]
         prob = prev_interventions * c + (1 - prev_interventions) * prob
         embeddings = (
@@ -272,7 +303,6 @@ class IntAwareConceptBottleneckModel(ConceptBottleneckModel):
         cat_inputs = [
             torch.reshape(embeddings, [-1, self.emb_size * self.n_concepts]),
             prev_interventions,
-#                 competencies,
         ]
         if self.include_probs:
             cat_inputs.append(prob)
@@ -292,6 +322,9 @@ class IntAwareConceptBottleneckModel(ConceptBottleneckModel):
                     dim=-1
                 ).to(prev_interventions)
             ))
+        if self.comp_as_model_input and self.comp_aware:
+            # Then this is time to include competencies!
+            cat_inputs.append(competencies.to(embeddings.device))
         rank_input = torch.concat(
             cat_inputs,
             dim=-1,
@@ -310,6 +343,573 @@ class IntAwareConceptBottleneckModel(ConceptBottleneckModel):
             next_concept_group_scores/self.tau,
             dim=-1,
         )
+
+    def _concept_update_with_competencies(
+        self,
+        c,
+        competencies,
+        assume_mutually_exclusive=False,
+    ):
+        if self.group_based_competencies:
+            # Then we will have to generate one-hot labels for concept groups
+            # one concept at a time
+            c_updated = c.clone()
+            for batch_idx in range(c.shape[0]):
+                for group_idx, (_, group_concepts) in enumerate(
+                    self.concept_map.items()
+                ):
+                    group_size = len(group_concepts)
+                    wrong_concept_probs = (
+                        (1 - competencies[batch_idx, group_idx]) / (
+                            group_size - 1
+                        )
+                    ) if group_size > 1 else (
+                        1 - competencies[batch_idx, group_idx]
+                    )
+                    sample_probs = [
+                        competencies[batch_idx, group_idx]
+                        if c[batch_idx, concept_idx] == 1 else
+                        wrong_concept_probs for concept_idx in group_concepts
+                    ]
+                    if assume_mutually_exclusive:
+                        selected = np.random.choice(
+                            list(range(group_size)),
+                            replace=False,
+                            p=sample_probs,
+                        )
+                        selected_group_label = torch.nn.functional.one_hot(
+                            torch.LongTensor([selected]),
+                            num_classes=group_size,
+                        ).type(c_updated.type()).to(c_updated.device)
+                        c_updated[batch_idx, group_concepts] = selected_group_label
+                    else:
+                        c_updated[batch_idx, group_concepts] = torch.bernoulli(
+                            torch.FloatTensor(sample_probs)
+                        ).to(c.device)
+
+        else:
+            # Else we assume we are given binary competencies
+            correctly_selected = torch.bernoulli(competencies).to(c.device)
+            c_updated = (
+                c * correctly_selected +
+                (1 - c) * (1 - correctly_selected)
+            )
+        return c_updated
+
+    def _compute_task_loss(self, y, y_pred_logits):
+        """
+        Computes the task-specific loss for the predicted task labels
+        given the ground-truth task labels.
+        """
+        if self.task_loss_weight != 0:
+            task_loss = self.loss_task(
+                (
+                    y_pred_logits if y_pred_logits.shape[-1] > 1
+                    else y_pred_logits.reshape(-1)
+                ),
+                y,
+            )
+        else:
+            task_loss = 0.0
+        return task_loss
+
+    def _intervention_rollout_loss(
+        self,
+        y,
+        c,
+        y_pred_logits,
+        c_pred,
+        pos_embeddings,
+        neg_embeddings,
+        prev_interventions,
+        competencies=None,
+    ):
+        intervention_task_loss = 0.0
+
+        # Now we will do some rolls for interventions
+        int_mask_accuracy = -1.0
+        current_horizon = -1
+
+        intervention_loss = 0.0
+        if prev_interventions is not None:
+            # This will be not None in the case of RandInt, so we can ASSUME
+            # they have all been intervened the same number of times before
+            intervention_idxs = prev_interventions[:]
+            if self.use_concept_groups:
+                free_groups = torch.ones(
+                    (prev_interventions.shape[0], len(self.concept_map))
+                ).to(
+                    c.device
+                )
+                # ASSUMPTION: THEY HAVE ALL BEEN INTERVENED ON THE SAME
+                # NUMBER OF CONCEPTS
+                cpu_ints = intervention_idxs[0, :].detach().cpu().numpy()
+                for group_idx, (_, group_concepts) in enumerate(
+                    self.concept_map.items()
+                ):
+                    if np.any(cpu_ints[group_concepts] == 1):
+                        free_groups[:,group_idx] = 0
+                prev_num_of_interventions = int(
+                    len(self.concept_map) - np.sum(
+                        free_groups[0, :].detach().cpu().numpy(),
+                        axis=-1,
+                    ),
+                )
+            else:
+                free_groups = 1 - intervention_idxs
+                prev_num_of_interventions = int(np.max(
+                    np.sum(
+                        intervention_idxs.detach().cpu().numpy(),
+                        axis=-1,
+                    ),
+                    axis=-1,
+                ))
+        else:
+            intervention_idxs = torch.zeros(c.shape).to(c.device)
+            prev_num_of_interventions = 0
+            if self.use_concept_groups:
+                free_groups = torch.ones(
+                    (c.shape[0], len(self.concept_map))
+                ).to(c.device)
+            else:
+                free_groups = torch.ones(c.shape).to(c.device)
+
+        # Then time to perform a forced training time intervention
+        # We will set some of the concepts as definitely intervened on
+        if competencies is None:
+            if self.use_concept_groups:
+                # Then we will generate a competency vector that will
+                # be uniformly distributed across all groups based on each
+                # group's cardinallity
+                competencies = torch.zeros(
+                    (c.shape[0], len(self.concept_map))
+                )
+                for batch_idx in range(c.shape[0]):
+                    for group_idx, (_, concept_members) in enumerate(
+                        self.concept_map.items()
+                    ):
+                        competencies[
+                            batch_idx,
+                            group_idx,
+                        ] = np.random.uniform(1/len(concept_members), 1)
+
+            else:
+                competencies = torch.FloatTensor(
+                    c.shape
+                ).uniform_(0.5, 1).to(c.device)
+
+        if self.comp_aware:
+            # Update the ground truth concept labels to take
+            # into account the competency levels we just sampled!
+            c = self._concept_update_with_competencies(
+                c=c,
+                competencies=competencies,
+            )
+        int_basis_lim = (
+            len(self.concept_map) if self.use_concept_groups
+            else self.n_concepts
+        )
+        horizon_lim = int(self.horizon_limit.detach().cpu().numpy()[0])
+        if prev_num_of_interventions != int_basis_lim:
+            bottom = min(
+                horizon_lim,
+                int_basis_lim - prev_num_of_interventions - 1,
+            )  # -1 so that we at least intervene on one concept
+            if bottom > 0:
+                initially_selected = np.random.randint(0, bottom)
+            else:
+                initially_selected = 0
+            end_horizon = min(
+                int(horizon_lim),
+                self.max_horizon,
+                int_basis_lim - prev_num_of_interventions - initially_selected,
+            )
+            current_horizon = self._horizon_distr(
+                init=1 if end_horizon > 1 else 0,
+                end=end_horizon,
+            )
+
+            for sample_idx in range(intervention_idxs.shape[0]):
+                probs = free_groups[sample_idx, :].detach().cpu().numpy()
+                probs = probs/np.sum(probs)
+                if self.use_concept_groups:
+                    selected_groups = set(np.random.choice(
+                        int_basis_lim,
+                        size=initially_selected,
+                        replace=False,
+                        p=probs,
+                    ))
+                    for group_idx, (_, group_concepts) in enumerate(
+                        self.concept_map.items()
+                    ):
+                        if group_idx in selected_groups:
+                            intervention_idxs[sample_idx, group_concepts] = 1
+                else:
+                    intervention_idxs[
+                        sample_idx,
+                        np.random.choice(
+                            int_basis_lim,
+                            size=initially_selected,
+                            replace=False,
+                            p=probs,
+                        )
+                    ] = 1
+            if self.initialize_discount:
+                discount = (
+                    self.intervention_discount ** prev_num_of_interventions
+                )
+            else:
+                discount = 1
+            trajectory_weight = 0
+            if self.average_trajectory:
+                for i in range(current_horizon):
+                    trajectory_weight += discount
+                    discount *= self.intervention_discount
+            else:
+                trajectory_weight = 1
+            if self.initialize_discount:
+                discount = (
+                    self.intervention_discount ** prev_num_of_interventions
+                )
+            else:
+                discount = 1
+            if self.initialize_discount:
+                task_discount = self.intervention_task_discount ** (
+                    prev_num_of_interventions + initially_selected
+                )
+            else:
+                task_discount = 1
+            task_trajectory_weight = 1
+            if self.average_trajectory:
+                for i in range(current_horizon):
+                    task_discount *= self.intervention_task_discount
+                    if (
+                        (not self.include_only_last_trajectory_loss) or
+                        (i == current_horizon - 1)
+                    ):
+                        task_trajectory_weight += task_discount
+            if self.initialize_discount:
+                task_discount = self.intervention_task_discount ** (
+                    prev_num_of_interventions + initially_selected
+                )
+                first_task_discount = (
+                    self.intervention_task_discount **
+                    prev_num_of_interventions
+                )
+            else:
+                task_discount = 1
+                first_task_discount = 1
+
+            if self.n_tasks > 1:
+                one_hot_y = torch.nn.functional.one_hot(y, self.n_tasks)
+        else:
+            current_horizon = 0
+            if self.initialize_discount:
+                task_discount = self.intervention_task_discount ** (
+                    prev_num_of_interventions
+                )
+                first_task_discount = (
+                    self.intervention_task_discount **
+                    prev_num_of_interventions
+                )
+            else:
+                task_discount = 1
+                first_task_discount = 1
+            task_trajectory_weight = 1
+            trajectory_weight = 1
+
+
+        if self.include_task_trajectory_loss and (
+            self.task_loss_weight == 0
+        ):
+            # Then we initialize the intervention trajectory task loss to
+            # that of the unintervened model as this loss is not going to
+            # be taken into account if we don't do this
+            intervention_task_loss = first_task_discount * self.loss_task(
+                (
+                    y_pred_logits if y_pred_logits.shape[-1] > 1
+                    else y_pred_logits.reshape(-1)
+                ),
+                y,
+            )
+            if self.average_trajectory:
+                intervention_task_loss = (
+                    intervention_task_loss / task_trajectory_weight
+                )
+        int_mask_accuracy = 0.0 if current_horizon else -1
+        if (not self.legacy_mode) and (
+            (
+                self.current_steps.detach().cpu().numpy()[0] <
+                self.rollout_init_steps
+            )
+        ):
+            current_horizon = 0
+        if self.rollout_aneal_rate != 1:
+            num_rollouts = int(round(
+                self.num_rollouts * (
+                    self.current_aneal_rate.detach().cpu().numpy()[0]
+                )
+            ))
+        else:
+            num_rollouts = self.num_rollouts
+        if self.max_num_rollouts is not None:
+            num_rollouts = min(num_rollouts, self.max_num_rollouts)
+
+        for _ in range(num_rollouts):
+            for i in range(current_horizon):
+                # And generate a probability distribution over previously
+                # unseen concepts to indicate which one we should intervene
+                # on next!
+                concept_group_scores = self._prior_int_distribution(
+                    prob=c_pred,
+                    pos_embeddings=pos_embeddings,
+                    neg_embeddings=neg_embeddings,
+                    competencies=competencies,
+                    prev_interventions=intervention_idxs,
+                    c=c,
+                    horizon=(current_horizon - i),
+                    train=True,
+                )
+                # Generate as a label the concept which increases the
+                # probability of the correct class the most when
+                # intervened on
+                target_int_logits = torch.ones(
+                    concept_group_scores.shape,
+                ).to(c.device) * (-np.Inf)
+                for target_concept in range(target_int_logits.shape[-1]):
+                    if self.use_concept_groups:
+                        new_int = torch.zeros(
+                            intervention_idxs.shape
+                        ).to(intervention_idxs.device)
+                        for group_idx, (_, group_concepts) in enumerate(
+                            self.concept_map.items()
+                        ):
+                            if group_idx == target_concept:
+                                new_int[:, group_concepts] = 1
+                                break
+                    else:
+                        new_int = torch.zeros(
+                            intervention_idxs.shape
+                        ).to(intervention_idxs.device)
+                        new_int[:, target_concept] = 1
+                    if not self.propagate_target_gradients:
+                        partial_ints = torch.clamp(
+                            intervention_idxs.detach() + new_int,
+                            0,
+                            1,
+                        )
+                        probs = (
+                            c_pred.detach() * (1 - partial_ints) +
+                            c * partial_ints
+                        )
+                        c_rollout_pred = (
+                            (
+                                pos_embeddings.detach() *
+                                torch.unsqueeze(probs, dim=-1)
+                            ) +
+                            (
+                                neg_embeddings.detach() *
+                                (1 - torch.unsqueeze(probs, dim=-1))
+                            )
+                        )
+                    else:
+                        partial_ints = torch.clamp(
+                            intervention_idxs + new_int,
+                            0,
+                            1,
+                        )
+                        probs = (
+                            c_pred * (1 - partial_ints) +
+                            c * partial_ints
+                        )
+                        c_rollout_pred = (
+                            (
+                                pos_embeddings *
+                                torch.unsqueeze(probs, dim=-1)
+                            ) + (
+                                neg_embeddings *
+                                (1 - torch.unsqueeze(probs, dim=-1))
+                            )
+                        )
+                    c_rollout_pred = c_rollout_pred.view(
+                        (-1, self.emb_size * self.n_concepts)
+                    )
+
+                    rollout_y_logits = self.c2y_model(c_rollout_pred)
+
+                    if self.n_tasks > 1:
+                        target_int_logits[:, target_concept] = \
+                            rollout_y_logits[
+                                one_hot_y.type(torch.BoolTensor)
+                            ]
+                    else:
+                        pred_y_prob = torch.sigmoid(
+                            torch.squeeze(rollout_y_logits, dim=-1)
+                        )
+                        target_int_logits[:, target_concept] = torch.where(
+                            y == 1,
+                            torch.log(
+                                (pred_y_prob + 1e-15) /
+                                (1 - pred_y_prob + 1e-15)
+                            ),
+                            torch.log(
+                                (1 - pred_y_prob + 1e-15) /
+                                (pred_y_prob+ 1e-15)
+                            ),
+                        )
+                if self.use_full_mask_distr:
+                    target_int_labels = torch.nn.functional.softmax(
+                        target_int_logits,
+                        -1,
+                    )
+                    pred_int_labels = concept_group_scores.argmax(-1)
+                    curr_acc = (
+                        pred_int_labels == torch.argmax(
+                            target_int_labels,
+                            -1,
+                        )
+                    ).float().mean()
+                else:
+                    target_int_labels = torch.argmax(target_int_logits, -1)
+                    pred_int_labels = concept_group_scores.argmax(-1)
+                    curr_acc = (
+                        pred_int_labels == target_int_labels
+                    ).float().mean()
+
+                int_mask_accuracy += curr_acc/current_horizon
+                new_loss = self.loss_interventions(
+                    concept_group_scores,
+                    target_int_labels,
+                )
+                if not self.backprop_masks:
+                    # Then block the gradient into the masks
+                    concept_group_scores = concept_group_scores.detach()
+
+                # Update the next-concept predictor loss
+                if self.average_trajectory:
+                    intervention_loss += (
+                        discount * new_loss/trajectory_weight
+                    )
+                else:
+                    intervention_loss += discount * new_loss
+
+                # Update the discount (before the task trajectory loss to
+                # start discounting from the first intervention so that the
+                # loss of the unintervened model is highest
+                discount *= self.intervention_discount
+                task_discount *= self.intervention_task_discount
+
+                # Sample the next concepts we will intervene on using a hard
+                # Gumbel softmax
+                if self.intervention_weight == 0:
+                    selected_groups = torch.FloatTensor(
+                        np.eye(concept_group_scores.shape[-1])[np.random.choice(
+                            concept_group_scores.shape[-1],
+                            size=concept_group_scores.shape[0]
+                        )]
+                    ).to(concept_group_scores.device)
+                else:
+                    selected_groups = torch.nn.functional.gumbel_softmax(
+                        concept_group_scores,
+                        dim=-1,
+                        hard=self.hard_intervention,
+                        tau=self.tau,
+                    )
+                if self.use_concept_groups:
+                    for sample_idx in range(intervention_idxs.shape[0]):
+                        for group_idx, (_, group_concepts) in enumerate(
+                            self.concept_map.items()
+                        ):
+                            if selected_groups[sample_idx, group_idx] == 1:
+                                intervention_idxs[
+                                    sample_idx,
+                                    group_concepts,
+                                ] = 1
+                else:
+                    intervention_idxs += selected_groups
+
+                if self.include_task_trajectory_loss and (
+                    (not self.include_only_last_trajectory_loss) or
+                    (i == (current_horizon - 1))
+                ):
+                    # Then we will also update the task loss with the loss
+                    # of performing this intervention!
+                    probs = (
+                        c_pred * (1 - intervention_idxs) +
+                        c * intervention_idxs
+                    )
+                    c_rollout_pred = (
+                        pos_embeddings * torch.unsqueeze(probs, dim=-1) + (
+                            neg_embeddings * (
+                                1 - torch.unsqueeze(probs, dim=-1)
+                            )
+                        )
+                    )
+                    c_rollout_pred = c_rollout_pred.view(
+                        (-1, self.emb_size * self.n_concepts)
+                    )
+                    rollout_y_logits = self.c2y_model(c_rollout_pred)
+                    rollout_y_loss = self.loss_task(
+                        (
+                            rollout_y_logits
+                            if rollout_y_logits.shape[-1] > 1 else
+                            rollout_y_logits.reshape(-1)
+                        ),
+                        y,
+                    )
+                    if self.average_trajectory:
+                        intervention_task_loss += (
+                            task_discount *
+                            rollout_y_loss / task_trajectory_weight
+                        )
+                    else:
+                        intervention_task_loss += (
+                            task_discount * rollout_y_loss
+                        )
+
+            if (
+                self.legacy_mode or
+                (
+                    self.current_steps.detach().cpu().numpy()[0] >=
+                        self.rollout_init_steps
+                )
+            ) and (
+                self.horizon_limit.detach().cpu().numpy()[0] <
+                    int_basis_lim + 1
+            ):
+                self.horizon_limit *= self.horizon_rate
+
+
+        intervention_loss = intervention_loss/num_rollouts
+        intervention_task_loss = intervention_task_loss/num_rollouts
+        int_mask_accuracy = int_mask_accuracy/num_rollouts
+
+        if not self.legacy_mode:
+            self.current_steps += 1
+            if self.rollout_aneal_rate != 1 and (
+                self.current_aneal_rate.detach().cpu().numpy()[0] < 100
+            ):
+                self.current_aneal_rate *= self.rollout_aneal_rate
+
+        return (intervention_loss, intervention_task_loss, int_mask_accuracy)
+
+    def _compute_concept_loss(self, c, c_pred):
+        if self.concept_loss_weight != 0:
+            # We separate this so that we are allowed to
+            # use arbitrary activations (i.e., not necessarily in [0, 1])
+            # whenever no concept supervision is provided
+            if self.include_certainty:
+                concept_loss = self.loss_concept(c_pred, c)
+            else:
+                c_pred_used = torch.where(
+                    torch.logical_or(c == 0, c == 1),
+                    c_pred,
+                    c,
+                ) # This forces zero loss when c is uncertain
+                concept_loss = self.loss_concept(c_pred_used, c)
+        else:
+            concept_loss = 0.0
+        return concept_loss
 
     def _run_step(
         self,
@@ -332,26 +932,26 @@ class IntAwareConceptBottleneckModel(ConceptBottleneckModel):
             output_interventions=True,
         )
         c_sem, c_logits, y_logits = outputs[0], outputs[1], outputs[2]
+        # prev_interventions will contain the RandInt intervention mask if
+        # we are running this a train time!
         prev_interventions = outputs[3]
         latent = outputs[4]
         pos_embeddings = outputs[-2]
         neg_embeddings = outputs[-1]
 
-        if self.task_loss_weight != 0:
-            task_loss = self.loss_task(
-                y_logits if y_logits.shape[-1] > 1 else y_logits.reshape(-1),
-                y,
-            )
-            task_loss_scalar = self.task_loss_weight * task_loss.detach()
+        # First we compute the task loss!
+        task_loss = self._compute_task_loss(
+            y=y,
+            y_pred_logits=y_logits,
+        )
+        if isinstance(task_loss, (float, int)):
+            task_loss_scalar = self.task_loss_weight * task_loss
         else:
-            task_loss = 0.0
-            task_loss_scalar = 0.0
+            task_loss_scalar = self.task_loss_weight * task_loss.detach()
 
-        intervention_task_loss = 0.0
 
-        # Now we will do some rolls for interventions
-        int_mask_accuracy = -1.0
-        current_horizon = -1
+
+        # Then the rollout and imitation learning losses
         if not self.include_certainty:
             c_used = torch.where(
                 torch.logical_or(c == 0, c == 1),
@@ -360,485 +960,56 @@ class IntAwareConceptBottleneckModel(ConceptBottleneckModel):
             )
         else:
             c_used = c
-        if (
-            train and
-            (intervention_idxs is None)
-        ):
-            intervention_loss = 0.0
-            if prev_interventions is not None:
-                # This will be not None in the case of RandInt, so we can ASSUME
-                # they have all been intervened the same number of times before
-                intervention_idxs = prev_interventions[:]
-                if self.use_concept_groups:
-                    free_groups = torch.ones(
-                        (prev_interventions.shape[0], len(self.concept_map))
-                    ).to(
-                        c_used.device
-                    )
-                    # BIG ASSUMPTION: THEY HAVE ALL BEEN INTERVENED ON THE SAME
-                    # NUMBER OF CONCEPTS
-                    cpu_ints = intervention_idxs[0, :].detach().cpu().numpy()
-                    for group_idx, (_, group_concepts) in enumerate(
-                        self.concept_map.items()
-                    ):
-                        if np.any(cpu_ints[group_concepts] == 1):
-                            free_groups[:,group_idx] = 0
-                    prev_num_of_interventions = int(
-                        len(self.concept_map) - np.sum(
-                            free_groups[0, :].detach().cpu().numpy(),
-                            axis=-1,
-                        ),
-                    )
-                else:
-                    free_groups = 1 - intervention_idxs
-                    prev_num_of_interventions = int(np.max(
-                        np.sum(
-                            intervention_idxs.detach().cpu().numpy(),
-                            axis=-1,
-                        ),
-                        axis=-1,
-                    ))
-            else:
-                intervention_idxs = torch.zeros(c_used.shape).to(c_used.device)
-                prev_num_of_interventions = 0
-                if self.use_concept_groups:
-                    free_groups = torch.ones(
-                        (c_used.shape[0], len(self.concept_map))
-                    ).to(c_used.device)
-                else:
-                    free_groups = torch.ones(c_used.shape).to(c_used.device)
 
-            # Then time to perform a forced training time intervention
-            # We will set some of the concepts as definitely intervened on
-            if competencies is None:
-                competencies = torch.FloatTensor(
-                    c_used.shape
-                ).uniform_(0.5, 1).to(c_used.device)
-            int_basis_lim = (
-                len(self.concept_map) if self.use_concept_groups
-                else self.n_concepts
+        if train and (intervention_idxs is None):
+            (
+                intervention_loss,
+                intervention_task_loss,
+                int_mask_accuracy,
+            ) = self._intervention_rollout_loss(
+                c=c_used,
+                c_pred=c_sem,
+                pos_embeddings=pos_embeddings,
+                neg_embeddings=neg_embeddings,
+                y=y,
+                y_pred_logits=y_logits,
+                prev_interventions=prev_interventions,
+                competencies=competencies,
             )
-            horizon_lim = int(self.horizon_limit.detach().cpu().numpy()[0])
-            if prev_num_of_interventions != int_basis_lim:
-                bottom = min(
-                    horizon_lim,
-                    int_basis_lim - prev_num_of_interventions - 1,
-                )  # -1 so that we at least intervene on one concept
-                if bottom > 0:
-                    initially_selected = np.random.randint(0, bottom)
-                else:
-                    initially_selected = 0
-                end_horizon = min(
-                    int(horizon_lim),
-                    self.max_horizon,
-                    int_basis_lim - prev_num_of_interventions - initially_selected,
-                )
-                current_horizon = self._horizon_distr(
-                    init=1 if end_horizon > 1 else 0,
-                    end=end_horizon,
-                )
-
-                for sample_idx in range(intervention_idxs.shape[0]):
-                    probs = free_groups[sample_idx, :].detach().cpu().numpy()
-                    probs = probs/np.sum(probs)
-                    if self.use_concept_groups:
-                        selected_groups = set(np.random.choice(
-                            int_basis_lim,
-                            size=initially_selected,
-                            replace=False,
-                            p=probs,
-                        ))
-                        for group_idx, (_, group_concepts) in enumerate(
-                            self.concept_map.items()
-                        ):
-                            if group_idx in selected_groups:
-                                intervention_idxs[sample_idx, group_concepts] = 1
-                    else:
-                        intervention_idxs[
-                            sample_idx,
-                            np.random.choice(
-                                int_basis_lim,
-                                size=initially_selected,
-                                replace=False,
-                                p=probs,
-                            )
-                        ] = 1
-                if self.initialize_discount:
-                    discount = (
-                        self.intervention_discount ** prev_num_of_interventions
-                    )
-                else:
-                    discount = 1
-                trajectory_weight = 0
-                if self.average_trajectory:
-                    for i in range(current_horizon):
-                        trajectory_weight += discount
-                        discount *= self.intervention_discount
-                else:
-                    trajectory_weight = 1
-                if self.initialize_discount:
-                    discount = (
-                        self.intervention_discount ** prev_num_of_interventions
-                    )
-                else:
-                    discount = 1
-                if self.initialize_discount:
-                    task_discount = self.intervention_task_discount ** (
-                        prev_num_of_interventions + initially_selected
-                    )
-                else:
-                    task_discount = 1
-                task_trajectory_weight = 1
-                if self.average_trajectory:
-                    for i in range(current_horizon):
-                        task_discount *= self.intervention_task_discount
-                        if (
-                            (not self.include_only_last_trajectory_loss) or
-                            (i == current_horizon - 1)
-                        ):
-                            task_trajectory_weight += task_discount
-                if self.initialize_discount:
-                    task_discount = self.intervention_task_discount ** (
-                        prev_num_of_interventions + initially_selected
-                    )
-                    first_task_discount = (
-                        self.intervention_task_discount **
-                        prev_num_of_interventions
-                    )
-                else:
-                    task_discount = 1
-                    first_task_discount = 1
-
-                if self.n_tasks > 1:
-                    one_hot_y = torch.nn.functional.one_hot(y, self.n_tasks)
-            else:
-                current_horizon = 0
-                if self.initialize_discount:
-                    task_discount = self.intervention_task_discount ** (
-                        prev_num_of_interventions
-                    )
-                    first_task_discount = (
-                        self.intervention_task_discount **
-                        prev_num_of_interventions
-                    )
-                else:
-                    task_discount = 1
-                    first_task_discount = 1
-                task_trajectory_weight = 1
-                trajectory_weight = 1
+        else:
+            intervention_loss = 0
+            intervention_task_loss = 0
+            int_mask_accuracy = 0
 
 
-            if self.include_task_trajectory_loss and (
-                self.task_loss_weight == 0
-            ):
-                # Then we initialize the intervention trajectory task loss to
-                # that of the unintervened model as this loss is not going to
-                # be taken into account if we don't do this
-                intervention_task_loss = first_task_discount * self.loss_task(
-                    (
-                        y_logits if y_logits.shape[-1] > 1
-                        else y_logits.reshape(-1)
-                    ),
-                    y,
-                )
-                if self.average_trajectory:
-                    intervention_task_loss = (
-                        intervention_task_loss / task_trajectory_weight
-                    )
-            int_mask_accuracy = 0.0 if current_horizon else -1
-            if (not self.legacy_mode) and (
-                (
-                    self.current_steps.detach().cpu().numpy()[0] <
-                    self.rollout_init_steps
-                )
-            ):
-                current_horizon = 0
-            if self.rollout_aneal_rate != 1:
-                num_rollouts = int(round(
-                    self.num_rollouts * (
-                        self.current_aneal_rate.detach().cpu().numpy()[0]
-                    )
-                ))
-            else:
-                num_rollouts = self.num_rollouts
-            if self.max_num_rollouts is not None:
-                num_rollouts = min(num_rollouts, self.max_num_rollouts)
+        if isinstance(intervention_task_loss, (float, int)):
+            intervention_task_loss_scalar = (
+                self.intervention_task_loss_weight * intervention_task_loss
+            )
+        else:
+            intervention_task_loss_scalar = (
+                self.intervention_task_loss_weight *
+                intervention_task_loss.detach()
+            )
 
-            for _ in range(num_rollouts):
-                for i in range(current_horizon):
-                    # And generate a probability distribution over previously
-                    # unseen concepts to indicate which one we should intervene
-                    # on next!
-                    concept_group_scores = self._prior_int_distribution(
-                        prob=c_sem,
-                        pos_embeddings=pos_embeddings,
-                        neg_embeddings=neg_embeddings,
-                        competencies=competencies,
-                        prev_interventions=intervention_idxs,
-                        c=c_used,
-                        horizon=(current_horizon - i),
-                        train=train,
-                    )
-                    # Generate as a label the concept which increases the
-                    # probability of the correct class the most when
-                    # intervened on
-                    target_int_logits = torch.ones(
-                        concept_group_scores.shape,
-                    ).to(c_used.device) * (-np.Inf)
-                    for target_concept in range(target_int_logits.shape[-1]):
-                        if self.use_concept_groups:
-                            new_int = torch.zeros(
-                                intervention_idxs.shape
-                            ).to(intervention_idxs.device)
-                            for group_idx, (_, group_concepts) in enumerate(
-                                self.concept_map.items()
-                            ):
-                                if group_idx == target_concept:
-                                    new_int[:, group_concepts] = 1
-                                    break
-                        else:
-                            new_int = torch.zeros(
-                                intervention_idxs.shape
-                            ).to(intervention_idxs.device)
-                            new_int[:, target_concept] = 1
-                        if not self.propagate_target_gradients:
-                            partial_ints = torch.clamp(
-                                intervention_idxs.detach() + new_int,
-                                0,
-                                1,
-                            )
-                            probs = (
-                                c_sem.detach() * (1 - partial_ints) +
-                                c_used * partial_ints
-                            )
-                            c_rollout_pred = (
-                                (
-                                    pos_embeddings.detach() *
-                                    torch.unsqueeze(probs, dim=-1)
-                                ) +
-                                (
-                                    neg_embeddings.detach() *
-                                    (1 - torch.unsqueeze(probs, dim=-1))
-                                )
-                            )
-                        else:
-                            partial_ints = torch.clamp(
-                                intervention_idxs + new_int,
-                                0,
-                                1,
-                            )
-                            probs = (
-                                c_sem * (1 - partial_ints) +
-                                c_used * partial_ints
-                            )
-                            c_rollout_pred = (
-                                (
-                                    pos_embeddings *
-                                    torch.unsqueeze(probs, dim=-1)
-                                ) + (
-                                    neg_embeddings *
-                                    (1 - torch.unsqueeze(probs, dim=-1))
-                                )
-                            )
-                        c_rollout_pred = c_rollout_pred.view(
-                            (-1, self.emb_size * self.n_concepts)
-                        )
-
-                        rollout_y_logits = self.c2y_model(c_rollout_pred)
-
-                        if self.n_tasks > 1:
-                            target_int_logits[:, target_concept] = \
-                                rollout_y_logits[
-                                    one_hot_y.type(torch.BoolTensor)
-                                ]
-                        else:
-                            pred_y_prob = torch.sigmoid(
-                                torch.squeeze(rollout_y_logits, dim=-1)
-                            )
-                            target_int_logits[:, target_concept] = torch.where(
-                                y == 1,
-                                torch.log(
-                                    (pred_y_prob + 1e-15) /
-                                    (1 - pred_y_prob + 1e-15)
-                                ),
-                                torch.log(
-                                    (1 - pred_y_prob + 1e-15) /
-                                    (pred_y_prob+ 1e-15)
-                                ),
-                            )
-                    if self.use_full_mask_distr:
-                        target_int_labels = torch.nn.functional.softmax(
-                            target_int_logits,
-                            -1,
-                        )
-                        pred_int_labels = concept_group_scores.argmax(-1)
-                        curr_acc = (
-                            pred_int_labels == torch.argmax(
-                                target_int_labels,
-                                -1,
-                            )
-                        ).float().mean()
-                    else:
-                        target_int_labels = torch.argmax(target_int_logits, -1)
-                        pred_int_labels = concept_group_scores.argmax(-1)
-                        curr_acc = (
-                            pred_int_labels == target_int_labels
-                        ).float().mean()
-
-                    int_mask_accuracy += curr_acc/current_horizon
-                    new_loss = self.loss_interventions(
-                        concept_group_scores,
-                        target_int_labels,
-                    )
-                    if not self.backprop_masks:
-                        # Then block the gradient into the masks
-                        concept_group_scores = concept_group_scores.detach()
-
-                    # Update the next-concept predictor loss
-                    if self.average_trajectory:
-                        intervention_loss += (
-                            discount * new_loss/trajectory_weight
-                        )
-                    else:
-                        intervention_loss += discount * new_loss
-
-                    # Update the discount (before the task trajectory loss to
-                    # start discounting from the first intervention so that the
-                    # loss of the unintervened model is highest
-                    discount *= self.intervention_discount
-                    task_discount *= self.intervention_task_discount
-
-                    # Sample the next concepts we will intervene on using a hard
-                    # Gumbel softmax
-                    if self.intervention_weight == 0:
-                        selected_groups = torch.FloatTensor(
-                            np.eye(concept_group_scores.shape[-1])[np.random.choice(
-                                concept_group_scores.shape[-1],
-                                size=concept_group_scores.shape[0]
-                            )]
-                        ).to(concept_group_scores.device)
-                    else:
-                        selected_groups = torch.nn.functional.gumbel_softmax(
-                            concept_group_scores,
-                            dim=-1,
-                            hard=self.hard_intervention,
-                            tau=self.tau,
-                        )
-                    if self.use_concept_groups:
-                        for sample_idx in range(intervention_idxs.shape[0]):
-                            for group_idx, (_, group_concepts) in enumerate(
-                                self.concept_map.items()
-                            ):
-                                if selected_groups[sample_idx, group_idx] == 1:
-                                    intervention_idxs[
-                                        sample_idx,
-                                        group_concepts,
-                                    ] = 1
-                    else:
-                        intervention_idxs += selected_groups
-
-                    if self.include_task_trajectory_loss and (
-                        (not self.include_only_last_trajectory_loss) or
-                        (i == (current_horizon - 1))
-                    ):
-                        # Then we will also update the task loss with the loss
-                        # of performing this intervention!
-                        probs = (
-                            c_sem * (1 - intervention_idxs) +
-                            c_used * intervention_idxs
-                        )
-                        c_rollout_pred = (
-                            pos_embeddings * torch.unsqueeze(probs, dim=-1) + (
-                                neg_embeddings * (
-                                    1 - torch.unsqueeze(probs, dim=-1)
-                                )
-                            )
-                        )
-                        c_rollout_pred = c_rollout_pred.view(
-                            (-1, self.emb_size * self.n_concepts)
-                        )
-                        rollout_y_logits = self.c2y_model(c_rollout_pred)
-                        rollout_y_loss = self.loss_task(
-                            (
-                                rollout_y_logits
-                                if rollout_y_logits.shape[-1] > 1 else
-                                rollout_y_logits.reshape(-1)
-                            ),
-                            y,
-                        )
-                        if self.average_trajectory:
-                            intervention_task_loss += (
-                                task_discount *
-                                rollout_y_loss / task_trajectory_weight
-                            )
-                        else:
-                            intervention_task_loss += (
-                                task_discount * rollout_y_loss
-                            )
-
-                if (
-                    self.legacy_mode or
-                    (
-                        self.current_steps.detach().cpu().numpy()[0] >=
-                            self.rollout_init_steps
-                    )
-                ) and (
-                    self.horizon_limit.detach().cpu().numpy()[0] <
-                        int_basis_lim + 1
-                ):
-                    self.horizon_limit *= self.horizon_rate
-
+        if isinstance(intervention_loss, (float, int)):
             intervention_loss_scalar = \
                 self.intervention_weight * intervention_loss
-            intervention_loss = intervention_loss/num_rollouts
-            intervention_task_loss = intervention_task_loss/num_rollouts
-            int_mask_accuracy = int_mask_accuracy/num_rollouts
         else:
-            intervention_loss = 0.0
-            intervention_loss_scalar = 0.0
+            intervention_loss_scalar = \
+                self.intervention_weight * intervention_loss.detach()
 
-        if not self.legacy_mode:
-            self.current_steps += 1
-            if self.rollout_aneal_rate != 1 and (
-                self.current_aneal_rate.detach().cpu().numpy()[0] < 100
-            ):
-                self.current_aneal_rate *= self.rollout_aneal_rate
 
-        if self.include_task_trajectory_loss and (
-            self.intervention_task_loss_weight != 0
-        ):
-            if isinstance(intervention_task_loss, float):
-                intervention_task_loss_scalar = (
-                    self.intervention_task_loss_weight * intervention_task_loss
-                )
-            else:
-                intervention_task_loss_scalar = (
-                    self.intervention_task_loss_weight *
-                    intervention_task_loss.detach()
-                )
+        # Finally, compute the concept loss
+        concept_loss = self._compute_concept_loss(
+            c=c,
+            c_pred=c_sem,
+        )
+        if isinstance(concept_loss, (float, int)):
+            concept_loss_scalar = self.concept_loss_weight * concept_loss
         else:
-            intervention_task_loss_scalar = 0.0
-
-
-        if self.concept_loss_weight != 0:
-            # We separate this so that we are allowed to
-            # use arbitrary activations (i.e., not necessarily in [0, 1])
-            # whenever no concept supervision is provided
-            if self.include_certainty:
-                concept_loss = self.loss_concept(c_sem, c)
-                concept_loss_scalar = \
-                    self.concept_loss_weight * concept_loss.detach()
-            else:
-                c_sem_used = torch.where(
-                    torch.logical_or(c == 0, c == 1),
-                    c_sem,
-                    c,
-                ) # This forces zero loss when c is uncertain
-                concept_loss = self.loss_concept(c_sem_used, c)
-                concept_loss_scalar = concept_loss.detach()
-        else:
-            concept_loss = 0.0
-            concept_loss_scalar = 0.0
+            concept_loss_scalar = \
+                self.concept_loss_weight * concept_loss.detach()
 
         loss = (
             self.concept_loss_weight * concept_loss +
@@ -937,41 +1108,53 @@ class IntAwareConceptEmbeddingModel(
         inactive_intervention_values=None,
         intervention_policy=None,
         output_interventions=False,
-        include_certainty=True,
+        include_certainty=True,  # Whether or not train labels may include encoded uncertainty in them!
 
         top_k_accuracy=None,
 
         intervention_discount=0.9,
         intervention_task_discount=0.9,
         intervention_weight=5,
-        horizon_rate=1.005,
-        tau=1,
         average_trajectory=True,
         concept_map=None,
         use_concept_groups=False,
-        max_horizon=5,
         include_task_trajectory_loss=False,
-        horizon_binary_representation=False,
         include_only_last_trajectory_loss=False,
         intervention_task_loss_weight=1,
-        initial_horizon=1,
-        horizon_uniform_distr=True,
-        beta_a=1,
-        beta_b=3,
-        use_horizon=True,
+
         rollout_init_steps=0,
-        include_probs=False,
         use_full_mask_distr=False,
         int_model_layers=None,
         int_model_use_bn=False,
-        initialize_discount=False,
+        initialize_discount=False,  # Whether or not the misprediction-after-intervention discount must be initialized based on the initial intervention mask sampled! Consider deprecating
         propagate_target_gradients=False,
         num_rollouts=1,
         max_num_rollouts=None,
         rollout_aneal_rate=1,
         backprop_masks=True,
-        legacy_mode=False,
-        hard_intervention=True,
+        hard_intervention=True,  # Whether the Gumbel Softmax is a hard softmax or a soft one. By default we use a hard softmax
+        tau=1,
+
+        # Competency Awareness
+        comp_aware=False,    # Whether we make interventions be competency aware
+        comp_as_model_input=False,  # Whether or not the competencies are provided as input to the policy model!
+        group_based_competencies=None,
+
+        # Parameters regarding how we select how many concepts to intervene on
+        # in the horizon of a current trajectory (this is the lenght of the
+        # trajectory)
+        # Consider deprecating
+        max_horizon=6,   # Change: it used to be defaulted to 5!
+        initial_horizon=2,  # Change: it used to be defaulted to 1!
+        horizon_rate=1.005,
+        horizon_uniform_distr=True,
+        beta_a=1,
+        beta_b=3,
+
+        use_horizon=False,  # Deprecated and to be removed!! Originally set to default as "True"
+        horizon_binary_representation=False,  # Deprecated and to be removed!!
+        legacy_mode=False,  # Depreacted and to be removed!!
+        include_probs=False,  # Deprecated and to be removed! Whether or not we include the predicted concept probabilities as part of the intervention policy's input
     ):
         self.hard_intervention = hard_intervention
         self.legacy_mode = legacy_mode
@@ -990,6 +1173,13 @@ class IntAwareConceptEmbeddingModel(
         self.concept_map = concept_map
         if len(concept_map) == n_concepts:
             use_concept_groups = False
+
+        self.comp_aware = comp_aware
+        self.comp_as_model_input = comp_as_model_input
+        self.group_based_competencies = (
+            group_based_competencies
+            if group_based_competencies is not None else use_concept_groups
+        )
         ConceptEmbeddingModel.__init__(
             self,
             n_concepts=n_concepts,
@@ -1035,7 +1225,12 @@ class IntAwareConceptEmbeddingModel(
             (
                 max_horizon_val if use_horizon and horizon_binary_representation
                 else int(self.use_horizon)
-            ) # Horizon
+            ) + # Horizon
+            (
+                max_horizon_val if (
+                    self.comp_as_model_input and self.comp_aware
+                ) else 0
+            )  # Competency inputs into model
         ] + (int_model_layers or [256, 128]) + [
             len(self.concept_map) if self.use_concept_groups else n_concepts
         ]

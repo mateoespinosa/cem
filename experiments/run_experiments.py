@@ -313,6 +313,10 @@ def main(
                             rerun=current_rerun,
                             old_results=ind_old_results,
                             independent=True,
+                            group_level_competencies=config.get(
+                                "group_level_competencies",
+                                False,
+                            ),
                             competence_levels=config.get(
                             'competence_levels',
                             [1],
@@ -365,7 +369,14 @@ def main(
                             rerun=current_rerun,
                             old_results=seq_old_results,
                             sequential=True,
-                            competence_levels=config.get('competence_levels', [1]),
+                            group_level_competencies=config.get(
+                                "group_level_competencies",
+                                False,
+                            ),
+                            competence_levels=config.get(
+                                'competence_levels',
+                                [1],
+                            ),
                         )
                     )
                     logging.debug(
@@ -460,6 +471,10 @@ def main(
                             split=split,
                             rerun=current_rerun,
                             old_results=old_results,
+                            group_level_competencies=run_config.get(
+                                "group_level_competencies",
+                                False,
+                            ),
                             competence_levels=run_config.get(
                                 'competence_levels',
                                 [1],

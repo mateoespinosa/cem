@@ -88,7 +88,7 @@ def construct_model(
             "average_trajectory": config.get("average_trajectory", True),
             "concept_map": config.get("concept_map", None),
             "tau": config.get("tau", 1),
-            "max_horizon": config.get("max_horizon", 5),
+            "max_horizon": config.get("max_horizon", 6),
             "include_task_trajectory_loss": config.get(
                 "include_task_trajectory_loss",
                 False,
@@ -105,7 +105,7 @@ def construct_model(
                 "intervention_task_loss_weight",
                 1,
             ),
-            "initial_horizon": config.get("initial_horizon", 1),
+            "initial_horizon": config.get("initial_horizon", 2),
             "use_concept_groups": config.get("use_concept_groups", False),
             "horizon_uniform_distr": config.get("horizon_uniform_distr", True),
             "beta_a": config.get("beta_a", 1),
@@ -114,7 +114,7 @@ def construct_model(
                 "intervention_task_discount",
                 config.get("intervention_discount", 0.9),
             ),
-            "use_horizon": config.get("use_horizon", True),
+            "use_horizon": config.get("use_horizon", False),
             "rollout_init_steps": config.get('rollout_init_steps', 0),
             "use_full_mask_distr": config.get("use_full_mask_distr", False),
             "int_model_layers": config.get("int_model_layers", None),
@@ -132,6 +132,8 @@ def construct_model(
             "hard_intervention": config.get("hard_intervention", True),
             "legacy_mode": config.get("legacy_mode", False),
             "include_certainty": config.get("include_certainty", True),
+            "comp_aware": config.get("comp_aware", False),
+            "comp_as_model_input": config.get("comp_as_model_input", False),
         }
     elif config["architecture"] in ["IntAwareConceptEmbeddingModel", "IntCEM"]:
         model_cls = models_intcbm.IntAwareConceptEmbeddingModel
@@ -155,7 +157,7 @@ def construct_model(
             "average_trajectory": config.get("average_trajectory", True),
             "concept_map": config.get("concept_map", None),
             "tau": config.get("tau", 1),
-            "max_horizon": config.get("max_horizon", 5),
+            "max_horizon": config.get("max_horizon", 6),
             "include_task_trajectory_loss": config.get(
                 "include_task_trajectory_loss",
                 False,
@@ -172,7 +174,7 @@ def construct_model(
                 "intervention_task_loss_weight",
                 1,
             ),
-            "initial_horizon": config.get("initial_horizon", 1),
+            "initial_horizon": config.get("initial_horizon", 2),
             "use_concept_groups": config.get("use_concept_groups", False),
             "horizon_uniform_distr": config.get("horizon_uniform_distr", True),
             "beta_a": config.get("beta_a", 1),
@@ -181,7 +183,7 @@ def construct_model(
                 "intervention_task_discount",
                 config.get("intervention_discount", 0.9),
             ),
-            "use_horizon": config.get("use_horizon", True),
+            "use_horizon": config.get("use_horizon", False),
             "rollout_init_steps": config.get('rollout_init_steps', 0),
             "use_full_mask_distr": config.get("use_full_mask_distr", False),
             "int_model_layers": config.get("int_model_layers", None),
@@ -199,6 +201,8 @@ def construct_model(
             "hard_intervention": config.get("hard_intervention", True),
             "legacy_mode": config.get("legacy_mode", False),
             "include_certainty": config.get("include_certainty", True),
+            "comp_aware": config.get("comp_aware", False),
+            "comp_as_model_input": config.get("comp_as_model_input", False),
         }
     elif "ConceptBottleneckModel" in config["architecture"]:
         model_cls = models_cbm.ConceptBottleneckModel
