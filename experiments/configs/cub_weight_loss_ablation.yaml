@@ -1,0 +1,73 @@
+trials: 5
+results_dir: results/cub_weight_loss_ablation/
+
+
+# DATASET VARIABLES
+dataset: cub
+root_dir: cem/data/CUB200/
+batch_size: 128
+num_workers: 8
+sampling_percent: 1
+test_subsampling: 1
+
+# Intervention Parameters
+intervention_freq: 1
+intervention_batch_size: 1024
+intervention_policies:
+    - "group_random_no_prior"
+
+group_level_competencies: True
+competence_levels: [1, 0]
+incompetence_intervention_policies:
+    - "group_random_no_prior"
+
+skip_repr_evaluation: True
+
+shared_params:
+    top_k_accuracy: null
+    save_model: True
+    max_epochs: 300
+    patience: 15
+    emb_size: 16
+    extra_dims: 0
+    learning_rate: 0.01
+    weight_decay: 0.000004
+    weight_loss: True
+    c_extractor_arch: resnet34
+    optimizer: sgd
+    early_stopping_monitor: val_loss
+    early_stopping_mode: min
+    early_stopping_delta: 0.0
+    momentum: 0.9
+    sigmoidal_prob: False
+
+    # Set up for the ablation
+    concept_loss_weight: [0.1, 1, 5, 10]
+    grid_variables:
+        - concept_loss_weight
+    grid_search_mode: exhaustive
+
+runs:
+
+    - architecture: 'ConceptEmbeddingModel'
+      extra_name: "_weight_loss_{concept_loss_weight}"
+      shared_prob_gen: True
+      sigmoidal_prob: True
+      sigmoidal_embedding: False
+      training_intervention_prob: 0.25
+      concat_prob: False
+      embedding_activation: "leakyrelu"
+
+    - architecture: 'ConceptBottleneckModel'
+      extra_name: "Sigmoid_weight_loss_{concept_loss_weight}"
+      bool: False
+      extra_dims: 0
+      sigmoidal_prob: True
+
+    - architecture: 'ConceptBottleneckModel'
+      extra_name: "Hybrid_Sigmoid_weight_loss_{concept_loss_weight}"
+      bool: False
+      extra_dims: "{{({emb_size} - 1) * {n_concepts}}}"
+      bottleneck_nonlinear: "leakyrelu"
+      sigmoidal_extra_capacity: False
+      sigmoidal_prob: True
