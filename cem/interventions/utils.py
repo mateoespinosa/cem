@@ -117,21 +117,21 @@ def concepts_from_competencies(
         # one concept at a time
         c_updated = c.clone()
         for batch_idx in range(c.shape[0]):
-            for group_idx, (concept_name, group_concepts) in enumerate(
+            for group_idx, (_, group_concepts) in enumerate(
                 concept_map.items()
             ):
-                group_size = len(group_concepts)
-                wrong_concept_probs = (
-                    (1 - competencies[batch_idx, group_idx]) / (
-                        group_size - 1
-                    )
-                ) if group_size > 1 else 1 - competencies[batch_idx, group_idx]
-                sample_probs = [
-                    competencies[batch_idx, group_idx]
-                    if c[batch_idx, concept_idx] == 1 else
-                    wrong_concept_probs for concept_idx in group_concepts
-                ]
                 if assume_mutually_exclusive:
+                    group_size = len(group_concepts)
+                    wrong_concept_probs = (
+                        (1 - competencies[batch_idx, group_idx]) / (
+                            group_size - 1
+                        )
+                    ) if group_size > 1 else 1 - competencies[batch_idx, group_idx]
+                    sample_probs = [
+                        competencies[batch_idx, group_idx]
+                        if c[batch_idx, concept_idx] == 1 else
+                        wrong_concept_probs for concept_idx in group_concepts
+                    ]
                     selected = np.random.choice(
                         list(range(group_size)),
                         replace=False,
@@ -143,9 +143,32 @@ def concepts_from_competencies(
                     ).type(c_updated.type()).to(c_updated.device)
                     c_updated[batch_idx, group_concepts] = selected_group_label
                 else:
+                    # This would all be easy to do if concepts within a group
+                    # are all mutually exclusive. However, as seen in CUB, this
+                    # is not always the case.
+                    # Because of this, for now we will assume that the
+                    # competence of an entire group is the same of its
+                    # constituent concepts.
+                    sample_probs = [
+                        competencies[batch_idx, group_idx]
+                        if c[batch_idx, concept_idx] == 1 else
+                        1 - competencies[batch_idx, group_idx]
+                        for concept_idx in group_concepts
+                    ]
                     c_updated[batch_idx, group_concepts] = torch.bernoulli(
                         torch.FloatTensor(sample_probs),
                     ).to(c.device)
+
+                    # The solution below can also be a candidate
+                    # # Because of this, for now we will assume that the
+                    # # if a mistake is made on the group, a mistake is made on
+                    # # all of its constituent concepts.
+                    # if np.random.uniform(0, 1) > competencies[batch_idx, group_idx]:
+                    #     # Then we will assume the entire group was incorrectly
+                    #     # intervened on
+                    #     c_updated[batch_idx, group_concepts] = (
+                    #         1 - c[batch_idx, group_concepts]
+                    #     )
 
     else:
         # Else we assume we are given binary competencies
@@ -249,6 +272,7 @@ def intervene_in_cbm(
     imbalance=None,
     task_class_weights=None,
     competence_generator=_default_competence_generator,
+    real_competence_generator=None,
     group_level_competencies=False,
     train_dl=None,
     sequential=False,
@@ -269,6 +293,8 @@ def intervene_in_cbm(
     c_test=None,
     seed=None,
 ):
+    if real_competence_generator is None:
+        real_competence_generator = lambda x: x
     if seed is not None:
         seed_everything(seed)
     if batch_size is not None:
@@ -388,7 +414,7 @@ def intervene_in_cbm(
     )
     c_test = concepts_from_competencies(
         c=c_test,
-        competencies=competencies_test,
+        competencies=real_competence_generator(competencies_test),
         use_concept_groups=group_level_competencies,
         concept_map=concept_group_map,
     )
@@ -1171,6 +1197,9 @@ def test_interventions(
     used_policies=None,
     intervention_batch_size=1024,
     competence_levels=[1],
+    real_competence_generator=None,
+    extra_suffix="",
+    real_competence_level="same",
     group_level_competencies=False,
     accelerator="auto",
     devices="auto",
@@ -1314,28 +1343,28 @@ def test_interventions(
                 if group_level_competencies:
                     key = (
                         f'test_acc_y_{policy}_ints_co_{competence_level}_gl_'
-                        f'{full_run_name}'
+                        f'{extra_suffix}{full_run_name}'
                     )
                     int_time_key = (
                         f'avg_int_time_{policy}_ints_co_{competence_level}_gl_'
-                        f'{full_run_name}'
+                        f'{extra_suffix}{full_run_name}'
                     )
                     construction_times_key = (
                         f'construction_time_{policy}_ints_'
-                        f'co_{competence_level}_gl_{full_run_name}'
+                        f'co_{competence_level}_gl_{extra_suffix}{full_run_name}'
                     )
                 else:
                     key = (
                         f'test_acc_y_{policy}_ints_co_{competence_level}_'
-                        f'{full_run_name}'
+                        f'{extra_suffix}{full_run_name}'
                     )
                     int_time_key = (
                         f'avg_int_time_{policy}_ints_co_{competence_level}_'
-                        f'{full_run_name}'
+                        f'{extra_suffix}{full_run_name}'
                     )
                     construction_times_key = (
                         f'construction_time_{policy}_ints_co_{competence_level}_'
-                        f'{full_run_name}'
+                        f'{extra_suffix}{full_run_name}'
                     )
 
             (int_results, avg_time, constr_time), loaded = load_call(
@@ -1363,6 +1392,7 @@ def test_interventions(
                     batch_size=intervention_batch_size,
                     key_name=key,
                     competence_generator=competence_generator,
+                    real_competence_generator=real_competence_generator,
                     group_level_competencies=group_level_competencies,
                     x_test=x_test,
                     y_test=y_test,
@@ -1389,12 +1419,16 @@ def test_interventions(
                     logging.info(
                         f"\t\tTest accuracy when intervening "
                         f"with {num_groups_intervened} "
-                        f"concept groups is {val * 100:.2f}%{extra}."
+                        f"concept groups with claimed competence "
+                        f"{competence_level} and real competence "
+                        f"{real_competence_level} is {val * 100:.2f}%{extra}."
                     )
                 else:
                     logging.info(
                         f"\t\tTest AUC when intervening "
                         f"with {num_groups_intervened} "
-                        f"concept groups is {val * 100:.2f}%{extra}."
+                        f"concept groups with claimed competence "
+                        f"{competence_level} and real competence "
+                        f"{real_competence_level} is {val * 100:.2f}%{extra}."
                     )
     return results

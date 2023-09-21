@@ -10,16 +10,33 @@ num_workers: 8
 sampling_percent: 1
 test_subsampling: 1
 
-
 # Intervention Parameters
 intervention_freq: 1
 intervention_batch_size: 1024
 intervention_policies:
+    # - "intcem_policy"  # UNCOMMENT ME
+    - "group_random"
     - "group_random_no_prior"
+    # - "group_coop_no_prior"  # UNCOMMENT ME
+    # - "behavioural_cloning_no_prior"
+    # - "group_uncertainty_no_prior"  # UNCOMMENT ME
+    # - "optimal_greedy_no_prior"  # UNCOMMENT ME
+    # - "global_val_error_no_prior"
+    # - "global_val_improvement_no_prior"
 
-competence_levels: [1, 0]
+group_level_competencies: True
+# competence_levels: [1, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1, 0, "unif"]
+competence_levels: [1, 0, "unif"]
 incompetence_intervention_policies:
+    # - "intcem_policy"   # UNCOMMENT ME
+    - "group_random"
     - "group_random_no_prior"
+    # - "group_coop_no_prior"   # UNCOMMENT ME
+    # - "behavioural_cloning_no_prior"
+    # - "group_uncertainty_no_prior"   # UNCOMMENT ME
+    # - "optimal_greedy_no_prior"   # UNCOMMENT ME
+    # - "global_val_error_no_prior"
+    # - "global_val_improvement_no_prior"
 
 # Metrics to run for the learnt representations. Currently skipping all of them
 # for efficiency purposes but feel free to change this after training and
@@ -55,11 +72,124 @@ runs:
       concat_prob: False
       embedding_activation: "leakyrelu"
 
-    - architecture: 'ConceptBottleneckModel'
-      extra_name: "Bool"
-      bool: True
-      extra_dims: 0
-      sigmoidal_prob: True
+    - architecture: "IntAwareConceptEmbeddingModel"
+      extra_name: "_comp_aware_int_weight_{intervention_weight}_horizon_rate_{horizon_rate}_int_discount_{intervention_discount}_task_discount_{intervention_task_discount}"
+      training_intervention_prob: 0.25
+      horizon_binary_representation:  True
+      include_task_trajectory_loss: True
+      include_only_last_trajectory_loss: True
+      task_loss_weight: 0
+      intervention_weight: [0.1, 1, 5]
+      intervention_task_loss_weight: 1
+      initial_horizon: 2
+      use_concept_groups: True
+      use_full_mask_distr: False
+      propagate_target_gradients: False
+      int_model_use_bn: True
+      int_model_layers: [128,128,64,64]
+      intcem_task_loss_weight: 0
+      embedding_activation: "leakyrelu"
+      tau: 1
+      max_horizon: 6
+      horizon_uniform_distr: True
+      beta_a: 1
+      beta_b: 3
+      intervention_task_discount: [1.1]
+      average_trajectory: True
+      use_horizon: False
+      initialize_discount: False
+      model_pretrain_path: null
+      horizon_rate: 1.005
+      intervention_discount: 1
+      legacy_mode: False
+      comp_aware: True  # Difference: prev IntCEM has False here
+      comp_as_model_input: True  # Difference: prev IntCEM has False here
+      real_competencies: ['same', 'complement', 'unif']
+      grid_variables:
+          - intervention_task_discount
+          - intervention_weight
+      grid_search_mode: exhaustive
+
+    # Same as above but the comptencies are never fed into the actual
+    # policy!
+    - architecture: "IntAwareConceptEmbeddingModel"
+      extra_name: "_rand_comp_trained_int_weight_{intervention_weight}_horizon_rate_{horizon_rate}_int_discount_{intervention_discount}_task_discount_{intervention_task_discount}"
+      training_intervention_prob: 0.25
+      horizon_binary_representation:  True
+      include_task_trajectory_loss: True
+      include_only_last_trajectory_loss: True
+      task_loss_weight: 0
+      intervention_weight: [0.1, 1, 5]
+      intervention_task_loss_weight: 1
+      initial_horizon: 2
+      use_concept_groups: True
+      use_full_mask_distr: False
+      propagate_target_gradients: False
+      int_model_use_bn: True
+      int_model_layers: [128,128,64,64]
+      intcem_task_loss_weight: 0
+      embedding_activation: "leakyrelu"
+      tau: 1
+      max_horizon: 6
+      horizon_uniform_distr: True
+      beta_a: 1
+      beta_b: 3
+      intervention_task_discount: [1.1]
+      average_trajectory: True
+      use_horizon: False
+      initialize_discount: False
+      model_pretrain_path: null
+      horizon_rate: 1.005
+      intervention_discount: 1
+      legacy_mode: False
+      comp_aware: True  # Difference: prev IntCEM has False here
+      comp_as_model_input: False
+      real_competencies: ['same', 'complement', 'unif']
+      grid_variables:
+          - intervention_task_discount
+          - intervention_weight
+      grid_search_mode: exhaustive
+
+    - architecture: "IntAwareConceptEmbeddingModel"
+      extra_name: "_int_weight_{intervention_weight}_horizon_rate_{horizon_rate}_int_discount_{intervention_discount}_task_discount_{intervention_task_discount}"
+      training_intervention_prob: 0.25
+      horizon_binary_representation:  True
+      include_task_trajectory_loss: True
+      include_only_last_trajectory_loss: True
+      task_loss_weight: 0
+      intervention_weight: [5,1,0.1]
+      intervention_task_loss_weight: 1
+      initial_horizon: 2
+      use_concept_groups: True
+      use_full_mask_distr: False
+      propagate_target_gradients: False
+      int_model_use_bn: True
+      int_model_layers: [128,128,64,64]
+      intcem_task_loss_weight: 0
+      embedding_activation: "leakyrelu"
+      tau: 1
+      max_horizon: 6
+      horizon_uniform_distr: True
+      beta_a: 1
+      beta_b: 3
+      intervention_task_discount: [1.1] #[1.5, 1.1]
+      average_trajectory: True
+      use_horizon: False
+      initialize_discount: False
+      model_pretrain_path: null
+      horizon_rate: 1.005
+      intervention_discount: 1
+      legacy_mode: False
+      grid_variables:
+          - intervention_task_discount
+          - intervention_weight
+      grid_search_mode: exhaustive
+
+    # - architecture: 'ConceptBottleneckModel'
+    #   extra_name: "Bool"
+    #   bool: True
+    #   extra_dims: 0
+    #   sigmoidal_prob: True
 
     - architecture: 'ConceptBottleneckModel'
       extra_name: "Sigmoid"
@@ -82,13 +212,13 @@ runs:
       sigmoidal_extra_capacity: False
       sigmoidal_prob: True
 
-    - architecture: 'ConceptBottleneckModel'
-      extra_name: "Hybrid_Logit"
-      bool: False
-      extra_dims: "{{({emb_size} - 1) * {n_concepts}}}"
-      bottleneck_nonlinear: "leakyrelu"
-      sigmoidal_extra_capacity: False
-      sigmoidal_prob: False
+    # - architecture: 'ConceptBottleneckModel'
+    #   extra_name: "Hybrid_Logit"
+    #   bool: False
+    #   extra_dims: "{{({emb_size} - 1) * {n_concepts}}}"
+    #   bottleneck_nonlinear: "leakyrelu"
+    #   sigmoidal_extra_capacity: False
+    #   sigmoidal_prob: False
 
     - architecture: 'SequentialConceptBottleneckModel'
       extra_name: ""
@@ -118,3 +248,6 @@ runs:
       sigmoidal_extra_capacity: False
       sigmoidal_prob: True
       concept_loss_weight: 0
+      competence_levels: []
+      intervention_policies: []
+      incompetence_intervention_policies: []

@@ -451,36 +451,104 @@ def main(
                         model,
                         model_results,
                     )
-                    results[f'{split}'].update(
-                        intervention_utils.test_interventions(
-                            task_class_weights=task_class_weights,
-                            full_run_name=full_run_name,
-                            train_dl=train_dl,
-                            val_dl=val_dl,
-                            test_dl=test_dl,
-                            imbalance=imbalance,
-                            config=run_config,
-                            n_tasks=n_tasks,
-                            n_concepts=n_concepts,
-                            acquisition_costs=acquisition_costs,
-                            result_dir=result_dir,
-                            concept_map=concept_map,
-                            intervened_groups=intervened_groups,
-                            accelerator=accelerator,
-                            devices=devices,
-                            split=split,
-                            rerun=current_rerun,
-                            old_results=old_results,
-                            group_level_competencies=run_config.get(
-                                "group_level_competencies",
-                                False,
-                            ),
-                            competence_levels=run_config.get(
-                                'competence_levels',
-                                [1],
-                            ),
-                        )
+                    test_int_args = dict(
+                        task_class_weights=task_class_weights,
+                        full_run_name=full_run_name,
+                        train_dl=train_dl,
+                        val_dl=val_dl,
+                        test_dl=test_dl,
+                        imbalance=imbalance,
+                        config=run_config,
+                        n_tasks=n_tasks,
+                        n_concepts=n_concepts,
+                        acquisition_costs=acquisition_costs,
+                        result_dir=result_dir,
+                        concept_map=concept_map,
+                        intervened_groups=intervened_groups,
+                        accelerator=accelerator,
+                        devices=devices,
+                        split=split,
+                        rerun=current_rerun,
+                        old_results=old_results,
+                        group_level_competencies=run_config.get(
+                            "group_level_competencies",
+                            False,
+                        ),
+                        competence_levels=run_config.get(
+                            'competence_levels',
+                            [1],
+                        ),
                     )
+                    if "real_competencies" in run_config:
+                        for real_comp in run_config['real_competencies']:
+                            def _real_competence_generator(x):
+                                if real_comp == "same":
+                                    return x
+                                if real_comp == "complement":
+                                    return 1 - x
+                                if test_int_args['group_level_competencies']:
+                                    if real_comp == "unif":
+                                        batch_group_level_competencies = np.zeros(
+                                            (x.shape[0], len(concept_map))
+                                        )
+                                        for batch_idx in range(x.shape[0]):
+                                            for group_idx, (_, concept_members) in enumerate(
+                                                concept_map.items()
+                                            ):
+                                                batch_group_level_competencies[
+                                                    batch_idx,
+                                                    group_idx,
+                                                ] = np.random.uniform(
+                                                    1/len(concept_members),
+                                                    1,
+                                                )
+                                    else:
+                                        batch_group_level_competencies = np.ones(
+                                            (x.shape[0], len(concept_map))
+                                        ) * real_comp
+                                    return batch_group_level_competencies
+
+                                if real_comp == "unif":
+                                    return np.random.uniform(
+                                        0.5,
+                                        1,
+                                        size=x.shape,
+                                    )
+                                return np.ones(x.shape) * real_comp
+                            if real_comp == "same":
+                                # Then we will just run what we normally run
+                                # as the provided competency matches the level
+                                # of competency of the user
+                                test_int_args.pop(
+                                    "real_competence_generator",
+                                    None,
+                                )
+                                test_int_args.pop(
+                                    "extra_suffix",
+                                    None,
+                                )
+                                test_int_args.pop(
+                                    "real_competence_level",
+                                    None,
+                                )
+                            else:
+                                test_int_args['real_competence_generator'] = \
+                                        _real_competence_generator
+                                test_int_args['extra_suffix'] = \
+                                    f"_real_comp_{real_comp}_"
+                                test_int_args["real_competence_level"] = \
+                                    real_comp
+                            results[f'{split}'].update(
+                                intervention_utils.test_interventions(
+                                    **test_int_args
+                                )
+                            )
+                    else:
+                        results[f'{split}'].update(
+                            intervention_utils.test_interventions(
+                                **test_int_args
+                            )
+                        )
                     results[f'{split}'].update(
                         training.evaluate_representation_metrics(
                             config=run_config,

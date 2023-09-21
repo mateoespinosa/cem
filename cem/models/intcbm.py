@@ -266,7 +266,7 @@ class IntAwareConceptBottleneckModel(ConceptBottleneckModel):
             prev_interventions = torch.zeros(prob.shape).to(
                 pos_embeddings.device
             )
-        if competencies is None or (not self.comp_aware):
+        if (competencies is None) or (not self.comp_aware):
             # Then we will always see competencies as perfect if they are not
             # given or if we are asked to explicitly ignore them
             if self.use_concept_groups:
@@ -413,6 +413,189 @@ class IntAwareConceptBottleneckModel(ConceptBottleneckModel):
             task_loss = 0.0
         return task_loss
 
+    def _expected_rollout_y_logits(
+        self,
+        c_pred,
+        c,
+        c_for_interventions,
+        new_int,
+        pos_embeddings,
+        neg_embeddings,
+        intervention_idxs,
+        competencies=None,
+    ):
+        if (competencies is not None) and (self.comp_aware):
+            weights = [
+                (competencies, c),
+                (1 - competencies, 1 - c),
+            ]
+        else:
+            weights = [(1, c, c)]
+        expected_rollout_y_logits = 0
+        for weight, used_ground_truth_concepts in weights:
+            if not self.propagate_target_gradients:
+                # If we do not want to make the intervention operation
+                # differientable, then we cut the gradient here by detaching
+                # the masks, embeddings, and predictions from the autodiff
+                # compute graph
+                intervention_idxs = intervention_idxs.detach()
+                pos_embeddings = pos_embeddings.detach()
+                neg_embeddings = neg_embeddings.detach()
+                c_pred = c_pred.detach()
+
+            # Here is the one tricky bit: we will make sure that the
+            # concepts that we have previously intervened on use the concept
+            # according to the provided label by the interveion (these are the
+            # ones we are simulating were given by the user WHICH
+            # COULD POTENTIALLY BE WRONG!) while the
+            # new concept we are currently rolling will use the GROUND TRUTH
+            # concept labels known at training time to compute the expectation
+            # So: (1) set all the probabilities of already intervened concepts
+            #         using the set of concept labels provided for intervention
+            probs = (
+                c_pred * (1 - intervention_idxs) +
+                c_for_interventions * intervention_idxs
+            )
+
+            # Then: (2) For the newly intervened concepts, update only their
+            #           probabilities using the provided ground truth values
+            #           which, on the expectation, will be weighted with weight
+            #           weight
+            probs = (
+                probs * (1 - new_int) +
+                used_ground_truth_concepts * new_int
+            )
+
+            # Compute the bottleneck using the mixture of embeddings based
+            # on their assigned probabilities
+            c_rollout_pred = (
+                (
+                    pos_embeddings *
+                    torch.unsqueeze(probs, dim=-1)
+                ) + (
+                    neg_embeddings *
+                    (1 - torch.unsqueeze(probs, dim=-1))
+                )
+            )
+            # Flatten as the downstream model takes the entire bottleneck
+            # as a single vector
+            c_rollout_pred = c_rollout_pred.view(
+                (-1, self.emb_size * self.n_concepts)
+            )
+
+            # Predict the output task logits with the given
+            rollout_y_logits = self.c2y_model(c_rollout_pred)
+
+            # And add this to the current expectation
+            expected_rollout_y_logits += weight * rollout_y_logits
+        return expected_rollout_y_logits
+
+    def get_target_mask(
+        self,
+        y,
+        c,
+        c_pred,
+        c_for_interventions,
+        pos_embeddings,
+        neg_embeddings,
+        concept_group_scores,
+        prev_intervention_idxs,
+        competencies=None,
+    ):
+        # Generate as a label the concept which increases the
+        # probability of the correct class the most when
+        # intervened on
+        target_int_logits = torch.ones(
+            concept_group_scores.shape,
+        ).to(c.device) * (-np.Inf)
+        for target_concept in range(target_int_logits.shape[-1]):
+            if self.use_concept_groups:
+                new_int = torch.zeros(
+                    prev_intervention_idxs.shape
+                ).to(prev_intervention_idxs.device)
+                for group_idx, (_, group_concepts) in enumerate(
+                    self.concept_map.items()
+                ):
+                    if group_idx == target_concept:
+                        new_int[:, group_concepts] = 1
+                        break
+            else:
+                new_int = torch.zeros(
+                    prev_intervention_idxs.shape
+                ).to(prev_intervention_idxs.device)
+                new_int[:, target_concept] = 1
+
+            # Make this intervention and lets see how the y logits change
+            # on expectation (expectation taken over the competency of the
+            # user on the current intervention)
+            if self.use_concept_groups:
+                # [DESIGN DECISION] We will average all the target competencies
+                #                   of the group to get a single group level
+                #                   competency score for the group
+                target_competencies = torch.mean(
+                    competencies[:, group_concepts],
+                    dim=-1,
+                )
+            else:
+                target_competencies = competencies[:, target_concept]
+            rollout_y_logits = self._expected_rollout_y_logits(
+                intervention_idxs=torch.clamp(
+                    prev_intervention_idxs + new_int,
+                    0,
+                    1,
+                ),
+                new_int=new_int,
+                c_pred=c_pred,
+                c_for_interventions=c_for_interventions,
+                c=c,
+                pos_embeddings=pos_embeddings,
+                neg_embeddings=neg_embeddings,
+                competencies=target_competencies,
+            )
+
+            if self.n_tasks > 1:
+                one_hot_y = torch.nn.functional.one_hot(y, self.n_tasks)
+                target_int_logits[:, target_concept] = \
+                    rollout_y_logits[
+                        one_hot_y.type(torch.BoolTensor)
+                    ]
+            else:
+                pred_y_prob = torch.sigmoid(
+                    torch.squeeze(rollout_y_logits, dim=-1)
+                )
+                target_int_logits[:, target_concept] = torch.where(
+                    y == 1,
+                    torch.log(
+                        (pred_y_prob + 1e-15) /
+                        (1 - pred_y_prob + 1e-15)
+                    ),
+                    torch.log(
+                        (1 - pred_y_prob + 1e-15) /
+                        (pred_y_prob+ 1e-15)
+                    ),
+                )
+
+        if self.use_full_mask_distr:
+            target_int_labels = torch.nn.functional.softmax(
+                target_int_logits,
+                -1,
+            )
+            pred_int_labels = concept_group_scores.argmax(-1)
+            curr_acc = (
+                pred_int_labels == torch.argmax(
+                    target_int_labels,
+                    -1,
+                )
+            ).float().mean()
+        else:
+            target_int_labels = torch.argmax(target_int_logits, -1)
+            pred_int_labels = concept_group_scores.argmax(-1)
+            curr_acc = (
+                pred_int_labels == target_int_labels
+            ).float().mean()
+        return target_int_labels, curr_acc
+
+
     def _intervention_rollout_loss(
         self,
         y,
@@ -476,7 +659,7 @@ class IntAwareConceptBottleneckModel(ConceptBottleneckModel):
 
         # Then time to perform a forced training time intervention
         # We will set some of the concepts as definitely intervened on
-        if competencies is None:
+        if (competencies is None) and self.comp_aware:
             if self.use_concept_groups:
                 # Then we will generate a competency vector that will
                 # be uniformly distributed across all groups based on each
@@ -498,13 +681,14 @@ class IntAwareConceptBottleneckModel(ConceptBottleneckModel):
                     c.shape
                 ).uniform_(0.5, 1).to(c.device)
 
-        if self.comp_aware:
-            # Update the ground truth concept labels to take
+            # And update the ground truth concept labels to take
             # into account the competency levels we just sampled!
-            c = self._concept_update_with_competencies(
+            c_for_interventions = self._concept_update_with_competencies(
                 c=c,
                 competencies=competencies,
             )
+        else:
+            c_for_interventions = c
         int_basis_lim = (
             len(self.concept_map) if self.use_concept_groups
             else self.n_concepts
@@ -599,9 +783,6 @@ class IntAwareConceptBottleneckModel(ConceptBottleneckModel):
             else:
                 task_discount = 1
                 first_task_discount = 1
-
-            if self.n_tasks > 1:
-                one_hot_y = torch.nn.functional.one_hot(y, self.n_tasks)
         else:
             current_horizon = 0
             if self.initialize_discount:
@@ -666,117 +847,24 @@ class IntAwareConceptBottleneckModel(ConceptBottleneckModel):
                     neg_embeddings=neg_embeddings,
                     competencies=competencies,
                     prev_interventions=intervention_idxs,
-                    c=c,
+                    c=c_for_interventions,
                     horizon=(current_horizon - i),
                     train=True,
                 )
-                # Generate as a label the concept which increases the
-                # probability of the correct class the most when
-                # intervened on
-                target_int_logits = torch.ones(
-                    concept_group_scores.shape,
-                ).to(c.device) * (-np.Inf)
-                for target_concept in range(target_int_logits.shape[-1]):
-                    if self.use_concept_groups:
-                        new_int = torch.zeros(
-                            intervention_idxs.shape
-                        ).to(intervention_idxs.device)
-                        for group_idx, (_, group_concepts) in enumerate(
-                            self.concept_map.items()
-                        ):
-                            if group_idx == target_concept:
-                                new_int[:, group_concepts] = 1
-                                break
-                    else:
-                        new_int = torch.zeros(
-                            intervention_idxs.shape
-                        ).to(intervention_idxs.device)
-                        new_int[:, target_concept] = 1
-                    if not self.propagate_target_gradients:
-                        partial_ints = torch.clamp(
-                            intervention_idxs.detach() + new_int,
-                            0,
-                            1,
-                        )
-                        probs = (
-                            c_pred.detach() * (1 - partial_ints) +
-                            c * partial_ints
-                        )
-                        c_rollout_pred = (
-                            (
-                                pos_embeddings.detach() *
-                                torch.unsqueeze(probs, dim=-1)
-                            ) +
-                            (
-                                neg_embeddings.detach() *
-                                (1 - torch.unsqueeze(probs, dim=-1))
-                            )
-                        )
-                    else:
-                        partial_ints = torch.clamp(
-                            intervention_idxs + new_int,
-                            0,
-                            1,
-                        )
-                        probs = (
-                            c_pred * (1 - partial_ints) +
-                            c * partial_ints
-                        )
-                        c_rollout_pred = (
-                            (
-                                pos_embeddings *
-                                torch.unsqueeze(probs, dim=-1)
-                            ) + (
-                                neg_embeddings *
-                                (1 - torch.unsqueeze(probs, dim=-1))
-                            )
-                        )
-                    c_rollout_pred = c_rollout_pred.view(
-                        (-1, self.emb_size * self.n_concepts)
-                    )
 
-                    rollout_y_logits = self.c2y_model(c_rollout_pred)
-
-                    if self.n_tasks > 1:
-                        target_int_logits[:, target_concept] = \
-                            rollout_y_logits[
-                                one_hot_y.type(torch.BoolTensor)
-                            ]
-                    else:
-                        pred_y_prob = torch.sigmoid(
-                            torch.squeeze(rollout_y_logits, dim=-1)
-                        )
-                        target_int_logits[:, target_concept] = torch.where(
-                            y == 1,
-                            torch.log(
-                                (pred_y_prob + 1e-15) /
-                                (1 - pred_y_prob + 1e-15)
-                            ),
-                            torch.log(
-                                (1 - pred_y_prob + 1e-15) /
-                                (pred_y_prob+ 1e-15)
-                            ),
-                        )
-                if self.use_full_mask_distr:
-                    target_int_labels = torch.nn.functional.softmax(
-                        target_int_logits,
-                        -1,
-                    )
-                    pred_int_labels = concept_group_scores.argmax(-1)
-                    curr_acc = (
-                        pred_int_labels == torch.argmax(
-                            target_int_labels,
-                            -1,
-                        )
-                    ).float().mean()
-                else:
-                    target_int_labels = torch.argmax(target_int_logits, -1)
-                    pred_int_labels = concept_group_scores.argmax(-1)
-                    curr_acc = (
-                        pred_int_labels == target_int_labels
-                    ).float().mean()
-
+                target_int_labels, curr_acc = self.get_target_mask(
+                    y=y,
+                    c=c,
+                    c_for_interventions=c_for_interventions,
+                    c_pred=c_pred,
+                    pos_embeddings=pos_embeddings,
+                    neg_embeddings=neg_embeddings,
+                    concept_group_scores=concept_group_scores,
+                    prev_intervention_idxs=intervention_idxs,
+                    competencies=competencies,
+                )
                 int_mask_accuracy += curr_acc/current_horizon
+
                 new_loss = self.loss_interventions(
                     concept_group_scores,
                     target_int_labels,
@@ -891,7 +979,7 @@ class IntAwareConceptBottleneckModel(ConceptBottleneckModel):
             ):
                 self.current_aneal_rate *= self.rollout_aneal_rate
 
-        return (intervention_loss, intervention_task_loss, int_mask_accuracy)
+        return intervention_loss, intervention_task_loss, int_mask_accuracy
 
     def _compute_concept_loss(self, c, c_pred):
         if self.concept_loss_weight != 0:
