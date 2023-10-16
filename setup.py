@@ -39,7 +39,7 @@ setuptools.setup(
         "scikit-learn-extra>=0.2.0",
         "scikit-learn>=1.0.1",
         "seaborn>=0.11.2",
-        "sklearn>=0.0",
+        "scikit-learn>=0.0",
         "torch>=1.11.0",
         "torchmetrics>=0.6.2",
         "torchvision>=0.12.0",

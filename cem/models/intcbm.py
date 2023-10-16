@@ -426,23 +426,22 @@ class IntAwareConceptBottleneckModel(ConceptBottleneckModel):
     ):
         if (competencies is not None) and (self.comp_aware):
             weights = [
-                (competencies, c),
-                (1 - competencies, 1 - c),
+                (competencies.to(c.device), c),
+                (1 - competencies.to(c.device), 1 - c),
             ]
         else:
-            weights = [(1, c, c)]
+            weights = [(1, c)]
         expected_rollout_y_logits = 0
+        if not self.propagate_target_gradients:
+            # If we do not want to make the intervention operation
+            # differientable, then we cut the gradient here by detaching
+            # the masks, embeddings, and predictions from the autodiff
+            # compute graph
+            intervention_idxs = intervention_idxs.detach()
+            pos_embeddings = pos_embeddings.detach()
+            neg_embeddings = neg_embeddings.detach()
+            c_pred = c_pred.detach()
         for weight, used_ground_truth_concepts in weights:
-            if not self.propagate_target_gradients:
-                # If we do not want to make the intervention operation
-                # differientable, then we cut the gradient here by detaching
-                # the masks, embeddings, and predictions from the autodiff
-                # compute graph
-                intervention_idxs = intervention_idxs.detach()
-                pos_embeddings = pos_embeddings.detach()
-                neg_embeddings = neg_embeddings.detach()
-                c_pred = c_pred.detach()
-
             # Here is the one tricky bit: we will make sure that the
             # concepts that we have previously intervened on use the concept
             # according to the provided label by the interveion (these are the
@@ -528,22 +527,32 @@ class IntAwareConceptBottleneckModel(ConceptBottleneckModel):
             # Make this intervention and lets see how the y logits change
             # on expectation (expectation taken over the competency of the
             # user on the current intervention)
-            if self.use_concept_groups:
-                # [DESIGN DECISION] We will average all the target competencies
-                #                   of the group to get a single group level
-                #                   competency score for the group
-                target_competencies = torch.mean(
-                    competencies[:, group_concepts],
-                    dim=-1,
-                )
+            if competencies is not None:
+                if self.use_concept_groups:
+                    # [DESIGN DECISION] We will average all the target competencies
+                    #                   of the group to get a single group level
+                    #                   competency score for the group
+                    target_competencies = torch.unsqueeze(
+                        torch.mean(
+                            competencies[:, target_concept],
+                            dim=-1,
+                        ),
+                        dim=-1,
+                    )
+                else:
+                    target_competencies = torch.unsqueeze(
+                        competencies[:, target_concept],
+                        dim=-1,
+                    )
             else:
-                target_competencies = competencies[:, target_concept]
+                target_competencies = None
+            updated_int = torch.clamp(
+                prev_intervention_idxs + new_int,
+                0,
+                1,
+            )
             rollout_y_logits = self._expected_rollout_y_logits(
-                intervention_idxs=torch.clamp(
-                    prev_intervention_idxs + new_int,
-                    0,
-                    1,
-                ),
+                intervention_idxs=updated_int,
                 new_int=new_int,
                 c_pred=c_pred,
                 c_for_interventions=c_for_interventions,
@@ -799,7 +808,6 @@ class IntAwareConceptBottleneckModel(ConceptBottleneckModel):
             task_trajectory_weight = 1
             trajectory_weight = 1
 
-
         if self.include_task_trajectory_loss and (
             self.task_loss_weight == 0
         ):
@@ -1036,7 +1044,6 @@ class IntAwareConceptBottleneckModel(ConceptBottleneckModel):
             task_loss_scalar = self.task_loss_weight * task_loss
         else:
             task_loss_scalar = self.task_loss_weight * task_loss.detach()
-
 
 
         # Then the rollout and imitation learning losses
