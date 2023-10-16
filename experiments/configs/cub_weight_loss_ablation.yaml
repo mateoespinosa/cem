@@ -12,7 +12,7 @@ test_subsampling: 1
 
 # Intervention Parameters
 intervention_freq: 1
-intervention_batch_size: 1024
+intervention_batch_size: 128
 intervention_policies:
     - "group_random_no_prior"
 
