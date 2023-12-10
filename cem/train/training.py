@@ -100,6 +100,7 @@ def train_model(
         )
     print(f"[Training {full_run_name}]")
     print("config:")
+    print(time.localtime)
     for key, val in config.items():
         print(f"\t{key} -> {val}")
 
@@ -503,6 +504,7 @@ def train_independent_and_sequential_model(
         )
     print(f"[Training {ind_full_run_name} and {seq_full_run_name}]")
     print("config:")
+    print(time.localtime)
     for key, val in config.items():
         print(f"\t{key} -> {val}")
 
