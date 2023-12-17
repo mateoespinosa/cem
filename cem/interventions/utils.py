@@ -219,11 +219,15 @@ def intervene_in_cbm(
         seed_everything(seed)
     if batch_size is not None:
         # Then overwrite the config's batch size
-        test_dl = torch.utils.data.DataLoader(
-            dataset=test_dl.dataset,
-            batch_size=batch_size,
-            num_workers=test_dl.num_workers,
-        )
+        try:
+            test_dl = torch.utils.data.DataLoader(
+                dataset=test_dl.dataset,
+                batch_size=batch_size,
+                num_workers=test_dl.num_workers,
+            )
+        except:
+            import pdb
+            pdb.set_trace()
     intervention_accs = []
     # If no concept groups are given, then we assume that all concepts
     # represent a unitary group themselves
@@ -1051,6 +1055,7 @@ def get_int_policy(
             policy_params["group_based"] = not (
                 "individual" in policy_name
             )
+            policy_params["n_tasks"] = n_tasks
         else:
             raise ValueError(f'Unsupported policy name "{og_policy_name}"')
 
@@ -1249,7 +1254,6 @@ def test_interventions(
                     f'construction_time_{policy}_ints_co_{competence_level}_'
                     f'{full_run_name}'
                 )
-
             (int_results, avg_time, constr_time), loaded = load_call(
                 function=intervene_in_cbm,
                 keys=(key, int_time_key, construction_times_key),

@@ -787,7 +787,12 @@ if __name__ == '__main__':
     if args.output_dir is not None:
         loaded_config['results_dir'] = args.output_dir
     if args.debug:
-        print(json.dumps(loaded_config, sort_keys=True, indent=4))
+        def serialize_function(obj):
+            """Custom serialization for function objects."""
+            if callable(obj):
+                return f"Function: {obj.__name__}"
+            raise TypeError(f"Object of type {obj.__class__.__name__} is not JSON serializable")
+        print(json.dumps(loaded_config, sort_keys=True, indent=4, default=serialize_function))
     logging.info(f"Results will be dumped in {loaded_config['results_dir']}")
     logging.debug(
         f"And the dataset's root directory is {loaded_config.get('root_dir')}"

@@ -359,7 +359,11 @@ def train_model(
         else:
             # Else it is time to train it
             start_time = time.time()
-            fit_trainer.fit(model, train_dl, val_dl)
+            try:
+                fit_trainer.fit(model, train_dl, val_dl)
+            except:
+                import pdb
+                pdb.set_trace()
             training_time = time.time() - start_time
             num_epochs = fit_trainer.current_epoch
             if save_model and (result_dir is not None):
@@ -390,7 +394,11 @@ def train_model(
         if test_dl is not None:
             model.freeze()
             def _inner_call():
-                [test_results] = trainer.test(model, test_dl)
+                try:
+                    [test_results] = trainer.test(model, test_dl)
+                except:
+                    import pdb
+                    pdb.set_trace()
                 output = [
                     test_results["test_c_accuracy"],
                     test_results["test_y_accuracy"],

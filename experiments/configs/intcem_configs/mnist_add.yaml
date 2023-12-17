@@ -37,7 +37,6 @@ intervention_policies:
     - "behavioural_cloning_no_prior"
     - "group_uncertainty_no_prior"
     - "optimal_greedy_no_prior"
-    - "optimal_global_no_prior"
     - "global_val_error_no_prior"
     - "global_val_improvement_no_prior"
 

@@ -2,6 +2,7 @@ import numpy as np
 import itertools
 import torch
 from .coop import CooP
+import logging
 from cem.interventions.intervention_policy import InterventionPolicy
 
 class GreedyOptimal(CooP):
@@ -41,6 +42,7 @@ class TrueOptimal(InterventionPolicy):
         self,
         concept_group_map,
         cbm,
+        n_tasks,
         num_groups_intervened=0,
         acquisition_costs=None,
         acquisition_weight=1,
@@ -56,6 +58,7 @@ class TrueOptimal(InterventionPolicy):
         self.group_based = group_based
         self._optimal = False
         self.cbm = cbm
+        self.n_tasks = n_tasks
         self.eps = eps
         self.acquisition_weight = acquisition_weight
         self.importance_weight = importance_weight
@@ -78,9 +81,21 @@ class TrueOptimal(InterventionPolicy):
             c=c,
             latent=latent,
         )
+        y_pred_logits = y_pred_logits.detach().cpu()
+
+        if self.n_tasks == 1:
+            y_probs = torch.sigmoid(y_pred_logits)
+            ones_tensor = torch.ones_like(y_probs)
+            ones_tensor -= y_probs
+            y_pred_logits = torch.cat((ones_tensor, y_probs), dim = 1)
+            
+        logging.debug(
+            f"\tlogits have shape {y_pred_logits.shape}"
+            f"\ty has shape {y.shape}"
+        )
         return np.array([
-            y_pred_logits[i, label].detach().cpu().numpy()
-            for i, label in enumerate(y)
+            y_pred_logits[i, label].numpy()
+            for i, label in enumerate(y.clone().detach().cpu())
         ])
 
 
