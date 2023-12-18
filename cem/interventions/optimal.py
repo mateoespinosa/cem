@@ -83,7 +83,7 @@ class TrueOptimal(InterventionPolicy):
         )
         y_pred_logits = y_pred_logits.detach().cpu()
 
-        if self.n_tasks == 1:
+        if self.n_tasks <= 1:
             y_probs = torch.sigmoid(y_pred_logits)
             ones_tensor = torch.ones_like(y_probs)
             ones_tensor -= y_probs
@@ -94,7 +94,7 @@ class TrueOptimal(InterventionPolicy):
             f"\ty has shape {y.shape}"
         )
         return np.array([
-            y_pred_logits[i, label].numpy()
+            y_pred_logits[i, label.int()].numpy()
             for i, label in enumerate(y.clone().detach().cpu())
         ])
 
@@ -121,7 +121,7 @@ class TrueOptimal(InterventionPolicy):
         if self.acquisition_costs is not None:
             scores += self.acquisition_costs * self.acquisition_weight
         return scores
-
+    
     def __call__(
         self,
         x,
