@@ -89,10 +89,6 @@ class TrueOptimal(InterventionPolicy):
             ones_tensor -= y_probs
             y_pred_logits = torch.cat((ones_tensor, y_probs), dim = 1)
             
-        logging.debug(
-            f"\tlogits have shape {y_pred_logits.shape}"
-            f"\ty has shape {y.shape}"
-        )
         return np.array([
             y_pred_logits[i, label.int()].numpy()
             for i, label in enumerate(y.clone().detach().cpu())
