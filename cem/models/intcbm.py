@@ -467,37 +467,6 @@ class IntAwareConceptBottleneckModel(ConceptBottleneckModel):
                     discount = (
                         self.intervention_discount ** prev_num_of_interventions
                     )
-                else:
-                    discount = 1
-                trajectory_weight = 0
-                if self.average_trajectory:
-                    for i in range(current_horizon):
-                        trajectory_weight += discount
-                        discount *= self.intervention_discount
-                else:
-                    trajectory_weight = 1
-                if self.initialize_discount:
-                    discount = (
-                        self.intervention_discount ** prev_num_of_interventions
-                    )
-                else:
-                    discount = 1
-                if self.initialize_discount:
-                    task_discount = self.intervention_task_discount ** (
-                        prev_num_of_interventions + initially_selected
-                    )
-                else:
-                    task_discount = 1
-                task_trajectory_weight = 1
-                if self.average_trajectory:
-                    for i in range(current_horizon):
-                        task_discount *= self.intervention_task_discount
-                        if (
-                            (not self.include_only_last_trajectory_loss) or
-                            (i == current_horizon - 1)
-                        ):
-                            task_trajectory_weight += task_discount
-                if self.initialize_discount:
                     task_discount = self.intervention_task_discount ** (
                         prev_num_of_interventions + initially_selected
                     )
@@ -506,8 +475,29 @@ class IntAwareConceptBottleneckModel(ConceptBottleneckModel):
                         prev_num_of_interventions
                     )
                 else:
+                    discount = 1
                     task_discount = 1
                     first_task_discount = 1
+
+                trajectory_weight = 0
+                task_trajectory_weight = 1
+                if self.average_trajectory:
+                    curr_discount = discount
+                    curr_task_discount = task_discount
+                    for i in range(current_horizon):
+                        trajectory_weight += discount
+                        discount *= self.intervention_discount
+
+                        task_discount *= self.intervention_task_discount
+                        if (
+                            (not self.include_only_last_trajectory_loss) or
+                            (i == current_horizon - 1)
+                        ):
+                            task_trajectory_weight += task_discount
+                    discount = curr_discount
+                    task_discount = curr_task_discount
+                else:
+                    trajectory_weight = 1
 
                 if self.n_tasks > 1:
                     one_hot_y = torch.nn.functional.one_hot(y, self.n_tasks)
