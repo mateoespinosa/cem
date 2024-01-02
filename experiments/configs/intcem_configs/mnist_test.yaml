@@ -41,7 +41,7 @@ intervention_policies:
     - "global_val_improvement_no_prior"
 
 # DATASET VARIABLES
-root_dir: /home/thomas/local
+root_dir: /home/xty20/data
 test_subsampling: 1
 weight_loss: True
 use_task_class_weights: True
