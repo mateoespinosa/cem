@@ -30,8 +30,15 @@ skip_repr_evaluation: True
 intervention_freq: 1
 intervention_batch_size: 2048
 intervention_policies:
-    # - "intcem_policy"
+    - "group_random"
+    - "group_random_no_prior"
+    - "group_coop_no_prior"
+    - "behavioural_cloning_no_prior"
+    - "group_uncertainty_no_prior"
+    - "optimal_greedy_no_prior"
     - "optimal_global_no_prior"
+    - "global_val_error_no_prior"
+    - "global_val_improvement_no_prior"
 
 # DATASET VARIABLES
 root_dir: /home/thomas/local
@@ -60,13 +67,11 @@ shared_params:
     training_intervention_prob: 0.25
 runs:
 
-    - architecture: 'ConceptBottleneckModel'
-      extra_name: "Logit_long"
+    - architecture: 'ConceptEmbeddingModel'
+      extra_name: ""
+      shared_prob_gen: True
+      sigmoidal_prob: True
       sigmoidal_embedding: False
+      training_intervention_prob: 0.25
       concat_prob: False
       embedding_activation: "leakyrelu"
-      bool: False
-      extra_dims: 0
-      sigmoidal_extra_capacity: False
-      sigmoidal_prob: False
-      max_epochs: 500
