@@ -55,6 +55,7 @@ def train_model(
     enable_checkpointing=False,
     accelerator="auto",
     devices="auto",
+    enable_progress_bar=False
 ):
     if config['architecture'] in [
         "SequentialConceptBottleneckModel",
@@ -175,6 +176,7 @@ def train_model(
                         else False
                     )
                 ),
+                enable_progress_bar = enable_progress_bar
             )
             if activation_freq:
                 fit_trainer = utils.ActivationMonitorWrapper(
