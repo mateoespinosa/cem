@@ -84,7 +84,7 @@ class TrueOptimal(InterventionPolicy):
         )
         y_pred_logits = y_pred_logits.detach().cpu()
 
-        if (self.count == 0):
+        if (self.count != 0):
             logging.debug(
                 f"num_groups_intervened: {self.num_groups_intervened}\n\n\n"
                 f"concept_group_map: {self.concept_group_map}\n\n\n"
@@ -111,14 +111,14 @@ class TrueOptimal(InterventionPolicy):
             for i, label in enumerate(y.clone().detach().cpu())
         ])
         
-        if (self.count == 0):
+        if (self.count != 1):
             logging.debug(
                 f"updated y_pred_logits: {y_pred_logits}\n\n\n"
                 f"updated y_pred_logits.shape: {y_pred_logits.shape}\n\n\n"
                 f"ret: {ret}\n\n\n"
                 f"ret.shape: {ret.shape}\n\n\n"
             )
-            self.count += 1
+            self.count = 1
 
         return ret
 
