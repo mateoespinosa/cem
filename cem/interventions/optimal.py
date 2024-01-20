@@ -63,6 +63,7 @@ class TrueOptimal(InterventionPolicy):
         self.acquisition_weight = acquisition_weight
         self.importance_weight = importance_weight
         self.include_prior = include_prior
+        self.count = 0
 
     def _importance_scores(
         self,
@@ -83,16 +84,44 @@ class TrueOptimal(InterventionPolicy):
         )
         y_pred_logits = y_pred_logits.detach().cpu()
 
+        if (self.count == 0):
+            logging.debug(
+                f"num_groups_intervened: {self.num_groups_intervened}\n\n\n"
+                f"concept_group_map: {self.concept_group_map}\n\n\n"
+                f"acquisition_costs: {self.acquisition_costs}\n\n\n"
+                f"n_tasks: {self.n_tasks}\n\n\n"
+                f"eps: {self.eps}\n\n\n"
+                f"acquisition_weight: {self.acquisition_weight}\n\n\n"
+                f"importance_weight: {self.importance_weight}\n\n\n"
+                f"x: {x}\n\n\n"
+                f"x.shape: {x.shape}\n\n\n"
+                f"intervention_idxs: {concepts_to_intervene}\n\n\n"
+                f"y_pred_logits: {y_pred_logits}\n\n\n`"
+                f"y_pred_logits.shape: {y_pred_logits.shape}\n\n\n"
+            )
+
         if self.n_tasks <= 1:
             y_probs = torch.sigmoid(y_pred_logits)
             ones_tensor = torch.ones_like(y_probs)
             ones_tensor -= y_probs
             y_pred_logits = torch.cat((ones_tensor, y_probs), dim = 1)
-            
-        return np.array([
+
+        ret = np.array([
             y_pred_logits[i, label.int()].numpy()
             for i, label in enumerate(y.clone().detach().cpu())
         ])
+
+        
+        if (self.count == 0):
+            logging.debug(
+                f"updated y_pred_logits: {y_pred_logits}\n\n\n"
+                f"updated y_pred_logits.shape: {y_pred_logits.shape}\n\n\n"
+                f"ret: {ret}\n\n\n"
+                f"ret.shape: {ret.shape}\n\n\n"
+            )
+            self.count += 1
+
+        return ret
 
 
     def _opt_score(
