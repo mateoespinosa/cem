@@ -110,7 +110,6 @@ class TrueOptimal(InterventionPolicy):
             y_pred_logits[i, label.int()].numpy()
             for i, label in enumerate(y.clone().detach().cpu())
         ])
-
         
         if (self.count == 0):
             logging.debug(
