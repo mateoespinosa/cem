@@ -554,7 +554,6 @@ def generate_data(
             return sample[:, selected_concepts]
         num_concepts = new_n_concepts
         concept_group_map = new_concept_group
-        logging.debug("\t\tSelected concepts:", selected_concepts)
         logging.debug(
             f"\t\tUpdated concept group map "
             f"(with {len(concept_group_map)} groups):"

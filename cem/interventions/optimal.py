@@ -56,7 +56,7 @@ class TrueOptimal(InterventionPolicy):
         self.concept_group_map = concept_group_map
         self.acquisition_costs = acquisition_costs
         self.group_based = group_based
-        self._optimal = False
+        self._optimal = True
         self.cbm = cbm
         self.n_tasks = n_tasks
         self.eps = eps
@@ -84,7 +84,7 @@ class TrueOptimal(InterventionPolicy):
         )
         y_pred_logits = y_pred_logits.detach().cpu()
 
-        if (self.count != 0):
+        if (self.count == 0):
             logging.debug(
                 f"num_groups_intervened: {self.num_groups_intervened}\n\n\n"
                 f"concept_group_map: {self.concept_group_map}\n\n\n"
@@ -111,7 +111,7 @@ class TrueOptimal(InterventionPolicy):
             for i, label in enumerate(y.clone().detach().cpu())
         ])
         
-        if (self.count != 1):
+        if (self.count == 0):
             logging.debug(
                 f"updated y_pred_logits: {y_pred_logits}\n\n\n"
                 f"updated y_pred_logits.shape: {y_pred_logits.shape}\n\n\n"
@@ -186,23 +186,6 @@ class TrueOptimal(InterventionPolicy):
                 )
             intervention_idxs = sorted(real_intervention_idxs)
             intervened_concepts.append(intervention_idxs)
-            logging.debug(
-                f"intervention_idxs: {intervention_idxs}\n\n\n"
-                f"intervened_concepts: {intervened_concepts}\n\n\n"
-            )
-            break
-
-        for intervention_idxs in itertools.combinations(
-            set(range(len(concept_group_names))),
-            self.num_groups_intervened,
-        ):
-            real_intervention_idxs = []
-            for group_idx in intervention_idxs:
-                real_intervention_idxs.extend(
-                    self.concept_group_map[concept_group_names[group_idx]]
-                )
-            intervention_idxs = sorted(real_intervention_idxs)
-            intervened_concepts.append(intervention_idxs)
             current_scores = self._opt_score(
                 x=x,
                 c=c,
@@ -214,6 +197,28 @@ class TrueOptimal(InterventionPolicy):
         scores = np.concatenate(scores, axis=-1)
         best_scores = np.argmax(scores, axis=-1)
         mask = np.zeros(c.shape, dtype=np.int32)
+        logging.debug(
+            f"Printing info for optimal intervention policy:\n"
+            f"intervened_concepts: {intervened_concepts}\n\n\n"
+            f"scores: {scores}\n"
+            f"scores.shape: {scores.shape}\n\n\n"
+            f"best_scores: {best_scores}\n"
+            f"best_scores.shape: {best_scores.shape}\n\n\n"
+        )
+
+        for sample_idx in range(max(3,x.shape[0])):
+            best_score_idx = best_scores[sample_idx]
+            # Set the concepts of the best-scored model to be intervened
+            # for this sample
+            curr_mask = np.zeros((c.shape[-1],), dtype=np.int32)
+            for idx in intervened_concepts[best_score_idx]:
+                mask[sample_idx, idx] = 1
+            logging.debug(
+                f"Printing info for selected best index:\n"
+                f"selected concepts with best scores: {best_score_idx}\n\n\n"
+                f"Scores: {scores[sample_idx]}\n\n\n"
+            )
+            
         for sample_idx in range(x.shape[0]):
             best_score_idx = best_scores[sample_idx]
             # Set the concepts of the best-scored model to be intervened
