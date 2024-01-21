@@ -350,6 +350,9 @@ def intervene_in_cbm(
     )
     prev_num_groups_intervened = 0
     avg_times = []
+    logging.debug(
+        f"Intervention groups: {groups}"
+    )
     for j, num_groups_intervened in enumerate(groups):
         if num_groups_intervened is None:
             # Then this is the case where it is ignored
@@ -1208,6 +1211,10 @@ def test_interventions(
                     for x in intervened_groups
 
                 ]
+                logging.debug(
+                    f"effective number of concepts is {eff_n_concepts} and "
+                    f"intervened groups are {used_intervened_groups}"
+                )
             else:
                 used_intervened_groups = intervened_groups
             policy_params_fn, concept_selection_policy = get_int_policy(
