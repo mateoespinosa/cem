@@ -206,18 +206,21 @@ class TrueOptimal(InterventionPolicy):
             f"best_scores.shape: {best_scores.shape}\n\n\n"
         )
 
-        for sample_idx in range(max(3,x.shape[0])):
-            best_score_idx = best_scores[sample_idx]
-            # Set the concepts of the best-scored model to be intervened
-            # for this sample
-            curr_mask = np.zeros((c.shape[-1],), dtype=np.int32)
-            for idx in intervened_concepts[best_score_idx]:
-                mask[sample_idx, idx] = 1
-            logging.debug(
-                f"Printing info for selected best index:\n"
-                f"selected concepts with best scores: {best_score_idx}\n\n\n"
-                f"Scores: {scores[sample_idx]}\n\n\n"
-            )
+        if (self.count == 1)
+
+            for sample_idx in range(max(3,x.shape[0])):
+                best_score_idx = best_scores[sample_idx]
+                # Set the concepts of the best-scored model to be intervened
+                # for this sample
+                curr_mask = np.zeros((c.shape[-1],), dtype=np.int32)
+                for idx in intervened_concepts[best_score_idx]:
+                    mask[sample_idx, idx] = 1
+                logging.debug(
+                    f"Printing info for selected best index:\n"
+                    f"selected concepts with best scores: {best_score_idx}\n\n\n"
+                    f"Scores: {scores[sample_idx]}\n\n\n"
+                )
+            self.count += 1
             
         for sample_idx in range(x.shape[0]):
             best_score_idx = best_scores[sample_idx]
