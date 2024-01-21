@@ -168,6 +168,30 @@ class TrueOptimal(InterventionPolicy):
         scores = []
         intervened_concepts = []
         concept_group_names = list(self.concept_group_map.keys())
+
+        logging.debug(
+            f"Printing info for optimal intervention policy:\n"
+            f"concept_group_names: {concept_group_names}\n\n\n"
+            f"num_groups_intervened: {self.num_groups_intervened}\n\n\n"
+        )
+
+        for intervention_idxs in itertools.combinations(
+            set(range(len(concept_group_names))),
+            self.num_groups_intervened,
+        ):
+            real_intervention_idxs = []
+            for group_idx in intervention_idxs:
+                real_intervention_idxs.extend(
+                    self.concept_group_map[concept_group_names[group_idx]]
+                )
+            intervention_idxs = sorted(real_intervention_idxs)
+            intervened_concepts.append(intervention_idxs)
+            logging.debug(
+                f"intervention_idxs: {intervention_idxs}\n\n\n"
+                f"intervened_concepts: {intervened_concepts}\n\n\n"
+            )
+            break
+
         for intervention_idxs in itertools.combinations(
             set(range(len(concept_group_names))),
             self.num_groups_intervened,
