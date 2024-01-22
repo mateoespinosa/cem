@@ -206,8 +206,7 @@ class TrueOptimal(InterventionPolicy):
             f"best_scores.shape: {best_scores.shape}\n\n\n"
         )
 
-        if (self.count == 1)
-
+        if (self.count == 1):
             for sample_idx in range(max(3,x.shape[0])):
                 best_score_idx = best_scores[sample_idx]
                 # Set the concepts of the best-scored model to be intervened
