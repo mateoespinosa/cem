@@ -379,12 +379,16 @@ class CooP(InterventionPolicy):
                     )
                 group_scores[:, group_idx] = current_score
             next_groups = torch.argmax(group_scores, axis=-1)
+            intervened_concepts = []
             for sample_idx, best_group_idx in enumerate(next_groups):
                 # Get the concepts corresponding to the group we will be
                 # intervening on
                 next_concepts = \
                     self.concept_group_map[group_names[best_group_idx]]
                 prev_interventions[sample_idx, next_concepts] = 1
+                intervened_concepts.append(next_concepts)
+            next_concepts = intervened_concepts
+            
         else:
             sample_scores = (
                 self.concept_entropy_weight * sample_uncertainties +
@@ -399,7 +403,7 @@ class CooP(InterventionPolicy):
             next_concepts = torch.argmax(sample_scores, axis=-1)
             prev_interventions[:, next_concepts.detach().cpu().numpy()] = 1
 
-        return prev_interventions, latent, y_preds
+        return prev_interventions, latent, y_preds, next_concepts
 
 
     def __call__(
@@ -438,7 +442,7 @@ class CooP(InterventionPolicy):
                 f"Intervening with {i + 1}/{self.num_groups_intervened} "
                 f"concepts in CooP"
             )
-            mask, latent, y_preds = self._coop_step(
+            mask, latent, y_preds, next_concepts = self._coop_step(
                 x=x,
                 c=c,
                 pred_c=pred_c,
@@ -448,6 +452,9 @@ class CooP(InterventionPolicy):
                 y_preds=y_preds,
                 competencies=competencies,
                 prior_distribution=prior_distribution,
+            )
+            logging.debug(
+                f"Intervened on concepts {next_concepts}"
             )
         return mask, c
 
