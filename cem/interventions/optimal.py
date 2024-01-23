@@ -406,6 +406,10 @@ class TrueOptimalFix(InterventionPolicy):
                 )
             for score_idx in range(len(current_scores)):
                 scores[score_idx][idx] = current_scores[score_idx]
+                if self.debug_count == 0:
+                    logging.debug(
+                        f"Setting score at indices {score_idx},{idx} to {current_scores[score_idx]}\n"
+                    )
 
         best_score_idxs = np.argmax(scores, axis=-1)
         mask = np.zeros(c.shape, dtype=np.int32)
@@ -440,13 +444,21 @@ class TrueOptimalFix(InterventionPolicy):
                 f"intervened_concepts: {intervened_concepts}\n"
                 f"concept_group_names: {concept_group_names}\n"
             )
-            self.debug_count += 1
             
         for sample_idx in range(x.shape[0]):
             best_score_idx = best_score_idxs[sample_idx]
             # Set the concepts of the best-scored model to be intervened
             # for this sample
-            curr_mask = np.zeros((c.shape[-1],), dtype=np.int32)
-            for idx in intervention_combinations[best_score_idx]:
-                mask[sample_idx, idx] = 1
+            # curr_mask = np.zeros((c.shape[-1],), dtype=np.int32)
+            intervention_combination = intervention_combinations[sample_idx]
+            for intervention_group in intervention_combination:
+                for intervention_idx in self.concept_group_map[intervention_group]:
+            # for idx in intervention_combination[best_score_idx]:
+                    mask[sample_idx][intervention_idx] = 1
+
+        if self.debug_count == 0:
+            logging.debug(
+                f"mask: {mask}\n"
+            )
+            self.debug_count += 1
         return mask, c
