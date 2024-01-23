@@ -400,11 +400,12 @@ class TrueOptimalFix(InterventionPolicy):
             
             if self.debug_count == 0:
                 logging.debug(
-                    f"Score for combination {intervention_idxs}"
+                    f"Overall score shape: {scores.shape}\n"
+                    f"Score for combination {intervention_idxs}\n"
                     f"current_scores: {current_scores}"
                 )
             for score_idx in range(len(current_scores)):
-                scores[score_idx, idx] = current_scores[score_idx]
+                scores[score_idx][idx] = current_scores[score_idx]
 
         best_score_idxs = np.argmax(scores, axis=-1)
         mask = np.zeros(c.shape, dtype=np.int32)
@@ -435,10 +436,9 @@ class TrueOptimalFix(InterventionPolicy):
         if self.debug_count == 0:
             logging.debug(
                 f"scores: {scores}"
-                f"best_scores: {best_score_idxs}"
-                f"scores: {best_score_idxs}"
-                f"intervened_concepts: {intervened_concepts}"
-                f"concept_group_names: {concept_group_names}"
+                f"best_scores: {best_score_idxs}\n"
+                f"intervened_concepts: {intervened_concepts}\n"
+                f"concept_group_names: {concept_group_names}\n"
             )
             self.debug_count += 1
             
