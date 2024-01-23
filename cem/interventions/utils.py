@@ -19,7 +19,7 @@ from cem.interventions.random import IndependentRandomMaskIntPolicy
 from cem.interventions.random import IndependentRandomMaskIntPolicy
 from cem.interventions.uncertainty import UncertaintyMaximizerPolicy
 from cem.interventions.coop import CooPEntropy, CooP,CompetenceCooPEntropy
-from cem.interventions.optimal import GreedyOptimal, TrueOptimal
+from cem.interventions.optimal import GreedyOptimal, TrueOptimal, TrueOptimalFix
 from cem.interventions.behavioural_learning import BehavioralLearningPolicy
 from cem.interventions.intcem_policy import IntCemInterventionPolicy
 from cem.interventions.global_policies import (
@@ -33,7 +33,7 @@ from cem.interventions.global_policies import (
 ################################################################################
 
 
-MAX_COMB_BOUND = 5000
+MAX_COMB_BOUND = 500000
 POLICY_NAMES = [
     "intcem_policy",
     "group_random",
@@ -389,6 +389,299 @@ def intervene_in_cbm(
             f = io.StringIO()
             with redirect_stdout(f):
                 start_time = time.time()
+                logging.debug(
+                    f"Intervening on {len(test_dl.dataset)} samples"
+                )
+                test_batch_results = trainer.predict(
+                    model,
+                    test_dl,
+                )
+        coeff = (num_groups_intervened - prev_num_groups_intervened)
+        avg_times.append(
+            (time.time() - start_time)/(
+                x_test.shape[0] * (coeff if coeff != 0 else 1)
+            )
+        )
+        y_pred = np.concatenate(
+            list(map(lambda x: x[2].detach().cpu().numpy(), test_batch_results)),
+            axis=0,
+        )
+        if y_pred.shape[-1] > 1:
+            y_pred = np.argmax(y_pred, axis=-1)
+        else:
+            y_pred = np.squeeze((expit(y_pred) >= 0.5).astype(np.int32), axis=-1)
+        prev_interventions = np.concatenate(
+            list(map(lambda x: x[3].detach().cpu().numpy(), test_batch_results)),
+            axis=0,
+        )
+        if n_tasks > 1:
+            acc = np.mean(y_pred == y_test.detach().cpu().numpy())
+            logging.debug(
+                f"\tTest accuracy when intervening "
+                f"with {num_groups_intervened} "
+                f"concept groups is {acc * 100:.2f}%."
+            )
+        else:
+            if int(os.environ.get("VERBOSE_INTERVENTIONS", "0")):
+                [test_results] = trainer.test(model, test_dl)
+            else:
+                f = io.StringIO()
+                with redirect_stdout(f):
+                    [test_results] = trainer.test(model, test_dl)
+            acc = test_results['test_y_auc']
+            logging.debug(
+                f"\tTest AUC when intervening with {num_groups_intervened} "
+                f"concept groups is {acc * 100:.2f}% (accuracy "
+                f"is {np.mean(y_pred == y_test.detach().cpu().numpy()) * 100:.2f}%)."
+            )
+        intervention_accs.append(acc)
+
+        # And generate the next dataset so that we can reuse previous
+        # interventions on the same samples in the future to save time
+        prev_num_groups_intervened = num_groups_intervened
+        test_dl = torch.utils.data.DataLoader(
+            dataset=torch.utils.data.TensorDataset(
+                x_test,
+                y_test,
+                c_test,
+                competencies_test,
+                torch.IntTensor(prev_interventions),
+            ),
+            batch_size=test_dl.batch_size,
+            num_workers=test_dl.num_workers,
+        )
+    avg_time = np.mean(avg_times)
+    print(
+        f"\tAverage intervention took {avg_time:.5f} seconds and "
+        f"construction took {construct_time:.5f} seconds."
+    )
+    if key_name:
+        result_file = os.path.join(
+            result_dir,
+            key_name + f"_fold_{split}.npy",
+        )
+        np.save(result_file, intervention_accs)
+
+        result_file = os.path.join(
+            result_dir,
+            key_name + f"avg_int_time_fold_{split}.npy",
+        )
+        np.save(result_file, np.array([avg_time]))
+
+        result_file = os.path.join(
+            result_dir,
+            key_name + f"construct_time_fold_{split}.npy",
+        )
+        np.save(result_file, np.array([construct_time]))
+    return intervention_accs, avg_time, construct_time
+
+def intervene_in_cbm_debug(
+    config,
+    test_dl,
+    n_tasks,
+    n_concepts,
+    result_dir,
+    imbalance=None,
+    task_class_weights=None,
+    competence_generator=_default_competence_generator,
+    train_dl=None,
+    sequential=False,
+    independent=False,
+    concept_group_map=None,
+    intervened_groups=None,
+    accelerator="auto",
+    devices="auto",
+    split=0,
+    concept_selection_policy=IndependentRandomMaskIntPolicy,
+    rerun=False,
+    batch_size=None,
+    policy_params=None,
+    key_name="",
+    test_subsampling=1,
+    x_test=None,
+    y_test=None,
+    c_test=None,
+    seed=None,
+):
+    if seed is not None:
+        seed_everything(seed)
+    if batch_size is not None:
+        # Then overwrite the config's batch size
+        try:
+            test_dl = torch.utils.data.DataLoader(
+                dataset=test_dl.dataset,
+                batch_size=batch_size,
+                num_workers=test_dl.num_workers,
+            )
+        except:
+            import pdb
+            pdb.set_trace()
+    intervention_accs = []
+    # If no concept groups are given, then we assume that all concepts
+    # represent a unitary group themselves
+    concept_group_map = concept_group_map or dict(
+        [(i, [i]) for i in range(n_concepts)]
+    )
+    groups = intervened_groups or list(range(0, len(concept_group_map) + 1, 1))
+
+    if (not rerun) and key_name:
+        result_file = os.path.join(
+            result_dir,
+            key_name + f"_fold_{split}.npy",
+        )
+        if os.path.exists(result_file):
+            result = np.load(result_file)
+            total_time_file = os.path.join(
+                result_dir,
+                key_name + f"avg_int_time_fold_{split}.npy",
+            )
+            if os.path.exists(total_time_file):
+                avg_time = np.load(total_time_file)
+                avg_time = avg_time[0]
+            else:
+                avg_time = 0
+
+            construct_time_file = os.path.join(
+                result_dir,
+                key_name + f"construct_time_fold_{split}.npy",
+            )
+            if os.path.exists(construct_time_file):
+                construct_time = np.load(construct_time_file)
+                construct_time = construct_time[0]
+            else:
+                construct_time = 0
+            return result, avg_time, construct_time
+
+    model = load_trained_model(
+        config=config,
+        n_tasks=n_tasks,
+        n_concepts=n_concepts,
+        result_dir=result_dir,
+        split=split,
+        imbalance=imbalance,
+        task_class_weights=task_class_weights,
+        intervene=True,
+        train_dl=train_dl,
+        sequential=sequential,
+        independent=independent,
+        output_latent=True,
+        output_interventions=True,
+    )
+    construct_time = time.time()
+    if isinstance(policy_params, Callable):
+        # Then we were given some lazy-execution parameters which
+        # we will now generate as it seems like we will have to
+        # run this after all
+        policy_params = policy_params()
+    model.intervention_policy = concept_selection_policy(
+        concept_group_map=concept_group_map,
+        cbm=model,
+        **(policy_params or {}),
+    )
+    construct_time = time.time() - construct_time
+
+    # Now include the competence that we will assume
+    # for all concepts
+    if (
+        (x_test is None) or
+        (y_test is None) or
+        (c_test is None)
+    ):
+        
+        x_test, y_test, c_test = [], [], []
+        data = next(iter(test_dl))
+        if len(data) == 2:
+            x, (y, c) = data
+        else:
+            (x, y, c) = data
+        x_type = x.type()
+        y_type = y.type()
+        c_type = c.type()
+        x_test.append(x)
+        y_test.append(y)
+        c_test.append(c)
+        x_test = torch.FloatTensor(
+            np.concatenate(x_test, axis=0)
+        ).type(x_type)
+        y_test = torch.FloatTensor(
+            np.concatenate(y_test, axis=0)
+        ).type(y_type)
+        c_test = torch.FloatTensor(
+            np.concatenate(c_test, axis=0)
+        ).type(c_type)
+    np.random.seed(42)
+    indices = np.random.permutation(x_test.shape[0])[
+        :int(np.ceil(x_test.shape[0]*test_subsampling))
+    ]
+    x_test = x_test[indices]
+    c_test = c_test[indices]
+    y_test = y_test[indices]
+    competencies_test = competence_generator(
+        x=x_test,
+        y=y_test,
+        c=c_test,
+        concept_group_map=concept_group_map,
+    )
+    c_test = concepts_from_competencies(c_test, competencies_test)
+    competencies_test = torch.FloatTensor(competencies_test)
+    
+    test_dl = torch.utils.data.DataLoader(
+        dataset=torch.utils.data.TensorDataset(
+            x_test,
+            y_test,
+            c_test,
+            competencies_test,
+        ),
+        batch_size=test_dl.batch_size,
+        num_workers=test_dl.num_workers,
+    )
+    logging.debug(
+        f"TEST DL DATASET SIZE: {len(test_dl.dataset)}"
+    )
+    prev_num_groups_intervened = 0
+    avg_times = []
+    logging.debug(
+        f"Intervention groups: {groups}"
+    )
+    for j, num_groups_intervened in enumerate(groups):
+        if num_groups_intervened is None:
+            # Then this is the case where it is ignored
+            intervention_accs.append(0)
+            continue
+        logging.debug(
+            f"Intervening with {num_groups_intervened} out of "
+            f"{len(concept_group_map)} concept groups"
+        )
+        logging.debug(
+            f"\tFor split {split} with "
+            f"{num_groups_intervened} groups intervened"
+        )
+
+        ####
+        # Set the model's intervention policy
+        ####
+        model.intervention_policy.num_groups_intervened = (
+            num_groups_intervened - prev_num_groups_intervened
+        )
+        trainer = pl.Trainer(
+            accelerator=accelerator,
+            devices=devices,
+            logger=False,
+        )
+        if int(os.environ.get("VERBOSE_INTERVENTIONS", "0")):
+            start_time = time.time()
+            test_batch_results = trainer.predict(
+                model,
+                test_dl,
+            )
+
+        else:
+            f = io.StringIO()
+            with redirect_stdout(f):
+                start_time = time.time()
+                logging.debug(
+                    f"Intervening on {len(test_dl.dataset)} samples"
+                )
                 test_batch_results = trainer.predict(
                     model,
                     test_dl,
@@ -825,6 +1118,8 @@ def get_int_policy(
 
     elif "optimal_greedy" in policy_name:
         concept_selection_policy = GreedyOptimal
+    elif "optimal_global_fix" in policy_name:
+        concept_selection_policy = TrueOptimalFix
     elif "optimal_global" in policy_name:
         concept_selection_policy = TrueOptimal
     else:
@@ -1209,11 +1504,11 @@ def test_interventions(
                 used_intervened_groups = [
                     x if int(scipy.special.comb(eff_n_concepts, x)) <= MAX_COMB_BOUND else None
                     for x in intervened_groups
-
                 ]
                 logging.debug(
                     f"effective number of concepts is {eff_n_concepts} and "
-                    f"intervened groups are {used_intervened_groups}"
+                    f"intervened groups are {intervened_groups}"
+                    f"used intervened groups are {used_intervened_groups}"
                 )
             else:
                 used_intervened_groups = intervened_groups
@@ -1263,6 +1558,223 @@ def test_interventions(
                 )
             (int_results, avg_time, constr_time), loaded = load_call(
                 function=intervene_in_cbm,
+                keys=(key, int_time_key, construction_times_key),
+                old_results=old_results,
+                full_run_name=full_run_name,
+                rerun=_rerun_policy(rerun, policy, config, split),
+                kwargs=dict(
+                    concept_selection_policy=concept_selection_policy,
+                    policy_params=policy_params_fn,
+                    concept_group_map=concept_map,
+                    intervened_groups=used_intervened_groups,
+                    accelerator=accelerator,
+                    devices=devices,
+                    config=config,
+                    test_dl=test_dl,
+                    train_dl=train_dl,
+                    n_tasks=n_tasks,
+                    n_concepts=n_concepts,
+                    result_dir=result_dir,
+                    imbalance=imbalance,
+                    split=split,
+                    rerun=_rerun_policy(rerun, policy, config, split),
+                    batch_size=intervention_batch_size,
+                    key_name=key,
+                    competence_generator=competence_generator,
+                    x_test=x_test,
+                    y_test=y_test,
+                    c_test=c_test,
+                    test_subsampling=config.get('test_subsampling', 1),
+                    sequential=sequential,
+                    independent=independent,
+                    seed=(42 + split),
+                    task_class_weights=task_class_weights,
+                ),
+            )
+            results[key] = int_results
+            results[int_time_key] = avg_time
+            results[construction_times_key] = constr_time
+            if avg_time:
+                extra = (
+                    f" (avg int time is {avg_time:.5f}s and construction "
+                    f"time is {constr_time:.5f}s)"
+                )
+            else:
+                extra = ""
+            for num_groups_intervened, val in enumerate(int_results):
+                if n_tasks > 1:
+                    logging.debug(
+                        f"\t\tTest accuracy when intervening "
+                        f"with {num_groups_intervened} "
+                        f"concept groups is {val * 100:.2f}%{extra}."
+                    )
+                else:
+                    logging.debug(
+                        f"\t\tTest AUC when intervening "
+                        f"with {num_groups_intervened} "
+                        f"concept groups is {val * 100:.2f}%{extra}."
+                    )
+    return results
+
+def test_interventions_debug(
+    full_run_name,
+    train_dl,
+    val_dl,
+    test_dl,
+    imbalance,
+    config,
+    n_tasks,
+    n_concepts,
+    acquisition_costs,
+    result_dir,
+    concept_map,
+    intervened_groups,
+    used_policies=None,
+    intervention_batch_size=1024,
+    competence_levels=[1],
+    accelerator="auto",
+    devices="auto",
+    split=0,
+    rerun=False,
+    sequential=False,
+    independent=False,
+    old_results=None,
+    task_class_weights=None,
+):
+    used_policies = config.get('intervention_policies', POLICY_NAMES)
+    intervention_batch_size = config.get(
+        "intervention_batch_size",
+        int(os.environ.get(f"INT_BATCH_SIZE", intervention_batch_size)),
+    )
+    results = {}
+    if hasattr(test_dl.dataset, 'tensors'):
+        x_test, y_test, c_test = test_dl.dataset.tensors
+    else:
+        x_test, y_test, c_test = [], [], []
+        ds_data = next(iter(test_dl))
+        if len(ds_data) == 2:
+            x, (y, c) = ds_data
+        else:
+            (x, y, c) = ds_data
+        x_type = x.type()
+        y_type = y.type()
+        c_type = c.type()
+        x_test.append(x)
+        y_test.append(y)
+        c_test.append(c)
+        x_test = torch.FloatTensor(
+            np.concatenate(x_test, axis=0)
+        ).type(x_type)
+        y_test = torch.FloatTensor(
+            np.concatenate(y_test, axis=0)
+        ).type(y_type)
+        c_test = torch.FloatTensor(
+            np.concatenate(c_test, axis=0)
+        ).type(c_type)
+
+
+    for competence_level in competence_levels:
+        def competence_generator(
+            x,
+            y,
+            c,
+            concept_group_map,
+        ):
+            if competence_level == "unif":
+                # When using uniform competence, we will assign the same
+                # competence level to the same batch index
+                # The same competence is assigned to all concepts within the same
+                # group
+                np.random.seed(42)
+                batch_group_level_competencies = np.random.uniform(
+                    0.5,
+                    1,
+                    size=(c.shape[0], len(concept_group_map)),
+                )
+                batch_concept_level_competencies = np.ones(
+                    (c.shape[0], c.shape[1])
+                )
+                for group_idx, (_, group_concepts) in enumerate(
+                    concept_group_map.items()
+                ):
+                    batch_concept_level_competencies[:, group_concepts] = \
+                        np.expand_dims(
+                            batch_group_level_competencies[:, group_idx],
+                            axis=-1,
+                        )
+                return batch_concept_level_competencies
+            return np.ones(c.shape) * competence_level
+        if competence_level == 1:
+            currently_used_policies = used_policies
+        else:
+            currently_used_policies = config.get(
+                'incompetence_intervention_policies',
+                used_policies,
+            )
+        for policy in currently_used_policies:
+            if os.environ.get(f"IGNORE_INTERVENTION_{policy.upper()}", "0") == "1":
+                continue
+            if "optimal_global" in policy:
+                eff_n_concepts = len(concept_map) if (
+                    "group" in policy or "optimal_global" == policy
+                ) else n_concepts
+                used_intervened_groups = [
+                    x if int(scipy.special.comb(eff_n_concepts, x)) <= MAX_COMB_BOUND else None
+                    for x in intervened_groups
+                ]
+                logging.debug(
+                    f"effective number of concepts is {eff_n_concepts} and "
+                    f"intervened groups are {intervened_groups}"
+                    f"used intervened groups are {used_intervened_groups}"
+                )
+            else:
+                used_intervened_groups = intervened_groups
+            policy_params_fn, concept_selection_policy = get_int_policy(
+                policy_name=policy,
+                config=config,
+                n_tasks=n_tasks,
+                n_concepts=n_concepts,
+                acquisition_costs=acquisition_costs,
+                result_dir=result_dir,
+                tune_params=config.get('tune_params', True),
+                concept_group_map=concept_map,
+                intervened_groups=config.get('tune_intervened_groups', None),
+                val_dl=val_dl,
+                train_dl=train_dl,
+                accelerator=accelerator,
+                devices=devices,
+                imbalance=imbalance,
+                split=split,
+                rerun=_rerun_policy(rerun, policy, config, split),
+                sequential=sequential,
+                independent=independent,
+                task_class_weights=task_class_weights,
+            )
+            print(
+                f"\tIntervening in {full_run_name} with policy {policy} and "
+                f"competence {competence_level}"
+            )
+            if competence_level == 1:
+                key = f'test_acc_y_{policy}_ints_{full_run_name}'
+                int_time_key = f'avg_int_time_{policy}_ints_{full_run_name}'
+                construction_times_key = (
+                    f'construction_time_{policy}_ints_{full_run_name}'
+                )
+            else:
+                key = (
+                    f'test_acc_y_{policy}_ints_co_{competence_level}_'
+                    f'{full_run_name}'
+                )
+                int_time_key = (
+                    f'avg_int_time_{policy}_ints_co_{competence_level}_'
+                    f'{full_run_name}'
+                )
+                construction_times_key = (
+                    f'construction_time_{policy}_ints_co_{competence_level}_'
+                    f'{full_run_name}'
+                )
+            (int_results, avg_time, constr_time), loaded = load_call(
+                function=intervene_in_cbm_debug,
                 keys=(key, int_time_key, construction_times_key),
                 old_results=old_results,
                 full_run_name=full_run_name,

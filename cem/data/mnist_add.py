@@ -332,7 +332,7 @@ def load_mnist_addition(
             threshold=threshold,
         )
     if test_only:
-        return test_dl
+        return None, None, test_dl
 
 
 
@@ -449,9 +449,7 @@ def load_mnist_addition(
             threshold=threshold,
         )
 
-    if val_dl is not None:
-        return train_dl, val_dl, test_dl
-    return train_dl, test_dl
+    return train_dl, val_dl, test_dl
 
 
 def generate_data(
@@ -592,7 +590,7 @@ def generate_data(
         ),
     )
 
-    if config.get('weight_loss', False):
+    if config.get('weight_loss', False) and train_dl != None:
         attribute_count = np.zeros((num_concepts,))
         samples_seen = 0
         for i, data in enumerate(train_dl):

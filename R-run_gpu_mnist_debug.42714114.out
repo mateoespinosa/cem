@@ -1,0 +1,1168 @@
+running install
+running bdist_egg
+running egg_info
+writing cem.egg-info/PKG-INFO
+writing dependency_links to cem.egg-info/dependency_links.txt
+writing requirements to cem.egg-info/requires.txt
+writing top-level names to cem.egg-info/top_level.txt
+reading manifest file 'cem.egg-info/SOURCES.txt'
+adding license file 'LICENSE'
+writing manifest file 'cem.egg-info/SOURCES.txt'
+installing library code to build/bdist.linux-x86_64/egg
+running install_lib
+running build_py
+copying cem/__init__.py -> build/lib/cem
+copying experiments/celeba_emb_size_ablation.py -> build/lib/experiments
+copying experiments/cub_emb_size_ablation.py -> build/lib/experiments
+copying experiments/cub_randint_ablation.py -> build/lib/experiments
+copying experiments/experiment_utils.py -> build/lib/experiments
+copying experiments/run_experiments_debug.py -> build/lib/experiments
+copying experiments/run_experiments.py -> build/lib/experiments
+copying experiments/__init__.py -> build/lib/experiments
+copying experiments/cub_subsample_experiment.py -> build/lib/experiments
+copying cem/train/utils.py -> build/lib/cem/train
+copying cem/train/__init__.py -> build/lib/cem/train
+copying cem/train/training.py -> build/lib/cem/train
+copying cem/models/construction.py -> build/lib/cem/models
+copying cem/models/intcbm.py -> build/lib/cem/models
+copying cem/models/ac_flow.py -> build/lib/cem/models
+copying cem/models/cbm.py -> build/lib/cem/models
+copying cem/models/cem.py -> build/lib/cem/models
+copying cem/models/__init__.py -> build/lib/cem/models
+copying cem/models/afacbm.py -> build/lib/cem/models
+copying cem/models/vaeac.py -> build/lib/cem/models
+copying cem/data/chexpert_loader.py -> build/lib/cem/data
+copying cem/data/celeba_loader.py -> build/lib/cem/data
+copying cem/data/synthetic_loaders.py -> build/lib/cem/data
+copying cem/data/__init__.py -> build/lib/cem/data
+copying cem/data/mnist_add.py -> build/lib/cem/data
+copying cem/data/derm_loader.py -> build/lib/cem/data
+copying cem/interventions/intervention_policy.py -> build/lib/cem/interventions
+copying cem/interventions/behavioural_learning.py -> build/lib/cem/interventions
+copying cem/interventions/coop.py -> build/lib/cem/interventions
+copying cem/interventions/uncertainty.py -> build/lib/cem/interventions
+copying cem/interventions/utils.py -> build/lib/cem/interventions
+copying cem/interventions/active_feature_acquisition.py -> build/lib/cem/interventions
+copying cem/interventions/__init__.py -> build/lib/cem/interventions
+copying cem/interventions/intcem_policy.py -> build/lib/cem/interventions
+copying cem/interventions/global_policies.py -> build/lib/cem/interventions
+copying cem/interventions/random.py -> build/lib/cem/interventions
+copying cem/interventions/optimal.py -> build/lib/cem/interventions
+copying cem/metrics/accs.py -> build/lib/cem/metrics
+copying cem/metrics/oracle.py -> build/lib/cem/metrics
+copying cem/metrics/cas.py -> build/lib/cem/metrics
+copying cem/metrics/__init__.py -> build/lib/cem/metrics
+copying cem/metrics/niching.py -> build/lib/cem/metrics
+copying cem/data/CUB200/cub_loader.py -> build/lib/cem/data/CUB200
+copying cem/data/CUB200/__init__.py -> build/lib/cem/data/CUB200
+copying cem/data/CUB200/data_processing.py -> build/lib/cem/data/CUB200
+creating build/bdist.linux-x86_64/egg
+creating build/bdist.linux-x86_64/egg/cem
+creating build/bdist.linux-x86_64/egg/cem/train
+copying build/lib/cem/train/utils.py -> build/bdist.linux-x86_64/egg/cem/train
+copying build/lib/cem/train/__init__.py -> build/bdist.linux-x86_64/egg/cem/train
+copying build/lib/cem/train/training.py -> build/bdist.linux-x86_64/egg/cem/train
+creating build/bdist.linux-x86_64/egg/cem/models
+copying build/lib/cem/models/construction.py -> build/bdist.linux-x86_64/egg/cem/models
+copying build/lib/cem/models/intcbm.py -> build/bdist.linux-x86_64/egg/cem/models
+copying build/lib/cem/models/ac_flow.py -> build/bdist.linux-x86_64/egg/cem/models
+copying build/lib/cem/models/cbm.py -> build/bdist.linux-x86_64/egg/cem/models
+copying build/lib/cem/models/cem.py -> build/bdist.linux-x86_64/egg/cem/models
+copying build/lib/cem/models/__init__.py -> build/bdist.linux-x86_64/egg/cem/models
+copying build/lib/cem/models/afacbm.py -> build/bdist.linux-x86_64/egg/cem/models
+copying build/lib/cem/models/vaeac.py -> build/bdist.linux-x86_64/egg/cem/models
+creating build/bdist.linux-x86_64/egg/cem/data
+copying build/lib/cem/data/chexpert_loader.py -> build/bdist.linux-x86_64/egg/cem/data
+copying build/lib/cem/data/celeba_loader.py -> build/bdist.linux-x86_64/egg/cem/data
+copying build/lib/cem/data/synthetic_loaders.py -> build/bdist.linux-x86_64/egg/cem/data
+creating build/bdist.linux-x86_64/egg/cem/data/CUB200
+copying build/lib/cem/data/CUB200/cub_loader.py -> build/bdist.linux-x86_64/egg/cem/data/CUB200
+copying build/lib/cem/data/CUB200/__init__.py -> build/bdist.linux-x86_64/egg/cem/data/CUB200
+copying build/lib/cem/data/CUB200/data_processing.py -> build/bdist.linux-x86_64/egg/cem/data/CUB200
+copying build/lib/cem/data/__init__.py -> build/bdist.linux-x86_64/egg/cem/data
+copying build/lib/cem/data/mnist_add.py -> build/bdist.linux-x86_64/egg/cem/data
+copying build/lib/cem/data/derm_loader.py -> build/bdist.linux-x86_64/egg/cem/data
+creating build/bdist.linux-x86_64/egg/cem/interventions
+copying build/lib/cem/interventions/intervention_policy.py -> build/bdist.linux-x86_64/egg/cem/interventions
+copying build/lib/cem/interventions/behavioural_learning.py -> build/bdist.linux-x86_64/egg/cem/interventions
+copying build/lib/cem/interventions/coop.py -> build/bdist.linux-x86_64/egg/cem/interventions
+copying build/lib/cem/interventions/uncertainty.py -> build/bdist.linux-x86_64/egg/cem/interventions
+copying build/lib/cem/interventions/utils.py -> build/bdist.linux-x86_64/egg/cem/interventions
+copying build/lib/cem/interventions/active_feature_acquisition.py -> build/bdist.linux-x86_64/egg/cem/interventions
+copying build/lib/cem/interventions/global_policies.py -> build/bdist.linux-x86_64/egg/cem/interventions
+copying build/lib/cem/interventions/optimal.py -> build/bdist.linux-x86_64/egg/cem/interventions
+creating build/bdist.linux-x86_64/egg/cem/metrics
+copying build/lib/cem/metrics/accs.py -> build/bdist.linux-x86_64/egg/cem/metrics
+copying build/lib/cem/metrics/cas.py -> build/bdist.linux-x86_64/egg/cem/metrics
+copying build/lib/cem/metrics/niching.py -> build/bdist.linux-x86_64/egg/cem/metrics
+copying build/lib/experiments/cub_emb_size_ablation.py -> build/bdist.linux-x86_64/egg/experiments
+copying build/lib/experiments/experiment_utils.py -> build/bdist.linux-x86_64/egg/experiments
+copying build/lib/experiments/run_experiments.py -> build/bdist.linux-x86_64/egg/experiments
+copying build/lib/experiments/cub_subsample_experiment.py -> build/bdist.linux-x86_64/egg/experiments
+copying cem.egg-info/SOURCES.txt -> build/bdist.linux-x86_64/egg/EGG-INFO
+copying cem.egg-info/dependency_links.txt -> build/bdist.linux-x86_64/egg/EGG-INFO
+copying cem.egg-info/requires.txt -> build/bdist.linux-x86_64/egg/EGG-INFO
+copying cem.egg-info/top_level.txt -> build/bdist.linux-x86_64/egg/EGG-INFO
+creating 'dist/cem-1.1.0-py3.8.egg' and adding 'build/bdist.linux-x86_64/egg' to it
+removing 'build/bdist.linux-x86_64/egg' (and everything under it)
+Processing cem-1.1.0-py3.8.egg
+Copying cem-1.1.0-py3.8.egg to /home/xty20/cem/venv/lib/python3.8/site-packages
+Adding cem 1.1.0 to easy-install.pth file
+
+Installed /home/xty20/cem/venv/lib/python3.8/site-packages/cem-1.1.0-py3.8.egg
+Processing dependencies for cem==1.1.0
+Searching for torchvision==0.16.1
+Best match: torchvision 0.16.1
+Adding torchvision 0.16.1 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for torchmetrics==1.2.1
+Best match: torchmetrics 1.2.1
+Adding torchmetrics 1.2.1 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for torch==2.1.1
+Best match: torch 2.1.1
+Adding torch 2.1.1 to easy-install.pth file
+Installing convert-caffe2-to-onnx script to /home/xty20/cem/venv/bin
+Installing convert-onnx-to-caffe2 script to /home/xty20/cem/venv/bin
+Installing torchrun script to /home/xty20/cem/venv/bin
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for seaborn==0.13.0
+Best match: seaborn 0.13.0
+Adding seaborn 0.13.0 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for scikit-learn==1.3.2
+Best match: scikit-learn 1.3.2
+Adding scikit-learn 1.3.2 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for scikit-learn-extra==0.3.0
+Best match: scikit-learn-extra 0.3.0
+Adding scikit-learn-extra 0.3.0 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for pytorch-lightning==1.9.5
+Best match: pytorch-lightning 1.9.5
+Adding pytorch-lightning 1.9.5 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for numpy==1.24.3
+Best match: numpy 1.24.3
+Adding numpy 1.24.3 to easy-install.pth file
+Installing f2py script to /home/xty20/cem/venv/bin
+Installing f2py3 script to /home/xty20/cem/venv/bin
+Installing f2py3.8 script to /home/xty20/cem/venv/bin
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for notebook==7.0.6
+Best match: notebook 7.0.6
+Adding notebook 7.0.6 to easy-install.pth file
+Installing jupyter-notebook script to /home/xty20/cem/venv/bin
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for matplotlib==3.7.4
+Best match: matplotlib 3.7.4
+Adding matplotlib 3.7.4 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for matplotlib-inline==0.1.6
+Best match: matplotlib-inline 0.1.6
+Adding matplotlib-inline 0.1.6 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for joblib==1.3.2
+Best match: joblib 1.3.2
+Adding joblib 1.3.2 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for ipywidgets==8.1.1
+Best match: ipywidgets 8.1.1
+Adding ipywidgets 8.1.1 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for ipython==8.12.3
+Best match: ipython 8.12.3
+Adding ipython 8.12.3 to easy-install.pth file
+Installing ipython script to /home/xty20/cem/venv/bin
+Installing ipython3 script to /home/xty20/cem/venv/bin
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for ipython-genutils==0.2.0
+Best match: ipython-genutils 0.2.0
+Adding ipython-genutils 0.2.0 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for ipykernel==6.27.1
+Best match: ipykernel 6.27.1
+Adding ipykernel 6.27.1 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for importlib-resources==6.1.1
+Best match: importlib-resources 6.1.1
+Adding importlib-resources 6.1.1 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for importlib-metadata==7.0.0
+Best match: importlib-metadata 7.0.0
+Adding importlib-metadata 7.0.0 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for Pillow==10.1.0
+Best match: Pillow 10.1.0
+Adding Pillow 10.1.0 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for requests==2.31.0
+Best match: requests 2.31.0
+Adding requests 2.31.0 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for typing-extensions==4.5.0
+Best match: typing-extensions 4.5.0
+Adding typing-extensions 4.5.0 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for lightning-utilities==0.10.0
+Best match: lightning-utilities 0.10.0
+Adding lightning-utilities 0.10.0 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for packaging==23.2
+Best match: packaging 23.2
+Adding packaging 23.2 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for triton==2.1.0
+Best match: triton 2.1.0
+Adding triton 2.1.0 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for nvidia-nvtx-cu12==12.1.105
+Best match: nvidia-nvtx-cu12 12.1.105
+Adding nvidia-nvtx-cu12 12.1.105 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for nvidia-nccl-cu12==2.18.1
+Best match: nvidia-nccl-cu12 2.18.1
+Adding nvidia-nccl-cu12 2.18.1 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for nvidia-cusparse-cu12==12.1.0.106
+Best match: nvidia-cusparse-cu12 12.1.0.106
+Adding nvidia-cusparse-cu12 12.1.0.106 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for nvidia-cusolver-cu12==11.4.5.107
+Best match: nvidia-cusolver-cu12 11.4.5.107
+Adding nvidia-cusolver-cu12 11.4.5.107 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for nvidia-curand-cu12==10.3.2.106
+Best match: nvidia-curand-cu12 10.3.2.106
+Adding nvidia-curand-cu12 10.3.2.106 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for nvidia-cufft-cu12==11.0.2.54
+Best match: nvidia-cufft-cu12 11.0.2.54
+Adding nvidia-cufft-cu12 11.0.2.54 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for nvidia-cublas-cu12==12.1.3.1
+Best match: nvidia-cublas-cu12 12.1.3.1
+Adding nvidia-cublas-cu12 12.1.3.1 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for nvidia-cudnn-cu12==8.9.2.26
+Best match: nvidia-cudnn-cu12 8.9.2.26
+Adding nvidia-cudnn-cu12 8.9.2.26 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for nvidia-cuda-cupti-cu12==12.1.105
+Best match: nvidia-cuda-cupti-cu12 12.1.105
+Adding nvidia-cuda-cupti-cu12 12.1.105 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for nvidia-cuda-runtime-cu12==12.1.105
+Best match: nvidia-cuda-runtime-cu12 12.1.105
+Adding nvidia-cuda-runtime-cu12 12.1.105 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for nvidia-cuda-nvrtc-cu12==12.1.105
+Best match: nvidia-cuda-nvrtc-cu12 12.1.105
+Adding nvidia-cuda-nvrtc-cu12 12.1.105 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for fsspec==2023.12.1
+Best match: fsspec 2023.12.1
+Adding fsspec 2023.12.1 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for Jinja2==3.1.2
+Best match: Jinja2 3.1.2
+Adding Jinja2 3.1.2 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for networkx==3.1
+Best match: networkx 3.1
+Adding networkx 3.1 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for sympy==1.12
+Best match: sympy 1.12
+Adding sympy 1.12 to easy-install.pth file
+Installing isympy script to /home/xty20/cem/venv/bin
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for filelock==3.13.1
+Best match: filelock 3.13.1
+Adding filelock 3.13.1 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for pandas==2.0.3
+Best match: pandas 2.0.3
+Adding pandas 2.0.3 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for threadpoolctl==3.2.0
+Best match: threadpoolctl 3.2.0
+Adding threadpoolctl 3.2.0 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for scipy==1.10.1
+Best match: scipy 1.10.1
+Adding scipy 1.10.1 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for PyYAML==6.0.1
+Best match: PyYAML 6.0.1
+Adding PyYAML 6.0.1 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for tqdm==4.66.1
+Best match: tqdm 4.66.1
+Adding tqdm 4.66.1 to easy-install.pth file
+Installing tqdm script to /home/xty20/cem/venv/bin
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for tornado==6.4
+Best match: tornado 6.4
+Adding tornado 6.4 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for notebook-shim==0.2.3
+Best match: notebook-shim 0.2.3
+Adding notebook-shim 0.2.3 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for jupyterlab==4.0.9
+Best match: jupyterlab 4.0.9
+Adding jupyterlab 4.0.9 to easy-install.pth file
+Installing jlpm script to /home/xty20/cem/venv/bin
+Installing jupyter-lab script to /home/xty20/cem/venv/bin
+Installing jupyter-labextension script to /home/xty20/cem/venv/bin
+Installing jupyter-labhub script to /home/xty20/cem/venv/bin
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for jupyterlab-server==2.25.2
+Best match: jupyterlab-server 2.25.2
+Adding jupyterlab-server 2.25.2 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for jupyter-server==2.12.1
+Best match: jupyter-server 2.12.1
+Adding jupyter-server 2.12.1 to easy-install.pth file
+Installing jupyter-server script to /home/xty20/cem/venv/bin
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for python-dateutil==2.8.2
+Best match: python-dateutil 2.8.2
+Adding python-dateutil 2.8.2 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for pyparsing==3.1.1
+Best match: pyparsing 3.1.1
+Adding pyparsing 3.1.1 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for kiwisolver==1.4.5
+Best match: kiwisolver 1.4.5
+Adding kiwisolver 1.4.5 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for fonttools==4.46.0
+Best match: fonttools 4.46.0
+Adding fonttools 4.46.0 to easy-install.pth file
+Installing fonttools script to /home/xty20/cem/venv/bin
+Installing pyftmerge script to /home/xty20/cem/venv/bin
+Installing pyftsubset script to /home/xty20/cem/venv/bin
+Installing ttx script to /home/xty20/cem/venv/bin
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for cycler==0.12.1
+Best match: cycler 0.12.1
+Adding cycler 0.12.1 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for contourpy==1.1.1
+Best match: contourpy 1.1.1
+Adding contourpy 1.1.1 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for traitlets==5.14.0
+Best match: traitlets 5.14.0
+Adding traitlets 5.14.0 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for jupyterlab-widgets==3.0.9
+Best match: jupyterlab-widgets 3.0.9
+Adding jupyterlab-widgets 3.0.9 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for widgetsnbextension==4.0.9
+Best match: widgetsnbextension 4.0.9
+Adding widgetsnbextension 4.0.9 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for comm==0.2.0
+Best match: comm 0.2.0
+Adding comm 0.2.0 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for pexpect==4.9.0
+Best match: pexpect 4.9.0
+Adding pexpect 4.9.0 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for stack-data==0.6.3
+Best match: stack-data 0.6.3
+Adding stack-data 0.6.3 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for pygments==2.17.2
+Best match: pygments 2.17.2
+Adding pygments 2.17.2 to easy-install.pth file
+Installing pygmentize script to /home/xty20/cem/venv/bin
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for prompt-toolkit==3.0.41
+Best match: prompt-toolkit 3.0.41
+Adding prompt-toolkit 3.0.41 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for pickleshare==0.7.5
+Best match: pickleshare 0.7.5
+Adding pickleshare 0.7.5 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for jedi==0.19.1
+Best match: jedi 0.19.1
+Adding jedi 0.19.1 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for decorator==5.1.1
+Best match: decorator 5.1.1
+Adding decorator 5.1.1 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for backcall==0.2.0
+Best match: backcall 0.2.0
+Adding backcall 0.2.0 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for pyzmq==25.1.2
+Best match: pyzmq 25.1.2
+Adding pyzmq 25.1.2 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for psutil==5.9.6
+Best match: psutil 5.9.6
+Adding psutil 5.9.6 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for nest-asyncio==1.5.8
+Best match: nest-asyncio 1.5.8
+Adding nest-asyncio 1.5.8 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for jupyter-core==5.5.0
+Best match: jupyter-core 5.5.0
+Adding jupyter-core 5.5.0 to easy-install.pth file
+Installing jupyter script to /home/xty20/cem/venv/bin
+Installing jupyter-migrate script to /home/xty20/cem/venv/bin
+Installing jupyter-troubleshoot script to /home/xty20/cem/venv/bin
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for jupyter-client==8.6.0
+Best match: jupyter-client 8.6.0
+Adding jupyter-client 8.6.0 to easy-install.pth file
+Installing jupyter-kernel script to /home/xty20/cem/venv/bin
+Installing jupyter-kernelspec script to /home/xty20/cem/venv/bin
+Installing jupyter-run script to /home/xty20/cem/venv/bin
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for debugpy==1.8.0
+Best match: debugpy 1.8.0
+Adding debugpy 1.8.0 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for zipp==3.17.0
+Best match: zipp 3.17.0
+Adding zipp 3.17.0 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for certifi==2023.11.17
+Best match: certifi 2023.11.17
+Adding certifi 2023.11.17 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for urllib3==2.1.0
+Best match: urllib3 2.1.0
+Adding urllib3 2.1.0 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for idna==3.6
+Best match: idna 3.6
+Adding idna 3.6 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for charset-normalizer==3.3.2
+Best match: charset-normalizer 3.3.2
+Adding charset-normalizer 3.3.2 to easy-install.pth file
+Installing normalizer script to /home/xty20/cem/venv/bin
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for setuptools==69.0.2
+Best match: setuptools 69.0.2
+Adding setuptools 69.0.2 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for nvidia-nvjitlink-cu12==12.3.101
+Best match: nvidia-nvjitlink-cu12 12.3.101
+Adding nvidia-nvjitlink-cu12 12.3.101 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for MarkupSafe==2.1.3
+Best match: MarkupSafe 2.1.3
+Adding MarkupSafe 2.1.3 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for mpmath==1.3.0
+Best match: mpmath 1.3.0
+Adding mpmath 1.3.0 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for tzdata==2023.3
+Best match: tzdata 2023.3
+Adding tzdata 2023.3 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for pytz==2023.3.post1
+Best match: pytz 2023.3.post1
+Adding pytz 2023.3.post1 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for aiohttp==3.9.1
+Best match: aiohttp 3.9.1
+Adding aiohttp 3.9.1 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for tomli==2.0.1
+Best match: tomli 2.0.1
+Adding tomli 2.0.1 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for jupyter-lsp==2.2.1
+Best match: jupyter-lsp 2.2.1
+Adding jupyter-lsp 2.2.1 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for async-lru==2.0.4
+Best match: async-lru 2.0.4
+Adding async-lru 2.0.4 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for jsonschema==4.20.0
+Best match: jsonschema 4.20.0
+Adding jsonschema 4.20.0 to easy-install.pth file
+Installing jsonschema script to /home/xty20/cem/venv/bin
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for json5==0.9.14
+Best match: json5 0.9.14
+Adding json5 0.9.14 to easy-install.pth file
+Installing pyjson5 script to /home/xty20/cem/venv/bin
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for Babel==2.13.1
+Best match: Babel 2.13.1
+Adding Babel 2.13.1 to easy-install.pth file
+Installing pybabel script to /home/xty20/cem/venv/bin
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for websocket-client==1.7.0
+Best match: websocket-client 1.7.0
+Adding websocket-client 1.7.0 to easy-install.pth file
+Installing wsdump script to /home/xty20/cem/venv/bin
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for terminado==0.18.0
+Best match: terminado 0.18.0
+Adding terminado 0.18.0 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for Send2Trash==1.8.2
+Best match: Send2Trash 1.8.2
+Adding Send2Trash 1.8.2 to easy-install.pth file
+Installing send2trash script to /home/xty20/cem/venv/bin
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for prometheus-client==0.19.0
+Best match: prometheus-client 0.19.0
+Adding prometheus-client 0.19.0 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for overrides==7.4.0
+Best match: overrides 7.4.0
+Adding overrides 7.4.0 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for nbformat==5.9.2
+Best match: nbformat 5.9.2
+Adding nbformat 5.9.2 to easy-install.pth file
+Installing jupyter-trust script to /home/xty20/cem/venv/bin
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for nbconvert==7.12.0
+Best match: nbconvert 7.12.0
+Adding nbconvert 7.12.0 to easy-install.pth file
+Installing jupyter-dejavu script to /home/xty20/cem/venv/bin
+Installing jupyter-nbconvert script to /home/xty20/cem/venv/bin
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for jupyter-server-terminals==0.4.4
+Best match: jupyter-server-terminals 0.4.4
+Adding jupyter-server-terminals 0.4.4 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for jupyter-events==0.9.0
+Best match: jupyter-events 0.9.0
+Adding jupyter-events 0.9.0 to easy-install.pth file
+Installing jupyter-events script to /home/xty20/cem/venv/bin
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for argon2-cffi==23.1.0
+Best match: argon2-cffi 23.1.0
+Adding argon2-cffi 23.1.0 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for anyio==4.1.0
+Best match: anyio 4.1.0
+Adding anyio 4.1.0 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for six==1.16.0
+Best match: six 1.16.0
+Adding six 1.16.0 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for ptyprocess==0.7.0
+Best match: ptyprocess 0.7.0
+Adding ptyprocess 0.7.0 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for pure-eval==0.2.2
+Best match: pure-eval 0.2.2
+Adding pure-eval 0.2.2 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for asttokens==2.4.1
+Best match: asttokens 2.4.1
+Adding asttokens 2.4.1 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for executing==2.0.1
+Best match: executing 2.0.1
+Adding executing 2.0.1 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for wcwidth==0.2.12
+Best match: wcwidth 0.2.12
+Adding wcwidth 0.2.12 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for parso==0.8.3
+Best match: parso 0.8.3
+Adding parso 0.8.3 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for platformdirs==4.1.0
+Best match: platformdirs 4.1.0
+Adding platformdirs 4.1.0 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for async-timeout==4.0.3
+Best match: async-timeout 4.0.3
+Adding async-timeout 4.0.3 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for aiosignal==1.3.1
+Best match: aiosignal 1.3.1
+Adding aiosignal 1.3.1 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for frozenlist==1.4.0
+Best match: frozenlist 1.4.0
+Adding frozenlist 1.4.0 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for yarl==1.9.4
+Best match: yarl 1.9.4
+Adding yarl 1.9.4 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for multidict==6.0.4
+Best match: multidict 6.0.4
+Adding multidict 6.0.4 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for attrs==23.1.0
+Best match: attrs 23.1.0
+Adding attrs 23.1.0 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for rpds-py==0.13.2
+Best match: rpds-py 0.13.2
+Adding rpds-py 0.13.2 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for referencing==0.32.0
+Best match: referencing 0.32.0
+Adding referencing 0.32.0 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for pkgutil-resolve-name==1.3.10
+Best match: pkgutil-resolve-name 1.3.10
+Adding pkgutil-resolve-name 1.3.10 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for jsonschema-specifications==2023.11.2
+Best match: jsonschema-specifications 2023.11.2
+Adding jsonschema-specifications 2023.11.2 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for fastjsonschema==2.19.0
+Best match: fastjsonschema 2.19.0
+Adding fastjsonschema 2.19.0 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for tinycss2==1.2.1
+Best match: tinycss2 1.2.1
+Adding tinycss2 1.2.1 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for pandocfilters==1.5.0
+Best match: pandocfilters 1.5.0
+Adding pandocfilters 1.5.0 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for nbclient==0.9.0
+Best match: nbclient 0.9.0
+Adding nbclient 0.9.0 to easy-install.pth file
+Installing jupyter-execute script to /home/xty20/cem/venv/bin
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for mistune==3.0.2
+Best match: mistune 3.0.2
+Adding mistune 3.0.2 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for jupyterlab-pygments==0.3.0
+Best match: jupyterlab-pygments 0.3.0
+Adding jupyterlab-pygments 0.3.0 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for defusedxml==0.7.1
+Best match: defusedxml 0.7.1
+Adding defusedxml 0.7.1 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for bleach==6.1.0
+Best match: bleach 6.1.0
+Adding bleach 6.1.0 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for beautifulsoup4==4.12.2
+Best match: beautifulsoup4 4.12.2
+Adding beautifulsoup4 4.12.2 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for rfc3986-validator==0.1.1
+Best match: rfc3986-validator 0.1.1
+Adding rfc3986-validator 0.1.1 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for rfc3339-validator==0.1.4
+Best match: rfc3339-validator 0.1.4
+Adding rfc3339-validator 0.1.4 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for python-json-logger==2.0.7
+Best match: python-json-logger 2.0.7
+Adding python-json-logger 2.0.7 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for argon2-cffi-bindings==21.2.0
+Best match: argon2-cffi-bindings 21.2.0
+Adding argon2-cffi-bindings 21.2.0 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for exceptiongroup==1.2.0
+Best match: exceptiongroup 1.2.0
+Adding exceptiongroup 1.2.0 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for sniffio==1.3.0
+Best match: sniffio 1.3.0
+Adding sniffio 1.3.0 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for webencodings==0.5.1
+Best match: webencodings 0.5.1
+Adding webencodings 0.5.1 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for soupsieve==2.5
+Best match: soupsieve 2.5
+Adding soupsieve 2.5 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for webcolors==1.13
+Best match: webcolors 1.13
+Adding webcolors 1.13 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for uri-template==1.3.0
+Best match: uri-template 1.3.0
+Adding uri-template 1.3.0 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for jsonpointer==2.4
+Best match: jsonpointer 2.4
+Adding jsonpointer 2.4 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for isoduration==20.11.0
+Best match: isoduration 20.11.0
+Adding isoduration 20.11.0 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for fqdn==1.5.1
+Best match: fqdn 1.5.1
+Adding fqdn 1.5.1 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for cffi==1.16.0
+Best match: cffi 1.16.0
+Adding cffi 1.16.0 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for arrow==1.3.0
+Best match: arrow 1.3.0
+Adding arrow 1.3.0 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for pycparser==2.21
+Best match: pycparser 2.21
+Adding pycparser 2.21 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Searching for types-python-dateutil==2.8.19.14
+Best match: types-python-dateutil 2.8.19.14
+Adding types-python-dateutil 2.8.19.14 to easy-install.pth file
+
+Using /home/xty20/cem/venv/lib/python3.8/site-packages
+Finished processing dependencies for cem==1.1.0
+Changed directory to /home/xty20/cem.
+
+JobID: 42714114
+======
+Time: Mon Jan 22 23:46:11 GMT 2024
+Running on master node: gpu-q-1
+Current directory: /home/xty20/cem
+
+Nodes allocated:
+================
+gpu-q-1
+
+numtasks=1, numnodes=1, mpi_tasks_per_node=1 (OMP_NUM_THREADS=1)
+
+Executing command:
+==================
+srun python3 experiments/run_experiments_debug.py -c experiments/configs/intcem_configs/mnist_optimal_debug.yaml --debug --rerun
+
+{
+    "batch_size": 2048,
+    "c2y_layers": [
+        128,
+        128
+    ],
+    "c_extractor_arch": "Function: c_extractor_arch",
+    "check_val_every_n_epoch": 2,
+    "dataset": "mnist_add",
+    "intervention_batch_size": 2048,
+    "intervention_freq": 1,
+    "intervention_policies": [
+        "group_optimal_global_no_prior",
+        "group_optimal_global_fix_no_prior",
+        "optimal_greedy_no_prior"
+    ],
+    "max_epochs": 10,
+    "noise_level": 0.0,
+    "num_operands": 12,
+    "num_workers": 8,
+    "results_dir": "results/mnist_add_test",
+    "root_dir": "/home/xty20/data",
+    "runs": [
+        {
+            "architecture": "ConceptEmbeddingModel",
+            "concat_prob": false,
+            "embedding_activation": "leakyrelu",
+            "extra_name": "",
+            "shared_prob_gen": true,
+            "sigmoidal_embedding": false,
+            "sigmoidal_prob": true,
+            "training_intervention_prob": 0.25
+        }
+    ],
+    "sampling_groups": true,
+    "sampling_percent": 0.625,
+    "selected_digits": [
+        [
+            0,
+            1,
+            2
+        ],
+        [
+            0,
+            1,
+            2
+        ],
+        [
+            0,
+            1,
+            2
+        ],
+        [
+            0,
+            1,
+            2
+        ],
+        [
+            0,
+            1,
+            2,
+            3,
+            4
+        ],
+        [
+            0,
+            1,
+            2,
+            3,
+            4
+        ],
+        [
+            0,
+            1,
+            2,
+            3,
+            4
+        ],
+        [
+            0,
+            1,
+            2,
+            3,
+            4
+        ],
+        [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9
+        ],
+        [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9
+        ],
+        [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9
+        ],
+        [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9
+        ]
+    ],
+    "shared_params": {
+        "bool": false,
+        "c_extractor_arch": "resnet18",
+        "concept_loss_weight": 10,
+        "early_stopping_delta": 0.0,
+        "early_stopping_mode": "min",
+        "early_stopping_monitor": "val_loss",
+        "emb_size": 16,
+        "extra_dims": 0,
+        "learning_rate": 0.001,
+        "momentum": 0.9,
+        "optimizer": "sgd",
+        "patience": 5,
+        "save_model": true,
+        "sigmoidal_prob": false,
+        "top_k_accuracy": null,
+        "training_intervention_prob": 0.25,
+        "weight_decay": 4e-06
+    },
+    "skip_repr_evaluation": true,
+    "test_subsampling": 1,
+    "threshold_labels": 30,
+    "train_dataset_size": 2048,
+    "trials": 1,
+    "use_task_class_weights": true,
+    "weight_loss": true
+}
+Class distribution is: [0.48291016 0.51708984]
+[TRIAL 1/1 BEGINS AT 22/01/2024 at 23:46:52
+[Training ConceptEmbeddingModel_lambda_fold_1]
+config:
+<built-in function localtime>
+	top_k_accuracy -> None
+	save_model -> True
+	patience -> 5
+	emb_size -> 16
+	extra_dims -> 0
+	concept_loss_weight -> 10
+	learning_rate -> 0.001
+	weight_decay -> 4e-06
+	c_extractor_arch -> <function get_mnist_extractor_arch.<locals>.c_extractor_arch at 0x14d377255af0>
+	optimizer -> sgd
+	bool -> False
+	early_stopping_monitor -> val_loss
+	early_stopping_mode -> min
+	early_stopping_delta -> 0.0
+	momentum -> 0.9
+	sigmoidal_prob -> True
+	training_intervention_prob -> 0.25
+	trials -> 1
+	results_dir -> results/mnist_add_test
+	dataset -> mnist_add
+	num_workers -> 8
+	batch_size -> 2048
+	num_operands -> 12
+	selected_digits -> [[0, 1, 2], [0, 1, 2], [0, 1, 2], [0, 1, 2], [0, 1, 2, 3, 4], [0, 1, 2, 3, 4], [0, 1, 2, 3, 4], [0, 1, 2, 3, 4], [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]]
+	threshold_labels -> 30
+	noise_level -> 0.0
+	max_epochs -> 10
+	train_dataset_size -> 2048
+	sampling_percent -> 0.625
+	sampling_groups -> True
+	c2y_layers -> [128, 128]
+	skip_repr_evaluation -> True
+	intervention_freq -> 1
+	intervention_batch_size -> 2048
+	intervention_policies -> ['group_optimal_global_no_prior', 'group_optimal_global_fix_no_prior', 'optimal_greedy_no_prior']
+	root_dir -> /home/xty20/data
+	test_subsampling -> 1
+	weight_loss -> True
+	use_task_class_weights -> True
+	check_val_every_n_epoch -> 2
+	time_last_called -> 2024/01/22 at 23:46:38
+	n_concepts -> 54
+	n_tasks -> 1
+	concept_map -> {0: [0, 1, 2], 1: [3, 4, 5], 2: [6, 7, 8], 5: [9, 10, 11, 12, 13], 8: [14, 15, 16, 17, 18, 19, 20, 21, 22, 23], 9: [24, 25, 26, 27, 28, 29, 30, 31, 32, 33], 10: [34, 35, 36, 37, 38, 39, 40, 41, 42, 43], 11: [44, 45, 46, 47, 48, 49, 50, 51, 52, 53]}
+	architecture -> ConceptEmbeddingModel
+	extra_name -> 
+	shared_prob_gen -> True
+	sigmoidal_embedding -> False
+	concat_prob -> False
+	embedding_activation -> leakyrelu
+[Number of parameters in model 1964898 ]
+[Number of non-trainable parameters in model 0 ]
+Sanity Checking: 0it [00:00, ?it/s]Sanity Checking:   0%|          | 0/1 [00:00<?, ?it/s]Sanity Checking DataLoader 0:   0%|          | 0/1 [00:00<?, ?it/s]Sanity Checking DataLoader 0: 100%|██████████| 1/1 [00:01<00:00,  1.40s/it]                                                                           Training: 0it [00:00, ?it/s]Training:   0%|          | 0/1 [00:00<?, ?it/s]Epoch 0:   0%|          | 0/1 [00:00<?, ?it/s] Epoch 0: 100%|██████████| 1/1 [00:01<00:00,  1.17s/it]Epoch 0: 100%|██████████| 1/1 [00:01<00:00,  1.17s/it, loss=53.6, c_auc=0.497, y_auc=0.480]Epoch 0: 100%|██████████| 1/1 [00:01<00:00,  1.17s/it, loss=53.6, c_auc=0.497, y_auc=0.480]Epoch 0:   0%|          | 0/2 [00:00<?, ?it/s, loss=53.6, c_auc=0.497, y_auc=0.480]        Epoch 1:   0%|          | 0/2 [00:00<?, ?it/s, loss=53.6, c_auc=0.497, y_auc=0.480]Epoch 1:  50%|█████     | 1/2 [00:00<00:00,  1.55it/s, loss=53.6, c_auc=0.497, y_auc=0.480]Epoch 1:  50%|█████     | 1/2 [00:00<00:00,  1.55it/s, loss=52.1, c_auc=0.495, y_auc=0.520]
+Validation: 0it [00:00, ?it/s][A
+Validation:   0%|          | 0/1 [00:00<?, ?it/s][A
+Validation DataLoader 0:   0%|          | 0/1 [00:00<?, ?it/s][A
+Validation DataLoader 0: 100%|██████████| 1/1 [00:00<00:00,  5.68it/s][AEpoch 1: 100%|██████████| 2/2 [00:01<00:00,  1.76it/s, loss=52.1, c_auc=0.495, y_auc=0.520]Epoch 1: 100%|██████████| 2/2 [00:01<00:00,  1.71it/s, loss=52.1, c_auc=0.495, y_auc=0.520, val_c_auc=0.500, val_y_auc=0.559]
+                                                                      [AEpoch 1: 100%|██████████| 2/2 [00:01<00:00,  1.71it/s, loss=52.1, c_auc=0.495, y_auc=0.520, val_c_auc=0.500, val_y_auc=0.559]Epoch 1:   0%|          | 0/1 [00:00<?, ?it/s, loss=52.1, c_auc=0.495, y_auc=0.520, val_c_auc=0.500, val_y_auc=0.559]        Epoch 2:   0%|          | 0/1 [00:00<?, ?it/s, loss=52.1, c_auc=0.495, y_auc=0.520, val_c_auc=0.500, val_y_auc=0.559]Epoch 2: 100%|██████████| 1/1 [00:00<00:00,  1.48it/s, loss=52.1, c_auc=0.495, y_auc=0.520, val_c_auc=0.500, val_y_auc=0.559]Epoch 2: 100%|██████████| 1/1 [00:00<00:00,  1.44it/s, loss=49.9, c_auc=0.498, y_auc=0.477, val_c_auc=0.500, val_y_auc=0.559]Epoch 2: 100%|██████████| 1/1 [00:00<00:00,  1.44it/s, loss=49.9, c_auc=0.498, y_auc=0.477, val_c_auc=0.500, val_y_auc=0.559]Epoch 2:   0%|          | 0/2 [00:00<?, ?it/s, loss=49.9, c_auc=0.498, y_auc=0.477, val_c_auc=0.500, val_y_auc=0.559]        Epoch 3:   0%|          | 0/2 [00:00<?, ?it/s, loss=49.9, c_auc=0.498, y_auc=0.477, val_c_auc=0.500, val_y_auc=0.559]Epoch 3:  50%|█████     | 1/2 [00:00<00:00,  1.82it/s, loss=49.9, c_auc=0.498, y_auc=0.477, val_c_auc=0.500, val_y_auc=0.559]Epoch 3:  50%|█████     | 1/2 [00:00<00:00,  1.76it/s, loss=47, c_auc=0.500, y_auc=0.463, val_c_auc=0.500, val_y_auc=0.559]  
+Validation: 0it [00:00, ?it/s][A
+Validation:   0%|          | 0/1 [00:00<?, ?it/s][A
+Validation DataLoader 0:   0%|          | 0/1 [00:00<?, ?it/s][A
+Validation DataLoader 0: 100%|██████████| 1/1 [00:00<00:00,  5.39it/s][AEpoch 3: 100%|██████████| 2/2 [00:01<00:00,  1.98it/s, loss=47, c_auc=0.500, y_auc=0.463, val_c_auc=0.500, val_y_auc=0.559]Epoch 3: 100%|██████████| 2/2 [00:01<00:00,  1.98it/s, loss=47, c_auc=0.500, y_auc=0.463, val_c_auc=0.500, val_y_auc=0.539]
+                                                                      [AEpoch 3: 100%|██████████| 2/2 [00:01<00:00,  1.97it/s, loss=47, c_auc=0.500, y_auc=0.463, val_c_auc=0.500, val_y_auc=0.539]Epoch 3:   0%|          | 0/1 [00:00<?, ?it/s, loss=47, c_auc=0.500, y_auc=0.463, val_c_auc=0.500, val_y_auc=0.539]        Epoch 4:   0%|          | 0/1 [00:00<?, ?it/s, loss=47, c_auc=0.500, y_auc=0.463, val_c_auc=0.500, val_y_auc=0.539]Epoch 4: 100%|██████████| 1/1 [00:00<00:00,  1.85it/s, loss=47, c_auc=0.500, y_auc=0.463, val_c_auc=0.500, val_y_auc=0.539]Epoch 4: 100%|██████████| 1/1 [00:00<00:00,  1.79it/s, loss=43.6, c_auc=0.500, y_auc=0.489, val_c_auc=0.500, val_y_auc=0.539]Epoch 4: 100%|██████████| 1/1 [00:00<00:00,  1.79it/s, loss=43.6, c_auc=0.500, y_auc=0.489, val_c_auc=0.500, val_y_auc=0.539]Epoch 4:   0%|          | 0/2 [00:00<?, ?it/s, loss=43.6, c_auc=0.500, y_auc=0.489, val_c_auc=0.500, val_y_auc=0.539]        Epoch 5:   0%|          | 0/2 [00:00<?, ?it/s, loss=43.6, c_auc=0.500, y_auc=0.489, val_c_auc=0.500, val_y_auc=0.539]Epoch 5:  50%|█████     | 1/2 [00:00<00:00,  1.75it/s, loss=43.6, c_auc=0.500, y_auc=0.489, val_c_auc=0.500, val_y_auc=0.539]Epoch 5:  50%|█████     | 1/2 [00:00<00:00,  1.69it/s, loss=40.9, c_auc=0.500, y_auc=0.426, val_c_auc=0.500, val_y_auc=0.539]
+Validation: 0it [00:00, ?it/s][A
+Validation:   0%|          | 0/1 [00:00<?, ?it/s][A
+Validation DataLoader 0:   0%|          | 0/1 [00:00<?, ?it/s][A
+Validation DataLoader 0: 100%|██████████| 1/1 [00:00<00:00,  5.60it/s][AEpoch 5: 100%|██████████| 2/2 [00:01<00:00,  1.71it/s, loss=40.9, c_auc=0.500, y_auc=0.426, val_c_auc=0.500, val_y_auc=0.539]Epoch 5: 100%|██████████| 2/2 [00:01<00:00,  1.71it/s, loss=40.9, c_auc=0.500, y_auc=0.426, val_c_auc=0.500, val_y_auc=0.507]
+                                                                      [AEpoch 5: 100%|██████████| 2/2 [00:01<00:00,  1.71it/s, loss=40.9, c_auc=0.500, y_auc=0.426, val_c_auc=0.500, val_y_auc=0.507]Epoch 5:   0%|          | 0/1 [00:00<?, ?it/s, loss=40.9, c_auc=0.500, y_auc=0.426, val_c_auc=0.500, val_y_auc=0.507]        Epoch 6:   0%|          | 0/1 [00:00<?, ?it/s, loss=40.9, c_auc=0.500, y_auc=0.426, val_c_auc=0.500, val_y_auc=0.507]Epoch 6: 100%|██████████| 1/1 [00:00<00:00,  1.68it/s, loss=40.9, c_auc=0.500, y_auc=0.426, val_c_auc=0.500, val_y_auc=0.507]Epoch 6: 100%|██████████| 1/1 [00:00<00:00,  1.64it/s, loss=39.4, c_auc=0.500, y_auc=0.443, val_c_auc=0.500, val_y_auc=0.507]Epoch 6: 100%|██████████| 1/1 [00:00<00:00,  1.63it/s, loss=39.4, c_auc=0.500, y_auc=0.443, val_c_auc=0.500, val_y_auc=0.507]Epoch 6:   0%|          | 0/2 [00:00<?, ?it/s, loss=39.4, c_auc=0.500, y_auc=0.443, val_c_auc=0.500, val_y_auc=0.507]        Epoch 7:   0%|          | 0/2 [00:00<?, ?it/s, loss=39.4, c_auc=0.500, y_auc=0.443, val_c_auc=0.500, val_y_auc=0.507]Epoch 7:  50%|█████     | 1/2 [00:00<00:00,  2.21it/s, loss=39.4, c_auc=0.500, y_auc=0.443, val_c_auc=0.500, val_y_auc=0.507]Epoch 7:  50%|█████     | 1/2 [00:00<00:00,  2.13it/s, loss=38.8, c_auc=0.500, y_auc=0.462, val_c_auc=0.500, val_y_auc=0.507]
+Validation: 0it [00:00, ?it/s][A
+Validation:   0%|          | 0/1 [00:00<?, ?it/s][A
+Validation DataLoader 0:   0%|          | 0/1 [00:00<?, ?it/s][A
+Validation DataLoader 0: 100%|██████████| 1/1 [00:00<00:00,  5.63it/s][AEpoch 7: 100%|██████████| 2/2 [00:01<00:00,  1.94it/s, loss=38.8, c_auc=0.500, y_auc=0.462, val_c_auc=0.500, val_y_auc=0.507]Epoch 7: 100%|██████████| 2/2 [00:01<00:00,  1.93it/s, loss=38.8, c_auc=0.500, y_auc=0.462, val_c_auc=0.500, val_y_auc=0.470]
+                                                                      [AEpoch 7: 100%|██████████| 2/2 [00:01<00:00,  1.93it/s, loss=38.8, c_auc=0.500, y_auc=0.462, val_c_auc=0.500, val_y_auc=0.470]Epoch 7:   0%|          | 0/1 [00:00<?, ?it/s, loss=38.8, c_auc=0.500, y_auc=0.462, val_c_auc=0.500, val_y_auc=0.470]        Epoch 8:   0%|          | 0/1 [00:00<?, ?it/s, loss=38.8, c_auc=0.500, y_auc=0.462, val_c_auc=0.500, val_y_auc=0.470]Epoch 8: 100%|██████████| 1/1 [00:00<00:00,  1.56it/s, loss=38.8, c_auc=0.500, y_auc=0.462, val_c_auc=0.500, val_y_auc=0.470]Epoch 8: 100%|██████████| 1/1 [00:00<00:00,  1.52it/s, loss=38.4, c_auc=0.500, y_auc=0.469, val_c_auc=0.500, val_y_auc=0.470]Epoch 8: 100%|██████████| 1/1 [00:00<00:00,  1.51it/s, loss=38.4, c_auc=0.500, y_auc=0.469, val_c_auc=0.500, val_y_auc=0.470]Epoch 8:   0%|          | 0/2 [00:00<?, ?it/s, loss=38.4, c_auc=0.500, y_auc=0.469, val_c_auc=0.500, val_y_auc=0.470]        Epoch 9:   0%|          | 0/2 [00:00<?, ?it/s, loss=38.4, c_auc=0.500, y_auc=0.469, val_c_auc=0.500, val_y_auc=0.470]Epoch 9:  50%|█████     | 1/2 [00:00<00:00,  1.66it/s, loss=38.4, c_auc=0.500, y_auc=0.469, val_c_auc=0.500, val_y_auc=0.470]Epoch 9:  50%|█████     | 1/2 [00:00<00:00,  1.61it/s, loss=37.7, c_auc=0.500, y_auc=0.529, val_c_auc=0.500, val_y_auc=0.470]
+Validation: 0it [00:00, ?it/s][A
+Validation:   0%|          | 0/1 [00:00<?, ?it/s][A
+Validation DataLoader 0:   0%|          | 0/1 [00:00<?, ?it/s][A
+Validation DataLoader 0: 100%|██████████| 1/1 [00:00<00:00,  5.65it/s][AEpoch 9: 100%|██████████| 2/2 [00:01<00:00,  1.98it/s, loss=37.7, c_auc=0.500, y_auc=0.529, val_c_auc=0.500, val_y_auc=0.470]Epoch 9: 100%|██████████| 2/2 [00:01<00:00,  1.97it/s, loss=37.7, c_auc=0.500, y_auc=0.529, val_c_auc=0.500, val_y_auc=0.493]
+                                                                      [AEpoch 9: 100%|██████████| 2/2 [00:01<00:00,  1.97it/s, loss=37.7, c_auc=0.500, y_auc=0.529, val_c_auc=0.500, val_y_auc=0.493]Epoch 9: 100%|██████████| 2/2 [00:01<00:00,  1.97it/s, loss=37.7, c_auc=0.500, y_auc=0.529, val_c_auc=0.500, val_y_auc=0.493]
+Testing: 0it [00:00, ?it/s]Testing:   0%|          | 0/5 [00:00<?, ?it/s]Testing DataLoader 0:   0%|          | 0/5 [00:00<?, ?it/s]Testing DataLoader 0:  20%|██        | 1/5 [00:00<00:00,  4.45it/s]Testing DataLoader 0:  40%|████      | 2/5 [00:00<00:00,  4.45it/s]Testing DataLoader 0:  60%|██████    | 3/5 [00:00<00:00,  4.43it/s]Testing DataLoader 0:  80%|████████  | 4/5 [00:00<00:00,  4.44it/s]Testing DataLoader 0: 100%|██████████| 5/5 [00:01<00:00,  4.45it/s]Testing DataLoader 0: 100%|██████████| 5/5 [00:01<00:00,  4.44it/s]
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+       Test metric             DataLoader 0
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+    test_avg_c_y_acc         0.670575925925926
+     test_c_accuracy        0.8518518518518519
+       test_c_auc                   0.5
+        test_c_f1           0.45866326014343856
+    test_concept_loss        3.424793243408203
+        test_loss             34.895751953125
+     test_task_loss          0.647820770740509
+     test_y_accuracy              0.4893
+       test_y_auc           0.5005999554828899
+        test_y_f1                   0.0
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+c_acc: 85.19%, y_acc: 48.93%, c_auc: 50.00%, y_auc: 50.06% with 10 epochs in 11.21 seconds
+	Intervening in ConceptEmbeddingModel with policy group_optimal_global_no_prior and competence 1
+	Average intervention took 0.00052 seconds and construction took 0.00005 seconds.
+	Intervening in ConceptEmbeddingModel with policy group_optimal_global_fix_no_prior and competence 1

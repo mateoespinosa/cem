@@ -361,11 +361,7 @@ def train_model(
         else:
             # Else it is time to train it
             start_time = time.time()
-            try:
-                fit_trainer.fit(model, train_dl, val_dl)
-            except:
-                import pdb
-                pdb.set_trace()
+            fit_trainer.fit(model, train_dl, val_dl)
             training_time = time.time() - start_time
             num_epochs = fit_trainer.current_epoch
             if save_model and (result_dir is not None):

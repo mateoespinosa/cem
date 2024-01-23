@@ -76,6 +76,7 @@ class CooP(InterventionPolicy):
             min_importance = 0
         self.min_importance = min_importance
         self.include_prior = include_prior
+        self.sample = 1
 
     def _normalize_importance(self, importance_scores):
         if (
@@ -172,6 +173,10 @@ class CooP(InterventionPolicy):
                 y_probs = torch.squeeze(y_probs, dim=-1)
                 expected_change = (
                     y_probs * pred_class + (1 - y_probs) * (1 - pred_class)
+                )
+            if self.sample == 1:
+                logging.debug(
+                    f"expected change: {expected_change}"
                 )
         else:
             # Else we actually compute the expectation
@@ -296,7 +301,8 @@ class CooP(InterventionPolicy):
                         prior_distribution[:, group_idx]
             prior_distribution = new_prior_distribution
         for concept_idx in range(c.shape[-1]):
-            logging.debug(f"\tFinding score for concept {concept_idx}...")
+            # if self.sample == 1:
+            #     logging.debug(f"\tFinding score for concept {concept_idx}...")
             # If there is at least one element in the batch that has this
             # concept unintervened, then we will have to evaluate its score for
             # all of them
@@ -380,6 +386,7 @@ class CooP(InterventionPolicy):
                 group_scores[:, group_idx] = current_score
             next_groups = torch.argmax(group_scores, axis=-1)
             intervened_concepts = []
+            
             for sample_idx, best_group_idx in enumerate(next_groups):
                 # Get the concepts corresponding to the group we will be
                 # intervening on
@@ -453,9 +460,12 @@ class CooP(InterventionPolicy):
                 competencies=competencies,
                 prior_distribution=prior_distribution,
             )
-            logging.debug(
-                f"Intervened on concepts {next_concepts}"
-            )
+            
+            if self.sample == 1:
+                logging.debug(
+                    f"Intervened on concepts {next_concepts}"
+                )
+                self.sample += 1
         return mask, c
 
 ##########################
