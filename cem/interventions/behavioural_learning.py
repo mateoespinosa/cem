@@ -112,6 +112,7 @@ class BehavioralLearningPolicy(InterventionPolicy):
             )
         else:
             self.behavior_cloner.load_state_dict(torch.load(model_saved_path))
+        self.greedy = True
 
     def _compute_model_input(
         self,

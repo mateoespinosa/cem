@@ -5,7 +5,7 @@ dataset: "celeba"
 image_size: 64
 num_classes: 1000
 batch_size: 512
-root_dir: /local/scratch/me466/
+root_dir: /home/xty20/data
 use_imbalance: True
 use_binary_vector_class: True
 num_concepts: 6

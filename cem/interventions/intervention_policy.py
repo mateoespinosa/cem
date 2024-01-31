@@ -19,6 +19,7 @@ class InterventionPolicy(ABC):
         self.include_prior = include_prior
         self.horizon = horizon
         self.cbm_use_concept_groups = cbm.use_concept_groups
+        self.greedy = True
 
 
     @abstractmethod

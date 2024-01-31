@@ -1,24 +1,189 @@
 import math
-
 import torch
+import pytorch_lightning as pl
 from torch.distributions import kl_divergence
 import torch.nn.functional as F
 from torch.nn import Module
+from torchmetrics import Accuracy
 import numpy as np
 
-class ACFlow(Module):
+class ACFlow(pl.LightningModule):
 
-    def __init__(self):
+    def __init__(self, n_concepts, n_tasks, layer_cfg, affine_hids, transformations, optimizer, learning_rate, weight_decay, momentum,  prior_units, prior_layers, prior_hids, n_components, lambda_xent = 1, lambda_nll = 1):
         super.__init__()
+        self.n_concepts = n_concepts
+        self.n_tasks = n_tasks
+        self.flow = Flow(n_concepts, n_tasks, layer_cfg, affine_hids, transformation,  prior_units, prior_layers, prior_hids, n_components)
+        self.lambda_xent = lambda_xent
+        self.lambda_nll = lambda_nll
+        self.xent_loss = torch.nn.CrossEntropyLoss() if n_tasks > 1 else torch.nn.BCEWithLogitsLoss()
+        self.accuracy = Accuracy(task = "multiclass" if n_tasks > 2 else "binary", num_classes = n_tasks if n_tasks > 1 else 2)
+        self.optimizer_name = optimizer
+        self.learning_rate = learning_rate
+        self.weight_decay = weight_decay
+        self.momentum = momentum
+
+    def flow_forward(self, x, b, m, y = None, forward = True, task = "classify"):
+        B = x.shape[0]
+        d = self.n_concepts
+        N = self.n_tasks
+
+        x = torch.tile(torch.unsqueeze(x, dim = 1), [1, N, 1])
+        x = torch.reshape(x, [B * N, d])
+        b = torch.tile(torch.unsqueeze(b, dim = 1), [1, N, 1])
+        b = torch.reshape(b, [B * N, d])
+        m = torch.tile(torch.unsqueeze(m, dim = 1), [1, N, 1])
+        m = torch.reshape(x, [B * N, d])
+        if(y == None):
+            if(task == "classify"):
+                y = torch.tile(torch.unsqueeze(torch.range(N), dim = 0), [B, 1])
+                forward = True
+            elif(task == "sample"):
+                y = torch.randint(0, self.n_concepts, [B*N])
+                forward = False
+        if(y.shape != (B*N)):
+            if(y.shape == (B, N)):
+                y = torch.tile(torch.unsqueeze(y, dim = 1), [1, N])
+                y = torch.reshape(x, [B * N])
+            else:
+                raise ValueError(f"y should have shape (B*N) or (B,N). Instead y is of shape {y.shape}")
+        # log p(x_u | x_o, y)
+        if forward:
+            logp = self.flow.cond_forward(x, y, b, m)
+            # logits
+            logits = torch.reshape(logp, [B,N])
+            return logits
+        else:
+            sample = self.flow.cond_inverse(x,y,b,m)
+            sample = torch.reshape(sample, [B,N,d])
+            return sample
+
+    def forward(self, x, b, m, y):
+        y = y.int()
+        cond_logpu = self.flow_forward(x, b, m, y, forward = True)
+        # log p(x_u | x_o, y)
+        logpu = self.flow_forward(x, b, m, None, task = "classify")
+        # log p(x_o | y)
+        logpo = self.flow_forward(x, b * (1-b), b, None, task = "classify")
+        
+        sam = self.flow_forward(x, b, m, None, task = "sample")
+
+        # sample p(x_u | x_o, y)
+        cond_sam = self.flow_forward(x, b, m, y, forward = False)
+
+        # sample p(x_u | x_o, y) based on predicted y
+        pred = torch.argmax(logpo, dim=1)
+        pred_sam = self.flow_forward(x, b, m, pred, forward = False)
+
+        return logpu, logpo, sam, cond_sam, pred_sam
+
+    def training_step(self, batch, batch_idx):
+        
+        x, b, m, y = batch['x'], batch['b'], batch['m'], batch['y']
+        class_weights = np.array(batch.get('class_weights', [1. for _ in range(self.n_concepts)]), dtype=np.float32)
+        class_weights /= np.sum(class_weights)
+        class_weights = np.log(class_weights)
+
+        logpu, logpo, _, _, _ = self(x,b,m,y)
+
+        logits = logpu + logpo
+        xent = self.xent_loss(logits, y)
+
+        loglikel = torch.logsumexp(logpu + logpo + class_weights) - torch.logsumexp(logpo + class_weights)
+        nll = torch.mean(-log_likel)
+        
+        loss = xent * self.lambda_xent + self.hps.lambda_nll * nll
+
+        prob = torch.nn.softmax(logits + class_weights)
+        pred = torch.argmax(logits, dim=1)
+        acc = self.accuracy(pred, y)
+
+        return loss, {"loss": loss if isinstance(loss, float) else loss.detach(), "accuracy": acc.detach(), "nll": nll.detach()}
+
+    def validation_step(self, batch, batch_idx):
+        
+        x, b, m, y = batch['x'], batch['b'], batch['m'], batch['y']
+        class_weights = np.array(batch.get('class_weights', [1. for _ in range(self.n_concepts)]), dtype=np.float32)
+        class_weights /= np.sum(class_weights)
+        class_weights = np.log(class_weights)
+
+        logpu, logpo, _, _, _ = self(x,b,m,y)
+
+        logits = logpu + logpo
+        xent = self.xent_loss(logits, y)
+
+        loglikel = torch.logsumexp(logpu + logpo + class_weights) - torch.logsumexp(logpo + class_weights)
+        nll = torch.mean(-log_likel)
+        
+        loss = xent * self.lambda_xent + self.hps.lambda_nll * nll
+
+        prob = torch.nn.softmax(logits + class_weights)
+        pred = torch.argmax(logits, dim=1)
+        acc = self.accuracy(pred, y)
+
+        return loss, {"loss": loss if isinstance(loss, float) else loss.detach(), "accuracy": acc.detach(), "nll": nll.detach()}
+
+    def test_step(self, batch, batch_idx):
+
+        x, b, m, y = batch['x'], batch['b'], batch['m'], batch['y']
+        class_weights = np.array(batch.get('class_weights', [1. for _ in range(self.n_concepts)]), dtype=np.float32)
+        class_weights /= np.sum(class_weights)
+        class_weights = np.log(class_weights)
+
+        logpu, logpo, _, _, _ = self(x,b,m,y)
+
+        logits = logpu + logpo
+        xent = self.xent_loss(logits, y)
+
+        loglikel = torch.logsumexp(logpu + logpo + class_weights) - torch.logsumexp(logpo + class_weights)
+        nll = torch.mean(-log_likel)
+        
+        prob = torch.nn.softmax(logits + class_weights)
+        pred = torch.argmax(logits, dim=1)
+        acc = self.accuracy(pred, y)
+
+        return nll, {"accuracy": acc.detach(), "nll": nll.detach()}
+
+    def configure_optimizers(self):
+        if self.optimizer_name.lower() == "adam":
+            optimizer = torch.optim.Adam(
+                self.flow.parameters(),
+                lr=self.learning_rate,
+                weight_decay=self.weight_decay,
+            )
+        else:
+            optimizer = torch.optim.SGD(
+                filter(lambda p: p.requires_grad, self.flow.parameters()),
+                lr=self.learning_rate,
+                momentum=self.momentum,
+                weight_decay=self.weight_decay,
+            )
+        lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+            optimizer,
+            verbose=True,
+        )
+        
+        return {
+            "optimizer": optimizer,
+            "lr_scheduler": lr_scheduler,
+            "monitor": "loss",
+        }
 
 class Flow(Module):
-    def __init__(self, n_concepts, n_tasks, layer_cfg = [], affine_hids = [256, 256]):
+    def __init__(self, n_concepts, n_tasks, layer_cfg, affine_hids, transformations, prior_units, prior_layers, prior_hids, n_components):
         self.n_concepts = n_concepts
         self.n_tasks = n_tasks
         self.layer_cfg = layer_cfg
         self.affine_hids = affine_hids
-        self.transform = Transform(n_concepts, n_tasks, affine_hids, layer_cfg)
-        self.prior = Prior()
+        self.transform = Transform(n_concepts, n_tasks, affine_hids, layer_cfg, transformations)
+        self.prior = AutoReg(
+            n_concepts = n_concepts, 
+            n_tasks = n_tasks, 
+            prior_units = prior_units, 
+            prior_layers = prior_layers, 
+            prior_hids = prior_hids, 
+            n_components = n_components
+        )
 
     def forward(self, x, b, m):
         x_u, x_o = self.preprocess(x, b, m)
@@ -46,7 +211,7 @@ class Flow(Module):
 
     def cond_forward(self, x, y, b, m):
         x_u, x_o = self.preprocess(x, b, m)
-        c = torch.concat([F.one_hot(y, self.n_concepts), x_o], dim=1)
+        c = torch.concat([F.one_hot(y, self.n_tasks), x_o], dim=1)
         z_u, logdet = self.transform.forward(x_u, c, b, m)
         prior_ll = self.prior.logp(z_u, c, b, m)
         log_likel = prior_ll + logdet
@@ -55,7 +220,7 @@ class Flow(Module):
 
     def cond_inverse(self, x, y, b, m):
         _, x_o = self.preprocess(x, b, m)
-        c = torch.concat([F.one_hot(y, self.n_concepts), x_o], dim=1)
+        c = torch.concat([F.one_hot(y, self.n_tasks), x_o], dim=1)
         z_u = self.prior.sample(c, b, m)
         x_u, _ = self.transform.inverse(z_u, c, b, m)
         x_sam = self.postprocess(x_u, x, b, m)
@@ -64,7 +229,7 @@ class Flow(Module):
 
     def cond_mean(self, x, y, b, m):
         _, x_o = self.preprocess(x, b, m)
-        c = torch.concat([F.one_hot(y, self.n_concepts), x_o], dim=1)
+        c = torch.concat([F.one_hot(y, self.n_tasks), x_o], dim=1)
         z_u = self.prior.mean(c, b, m)
         x_u, _ = self.transform.inverse(z_u, c, b, m)
         x_mean = self.postprocess(x_u, x, b, m)
@@ -321,3 +486,151 @@ class Transform(BaseTransform):
         elif name == "TransLayer":
             return TransLayer(self.n_concepts, self.n_tasks, self.affine_hids)
 
+class AutoReg(object):
+    def __init__(self, n_concepts, n_tasks, prior_units, prior_layers, prior_hids, n_components):
+        self.n_concepts = n_concepts
+        self.n_tasks = n_tasks
+        self.prior_units = prior_units
+        self.prior_layers = prior_layers
+        self.prior_hids = prior_hids
+        self.n_components = n_components
+        self.rnn_cell = torch.nn.GRU(
+            input_size = self.n_concepts * 3 + self.n_tasks + 1, 
+            hidden_size = self.prior_units,
+            batch_first = True
+        )
+
+        rnn_out = []
+        for i, h in enumerate(self.prior_hids):
+            rnn_out.append(torch.nn.Linear(self.prior_units + self.n_concept * 3 + self.n_tasks if i == 0 else self.prior_hids[i-1], h))
+            rnn_out.append(torch.nn.Tanh())
+        rnn_out.append(torch.nn.Linear(self.prior_hids[-1], self.n_components * 3))
+        self.rnn_out = torch.nn.Sequential(*rnn_out)
+        
+    def logp(self, z, c, b, m):
+        B = z.shape[0]
+        d = self.n_concepts
+        state = torch.zeros(self.prior_layers, B, self.prior_units)
+        z_t = -torch.ones((B,1), dtype = torch.float)
+        p_list = []
+        for t in range(d):
+            inp = torch.cat([z_t, c, b, m], dim = 1)
+            inp = inp.unsqueeze(1)
+            h_t, state = self.rnn_cell(inp, state)
+            h_t = torch.squeeze(h_t, 1)
+            h_t = torch.cat([h_t, c, b, m], dim = 1)
+            p_t = self.rnn_out(h_t)
+            p_list.append(p_t)
+            z_t = torch.unsqueeze(z[:,t], dim = 1)
+        params = torch.stack(p_list, dim = 1)
+        log_like1 = mixture_likelihoods(params, z)
+        query = m * (1 - b)
+        mask = torch.sort(query, dim = 1, descending = True)
+        log_likel = torch.sum(log_likel * mask, dim = 1)
+        return log_likel
+        
+    def sample(self, c, b, m):
+        B = c.shape[0]
+        d = self.n_concepts
+        
+        state = torch.zeros(self.prior_layers, B, self.prior_units)
+        z_t = -torch.ones((B,1), dtype = torch.float)
+        z_list = []
+        for t in range(d):
+            inp = torch.cat([z_t, c, b, m], dim = 1)
+            inp = inp.unsqueeze(1)
+            h_t, state = self.rnn_cell(inp, state)
+            h_t = torch.squeeze(h_t, 1)
+            h_t = torch.cat([h_t, c, b, m], dim = 1)
+            p_t = self.rnn_out(h_t)
+            z_t = mixture_sample_dim(p_t)
+            z_list.append(z_t)
+        z = torch.concat(z_list, dim=1)
+        return z
+
+    def mean(self, c, b, m):
+        B = c.shape[0]
+        d = self.n_concepts
+        
+        state = torch.zeros(self.prior_layers, B, self.prior_units)
+        z_t = -torch.ones((B,1), dtype = torch.float)
+        z_list = []
+        for t in range(d):
+            inp = torch.cat([z_t, c, b, m], dim = 1)
+            inp = inp.unsqueeze(1)
+            h_t, state = self.rnn_cell(inp, state)
+            h_t = torch.squeeze(h_t, 1)
+            h_t = torch.cat([h_t, c, b, m], dim = 1)
+            p_t = self.rnn_out(h_t)
+            z_t = mixture_mean_dim(p_t)
+            z_list.append(z_t)
+        z = torch.concat(z_list, dim=1)
+        return z
+
+def mixture_likelihoods(params, targets, base_distribution='gaussian'):
+    '''
+    Args:
+        params: [B,d,c*3]
+        targets: [B,d]
+    Return:
+        log_likelihood: [B,d]
+    '''
+    targets = torch.unsqueeze(targets, dim = -1)
+    logits, means, lsigmas = torch.split(params, 3, dim=2)
+    sigmas = torch.exp(lsigmas)
+    if base_distribution == 'gaussian':
+        log_norm_consts = -lsigmas - 0.5 * np.log(2.0 * np.pi)
+        log_kernel = -0.5 * torch.square((targets - means) / sigmas)
+    elif base_distribution == 'laplace':
+        log_norm_consts = -lsigmas - np.log(2.0)
+        log_kernel = -torch.abs(targets - means) / sigmas
+    elif base_distribution == 'logistic':
+        log_norm_consts = -lsigmas
+        diff = (targets - means) / sigmas
+        log_kernel = -F.softplus(diff) - F.softplus(-diff)
+    else:
+        raise NotImplementedError
+    log_exp_terms = log_kernel + log_norm_consts + logits
+    log_likelihoods = torch.logsumexp(log_exp_terms, dim = -1) - torch.logsumexp(logits, dim = -1)
+    
+    return log_likelihoods
+
+def mixture_sample_dim(params_dim, base_distribution='gaussian'):
+    '''
+    Args:
+        params_dim: [B,n*3]
+    Return:
+        samp: [B,1]
+    '''
+    B = params_dim.shape[0]
+    logits, means, lsigmas = torch.split(params_dim, 3, dim=1)
+    sigmas = torch.exp(lsigmas)
+    # sample multinomial
+    js = torch.multinomial(logits, 1)  # int64
+    
+    inds = torch.cat([
+        torch.unsqueeze(torch.arange(B), dim = -1), 
+        torch.tile(torch.unsqueeze(torch.tensor([js]), dim = -1),(B,1))], dim = 1)
+    # Sample from base distribution.
+    if base_distribution == 'gaussian':
+        zs = torch.normal(mean = torch.zeros((B, 1)))
+    elif base_distribution == 'laplace':
+        zs = torch.log(torch.rand(size = (B, 1))) - \
+            torch.log(torch.rand(size = (B, 1)))
+    elif base_distribution == 'logistic':
+        x = torch.rand(size = (B, 1))
+        zs = torch.log(x) - torch.log(1.0 - x)
+    else:
+        raise NotImplementedError()
+    # scale and shift
+    mu_zs = torch.unsqueeze(means[list(inds.T)], dim = -1)
+    sigma_zs = torch.unsqueeze(sigmas[list(inds.T)], dim = -1)
+    samp = sigma_zs * zs + mu_zs
+    
+    return samp
+
+def mixture_mean_dim(params_dim, base_distribution='gaussian'):
+    logits, means, lsigmas = torch.split(params_dim, 3, dim=1)
+    weights = torch.nn.softmax(logits, dim=-1)
+
+    return torch.sum(weights * means, dim=1, keepdims=True)
