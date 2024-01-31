@@ -256,7 +256,7 @@ class Flow(Module):
     
 class BaseTransform(Module):
     def __init__(self):
-        super.__init__()
+        super().__init__()
 
     def forward(self, x, c, b, m):
         raise NotImplementedError()
@@ -266,7 +266,7 @@ class BaseTransform(Module):
     
 class Affine(BaseTransform):
     def __init__(self, n_concepts, n_tasks, affine_hids):
-        super.__init__()
+        super().__init__()
         self.n_concepts = n_concepts
         self.n_tasks = n_tasks
         self.affine_hids = affine_hids
@@ -315,7 +315,7 @@ class Affine(BaseTransform):
 
 class Coupling2(BaseTransform):
     def __init__(self, n_concepts, n_tasks, affine_hids):
-        super.__init__()
+        super().__init__()
         self.n_concepts = n_concepts
         self.n_tasks = n_tasks
         self.affine_hids = affine_hids
@@ -363,7 +363,7 @@ class Coupling2(BaseTransform):
     
 class LeakyReLU(BaseTransform):
     def __init__(self):
-        super.__init__()
+        super().__init__()
         log_alpha = torch.nn.Parameter(torch.tensor(5.0))
         self.alpha = torch.sigmoid(log_alpha)
 
@@ -386,7 +386,7 @@ class LeakyReLU(BaseTransform):
 
 class LULinear(BaseTransform):
     def __init__(self, n_concepts, n_tasks, linear_rank, linear_hids):
-        super.__init__()
+        super().__init__()
         self.n_concepts = n_concepts
         self.n_tasks = n_tasks
         self.linear_rank = n_concepts if linear_rank <= 0 else linear_rank
