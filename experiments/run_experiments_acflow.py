@@ -75,7 +75,6 @@ class TransformedDataset(Dataset):
 
 def main(
     data_module,
-    result_dir,
     experiment_config,
     num_workers=8,
     accelerator="auto",
