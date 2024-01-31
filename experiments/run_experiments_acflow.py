@@ -100,6 +100,9 @@ def main(
             output_dataset_vars=True,
             root_dir=experiment_config['shared_params'].get('root_dir', None),
         )
+    logging.debug(
+        f"Applying transformations..."
+    )
     train_dl = TransformedDataset(train_dl)
     val_dl = TransformedDataset(test_dl)
     test_dl = TransformedDataset(test_dl)
@@ -226,8 +229,17 @@ def main(
             lambda_nll = 1
         )
 
+        logging.debug(
+            f"Starting model training..."
+        )
+
         trainer.fit(model, train_dl, valid_dl)
         model.freeze()
+
+        logging.debug(
+            f"Starting model training..."
+        )
+
         [test_results] = trainer.test(model, test_dl)
 
         acc = test_results['test_acc']
