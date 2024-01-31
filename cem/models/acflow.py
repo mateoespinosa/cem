@@ -10,7 +10,7 @@ import numpy as np
 class ACFlow(pl.LightningModule):
 
     def __init__(self, n_concepts, n_tasks, layer_cfg, affine_hids, transformations, optimizer, learning_rate, weight_decay, momentum,  prior_units, prior_layers, prior_hids, n_components, lambda_xent = 1, lambda_nll = 1):
-        super.__init__()
+        super().__init__()
         self.n_concepts = n_concepts
         self.n_tasks = n_tasks
         self.flow = Flow(n_concepts, n_tasks, layer_cfg, affine_hids, transformation,  prior_units, prior_layers, prior_hids, n_components)
