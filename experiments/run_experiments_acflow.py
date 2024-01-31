@@ -221,7 +221,7 @@ def main(
             optimizer = experiment_config['shared_params']['optimizer'], 
             learning_rate = experiment_config['shared_params']['learning_rate'], 
             weight_decay = experiment_config['shared_params']['decay_rate'], 
-            momentum = experiment_config['shared_params']['momentum'], 
+            momentum = experiment_config['shared_params'].get('momentum', 0.9), 
             prior_units = experiment_config['shared_params']['prior_units'], 
             prior_layers = experiment_config['shared_params']['prior_layers'], 
             prior_hids = experiment_config['shared_params']['prior_hids'], 
