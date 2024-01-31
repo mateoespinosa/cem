@@ -337,13 +337,10 @@ if __name__ == '__main__':
         )
     if loaded_config["dataset"] == "cub":
         data_module = cub_data_module
-        args.project_name = args.project_name.format(ds_name="cub")
     elif loaded_config["dataset"] == "celeba":
         data_module = celeba_data_module
-        args.project_name = args.project_name.format(ds_name="celeba")
     elif loaded_config["dataset"] == "mnist_add":
         data_module = mnist_data_module
-        args.project_name = args.project_name.format(ds_name=args.dataset)
         utils.extend_with_global_params(
             loaded_config,
             args.param or []
