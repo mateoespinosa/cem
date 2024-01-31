@@ -18,7 +18,7 @@ from torch.utils.data import Dataset
 
 import cem.data.celeba_loader as celeba_data_module
 import cem.data.mnist_add as mnist_data_module
-from cem.models.ac_flow import ACFlow
+import cem.models.acflow.ACFlow import ACFlow
 
 ################################################################################
 ## MAIN FUNCTION
