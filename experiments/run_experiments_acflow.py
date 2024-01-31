@@ -49,6 +49,7 @@ class TransformedDataset(Dataset):
         _, x, (y, _, _) = self._unpack_batch(batch)
         x = torch.tensor(x)
         y = torch.tensor(y)
+        d = x.shape[-1]
         b = np.zeros([d], dtype=np.float32)
         no = np.random.choice(d+1)
         o = np.random.choice(d, [no], replace=False)
@@ -104,7 +105,7 @@ def main(
         f"Applying transformations..."
     )
     train_dl = TransformedDataset(train_dl)
-    val_dl = TransformedDataset(test_dl)
+    val_dl = TransformedDataset(val_dl)
     test_dl = TransformedDataset(test_dl)
     # For now, we assume that all concepts have the same
     # aquisition cost
@@ -233,7 +234,7 @@ def main(
             f"Starting model training..."
         )
 
-        trainer.fit(model, train_dl, valid_dl)
+        trainer.fit(model, train_dl, val_dl)
         model.freeze()
 
         logging.debug(
@@ -243,7 +244,7 @@ def main(
         [test_results] = trainer.test(model, test_dl)
 
         acc = test_results['test_acc']
-        nll = test_resutls['test_nll']
+        nll = test_results['test_nll']
         logging.debug(
             f"\tTest Accuracy is {acc}\n"
             f"\tNLL is {nll}\n"
@@ -342,9 +343,9 @@ if __name__ == '__main__':
             "A dataset must be provided either as part of the "
             "configuration file or as a command line argument."
         )
-    if loaded_config["dataset"] == "cub":
-        data_module = cub_data_module
-    elif loaded_config["dataset"] == "celeba":
+    # if loaded_config["dataset"] == "cub":
+    #     data_module = cub_data_module
+    if loaded_config["dataset"] == "celeba":
         data_module = celeba_data_module
     elif loaded_config["dataset"] == "mnist_add":
         data_module = mnist_data_module
