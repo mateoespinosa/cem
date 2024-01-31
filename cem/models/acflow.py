@@ -13,7 +13,7 @@ class ACFlow(pl.LightningModule):
         super().__init__()
         self.n_concepts = n_concepts
         self.n_tasks = n_tasks
-        self.flow = Flow(n_concepts, n_tasks, layer_cfg, affine_hids, transformation,  prior_units, prior_layers, prior_hids, n_components)
+        self.flow = Flow(n_concepts, n_tasks, layer_cfg, affine_hids, transformations,  prior_units, prior_layers, prior_hids, n_components)
         self.lambda_xent = lambda_xent
         self.lambda_nll = lambda_nll
         self.xent_loss = torch.nn.CrossEntropyLoss() if n_tasks > 1 else torch.nn.BCEWithLogitsLoss()
@@ -90,7 +90,7 @@ class ACFlow(pl.LightningModule):
         xent = self.xent_loss(logits, y)
 
         loglikel = torch.logsumexp(logpu + logpo + class_weights) - torch.logsumexp(logpo + class_weights)
-        nll = torch.mean(-log_likel)
+        nll = torch.mean(-loglikel)
         
         loss = xent * self.lambda_xent + self.hps.lambda_nll * nll
 
@@ -113,7 +113,7 @@ class ACFlow(pl.LightningModule):
         xent = self.xent_loss(logits, y)
 
         loglikel = torch.logsumexp(logpu + logpo + class_weights) - torch.logsumexp(logpo + class_weights)
-        nll = torch.mean(-log_likel)
+        nll = torch.mean(-loglikel)
         
         loss = xent * self.lambda_xent + self.hps.lambda_nll * nll
 
@@ -136,7 +136,7 @@ class ACFlow(pl.LightningModule):
         xent = self.xent_loss(logits, y)
 
         loglikel = torch.logsumexp(logpu + logpo + class_weights) - torch.logsumexp(logpo + class_weights)
-        nll = torch.mean(-log_likel)
+        nll = torch.mean(-loglikel)
         
         prob = torch.nn.softmax(logits + class_weights)
         pred = torch.argmax(logits, dim=1)
@@ -526,7 +526,7 @@ class AutoReg(object):
         log_like1 = mixture_likelihoods(params, z)
         query = m * (1 - b)
         mask = torch.sort(query, dim = 1, descending = True)
-        log_likel = torch.sum(log_likel * mask, dim = 1)
+        log_likel = torch.sum(log_like1 * mask, dim = 1)
         return log_likel
         
     def sample(self, c, b, m):
