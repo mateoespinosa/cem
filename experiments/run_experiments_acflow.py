@@ -122,7 +122,7 @@ def main(
             n_tasks,
         )
 
-    sample = next(iter(train_dl))
+    sample = next(iter(train_dl.dataset))
     real_sample = []
     for x in sample:
         if isinstance(x, list):
