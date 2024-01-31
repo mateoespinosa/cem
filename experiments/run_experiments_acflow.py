@@ -348,10 +348,6 @@ if __name__ == '__main__':
         data_module = celeba_data_module
     elif loaded_config["dataset"] == "mnist_add":
         data_module = mnist_data_module
-        utils.extend_with_global_params(
-            loaded_config,
-            args.param or []
-        )
         num_operands = loaded_config.get('num_operands', 32)
         loaded_config["c_extractor_arch"] = get_mnist_extractor_arch(
             input_shape=(
