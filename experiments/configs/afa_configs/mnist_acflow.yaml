@@ -49,7 +49,7 @@ shared_params:
     prior_layers: 2
     prior_hids: [256,256]
     epochs: 500
-    optimizer": adam
+    optimizer: adam
     learning_rate: 0.001
     decay_steps: 10000
     decay_rate: 0.5
