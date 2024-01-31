@@ -349,15 +349,6 @@ if __name__ == '__main__':
     elif loaded_config["dataset"] == "mnist_add":
         data_module = mnist_data_module
         num_operands = loaded_config.get('num_operands', 32)
-        loaded_config["c_extractor_arch"] = get_mnist_extractor_arch(
-            input_shape=(
-                loaded_config.get('batch_size', 512),
-                num_operands,
-                28,
-                28,
-            ),
-            num_operands=num_operands,
-        )
     else:
         raise ValueError(f"Unsupported dataset {loaded_config['dataset']}!")
 
