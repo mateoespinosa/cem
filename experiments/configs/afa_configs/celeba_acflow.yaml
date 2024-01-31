@@ -33,7 +33,7 @@ shared_params:
     n_components: 40
     prior_units: 256
     prior_layers: 2
-    prior_hids: [256,256],
+    prior_hids: [256,256]
     epochs: 500
     optimizer": adam
     learning_rate: 0.001
