@@ -1,0 +1,43 @@
+trials: 5
+results_dir: "results/celeba_interventions/"
+# DATASET VARIABLES
+dataset: "celeba"
+image_size: 64
+num_classes: 1000
+batch_size: 512
+root_dir: /home/xty20/data
+use_imbalance: True
+use_binary_vector_class: True
+num_concepts: 6
+label_binary_width: 1
+label_dataset_subsample: 12
+num_hidden_concepts: 2
+selected_concepts: False
+num_workers: 8
+competence_levels: [1, 0]
+
+shared_params:
+    max_epochs: 500
+    lambda_mse: 0.0
+    lambda_xent: 1.0
+    lambda_nll: 1.0
+    transform: [AF, TL, TL, TL, TL, AF]
+    layer_cfg: [ML, LR, CP2]
+    rnncp_units: 256
+    rnncp_layers: 2
+    linear_hids: [256,256]
+    linear_rank: -1
+    affine_hids: [256,256]
+    coupling_hids: [256,256]
+    prior: autoreg
+    n_components: 40
+    prior_units: 256
+    prior_layers: 2
+    prior_hids: [256,256],
+    epochs: 500
+    optimizer": adam
+    learning_rate: 0.001
+    decay_steps: 10000
+    decay_rate: 0.5
+    clip_gradient": 1
+    num_samples: 10
