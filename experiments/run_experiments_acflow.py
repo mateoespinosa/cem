@@ -107,8 +107,6 @@ def main(
     train_dl = TransformedDataset(train_dl)
     val_dl = TransformedDataset(val_dl)
     test_dl = TransformedDataset(test_dl)
-    import pdb
-    pdb.set_trace()
     # For now, we assume that all concepts have the same
     # aquisition cost
     experiment_config["shared_params"]["n_concepts"] = \
