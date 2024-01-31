@@ -220,7 +220,7 @@ def main(
             transformations = experiment_config['shared_params']['transform'], 
             optimizer = experiment_config['shared_params']['optimizer'], 
             learning_rate = experiment_config['shared_params']['learning_rate'], 
-            weight_decay = experiment_config['shared_params']['weight_decay'], 
+            weight_decay = experiment_config['shared_params']['decay_rate'], 
             momentum = experiment_config['shared_params']['momentum'], 
             prior_units = experiment_config['shared_params']['prior_units'], 
             prior_layers = experiment_config['shared_params']['prior_layers'], 
