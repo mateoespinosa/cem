@@ -26,7 +26,7 @@ from cem.models.ac_flow import ACFlow
 
 # Helper class to apply transformations to a dataset
 class TransformedDataset(Dataset):
-    def __init__(self, dataset, transform):
+    def __init__(self, dataset):
         self.dataset = dataset
 
     def _unpack_batch(self, batch):
