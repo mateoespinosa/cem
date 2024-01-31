@@ -14,6 +14,7 @@ import pytorch_lightning as pl
 from datetime import datetime
 from pathlib import Path
 from pytorch_lightning import seed_everything
+from torch.utils.data import Dataset
 
 import cem.data.celeba_loader as celeba_data_module
 import cem.data.mnist_add as mnist_data_module
