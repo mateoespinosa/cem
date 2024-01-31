@@ -91,12 +91,6 @@ def main(
             experiment_config['shared_params'][key] = vals
     experiment_config['shared_params']['num_workers'] = num_workers
 
-    utils.extend_with_global_params(
-        experiment_config['shared_params'], global_params or []
-    )
-
-
-
     train_dl, val_dl, test_dl, imbalance, (n_concepts, n_tasks, concept_map) = \
         data_module.generate_data(
             config=experiment_config['shared_params'],
