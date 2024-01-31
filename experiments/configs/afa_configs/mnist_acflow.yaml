@@ -22,8 +22,6 @@ noise_level: 0.0
 max_epochs: 300
 train_dataset_size: 10000
 sampling_percent: 0.625
-sampling_groups: True
-c2y_layers: [128, 128]
 skip_repr_evaluation: True
 
 shared_params:
