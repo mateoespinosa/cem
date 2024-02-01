@@ -447,7 +447,7 @@ class TransLayer(BaseTransform):
     
 class Transform(BaseTransform):
     def __init__(self, n_concepts, n_tasks, affine_hids, layer_cfg, transformations):
-        super(Transform, self).__init__()
+        super().__init__()
         self.n_concepts = n_concepts
         self.n_tasks = n_tasks
         self.affine_hids = affine_hids
