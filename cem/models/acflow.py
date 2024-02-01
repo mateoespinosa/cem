@@ -146,6 +146,8 @@ class ACFlow(pl.LightningModule):
 
     def configure_optimizers(self):
         if self.optimizer_name.lower() == "adam":
+            import pdb
+            pdb.set_trace()
             optimizer = torch.optim.Adam(
                 self.flow.parameters(),
                 lr=self.learning_rate,
@@ -487,8 +489,9 @@ class Transform(BaseTransform):
         elif name == "TransLayer":
             return TransLayer(self.n_concepts, self.n_tasks, self.affine_hids)
 
-class AutoReg(object):
+class AutoReg(Module):
     def __init__(self, n_concepts, n_tasks, prior_units, prior_layers, prior_hids, n_components):
+        super().__init__()
         self.n_concepts = n_concepts
         self.n_tasks = n_tasks
         self.prior_units = prior_units
