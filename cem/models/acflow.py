@@ -273,7 +273,7 @@ class Affine(BaseTransform):
 
         layers = []
         for i, h in enumerate(self.affine_hids):
-            layers.append(torch.nn.Linear(self.n_concept * 3 + self.n_tasks if i == 0 else self.affine_hids[i-1], h))
+            layers.append(torch.nn.Linear(self.n_concepts * 3 + self.n_tasks if i == 0 else self.affine_hids[i-1], h))
             layers.append(torch.nn.Tanh())
         layers.append(torch.nn.Linear(self.affine_hids[-1], self.n_concepts * 2))
     
@@ -322,7 +322,7 @@ class Coupling2(BaseTransform):
 
         layers = []
         for i, h in enumerate(self.affine_hids):
-            layers.append(torch.nn.Linear(self.n_concept * 3 + self.n_tasks if i == 0 else self.affine_hids[i-1], h))
+            layers.append(torch.nn.Linear(self.n_concepts * 3 + self.n_tasks if i == 0 else self.affine_hids[i-1], h))
             layers.append(torch.nn.Tanh())
         layers.append(torch.nn.Linear(self.affine_hids[-1], self.n_concepts * 2))
     
@@ -400,10 +400,10 @@ class LULinear(BaseTransform):
         bnn = []
 
         for i, h in enumerate(linear_hids):
-            wnn.append(torch.nn.Linear(self.n_concept * 3 + self.n_tasks if i == 0 else linear_hids[i-1], h))
+            wnn.append(torch.nn.Linear(self.n_concepts * 3 + self.n_tasks if i == 0 else linear_hids[i-1], h))
             wnn.append(torch.nn.Tanh())
             
-            bnn.append(torch.nn.Linear(self.n_concept * 3 + self.n_tasks if i == 0 else linear_hids[i-1], h))
+            bnn.append(torch.nn.Linear(self.n_concepts * 3 + self.n_tasks if i == 0 else linear_hids[i-1], h))
             bnn.append(torch.nn.Tanh())
 
         wnn.append(torch.nn.Linear(self.affine_hids[-1], self.n_concepts * 2 * self.linear_rank))
@@ -502,7 +502,7 @@ class AutoReg(object):
 
         rnn_out = []
         for i, h in enumerate(self.prior_hids):
-            rnn_out.append(torch.nn.Linear(self.prior_units + self.n_concept * 3 + self.n_tasks if i == 0 else self.prior_hids[i-1], h))
+            rnn_out.append(torch.nn.Linear(self.prior_units + self.n_concepts * 3 + self.n_tasks if i == 0 else self.prior_hids[i-1], h))
             rnn_out.append(torch.nn.Tanh())
         rnn_out.append(torch.nn.Linear(self.prior_hids[-1], self.n_components * 3))
         self.rnn_out = torch.nn.Sequential(*rnn_out)
