@@ -421,17 +421,17 @@ class TransLayer(BaseTransform):
         self.transformations = []
         for name in layer_cfg:
             if name == "AF":
-                self.transformation.append(Affine(n_concepts, n_tasks, affine_hids))
+                self.transformations.append(Affine(n_concepts, n_tasks, affine_hids))
             elif name == "CP2":
-                self.transformation.append(Coupling2(n_concepts, n_tasks, affine_hids))
+                self.transformations.append(Coupling2(n_concepts, n_tasks, affine_hids))
             elif name == "LR":
-                self.transformation.append(LeakyReLU())
+                self.transformations.append(LeakyReLU())
             elif name == "ML":
-                self.transformation.append((n_concepts, n_tasks, affine_hids))
+                self.transformations.append((n_concepts, n_tasks, affine_hids))
 
     def forward(self, x, c, b, m):
         logdet = 0.
-        for transformation in self.transformation:
+        for transformation in self.transformations:
             x, ldet = transformation(x, c, b, m)
             logdet = logdet + ldet
 
@@ -456,11 +456,11 @@ class Transform(BaseTransform):
         self.transformations = []
         for name in transformations:
             m = self.create_transformation(name)
-            self.transformation.append(m)
+            self.transformations.append(m)
 
     def forward(self, x, c, b, m):
         logdet = 0.
-        for transformation in self.transformation:
+        for transformation in self.transformations:
             x, ldet = transformation(x, c, b, m)
             logdet = logdet + ldet
 
