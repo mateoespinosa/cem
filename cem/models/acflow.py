@@ -489,8 +489,6 @@ class TransLayer(BaseTransform):
             elif name == "ML":
                 self.transformations.append(LULinear(n_concepts, n_tasks, linear_rank, linear_hids))
 
-        self.transformations = torch.nn.Sequential(*self.transformations)
-
     def forward(self, x, c, b, m):
         logdet = 0.
         for transformation in self.transformations:
