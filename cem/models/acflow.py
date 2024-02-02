@@ -138,7 +138,6 @@ class ACFlow(pl.LightningModule):
         loglikel = torch.logsumexp(logpu + logpo + class_weights) - torch.logsumexp(logpo + class_weights)
         nll = torch.mean(-loglikel)
         
-        prob = torch.nn.softmax(logits + class_weights)
         pred = torch.argmax(logits, dim=1)
         acc = self.accuracy(pred, y)
 
@@ -172,13 +171,13 @@ class ACFlow(pl.LightningModule):
         }
 
 class Flow(Module):
-    def __init__(self, n_concepts, n_tasks, layer_cfg, affine_hids, transformations, prior_units, prior_layers, prior_hids, n_components):
+    def __init__(self, n_concepts, n_tasks, layer_cfg, affine_hids, linear_rank, linear_hids, transformations, prior_units, prior_layers, prior_hids, n_components):
         super(Flow, self).__init__()
         self.n_concepts = n_concepts
         self.n_tasks = n_tasks
         self.layer_cfg = layer_cfg
         self.affine_hids = affine_hids
-        self.transform = Transform(n_concepts, n_tasks, affine_hids, layer_cfg, transformations)
+        self.transform = Transform(n_concepts, n_tasks, affine_hids, layer_cfg, linear_rank, linear_hids, transformations)
         self.prior = AutoReg(
             n_concepts = n_concepts, 
             n_tasks = n_tasks, 
@@ -243,15 +242,15 @@ class Flow(Module):
         x_o = x * m * b
         x_u = x * m * (1 - b)
         query = m * (1 - b)
-        ind = torch.argsort(query, dim=1, descending=True)
+        ind = torch.argsort(query, dim=1, descending=True, stable=True)
         x_u = torch.gather(x_u, 1, ind.expand_as(x_u))
 
         return x_u, x_o
     
     def postprocess(self, x_u, x, b, m):
         query = m * (1 - b)
-        ind = torch.argsort(query, dim=1, descending=True)
-        ind = torch.argsort(ind, dim=1)
+        ind = torch.argsort(query, dim=1, descending=True, stable=True)
+        ind = torch.argsort(ind, dim=1, stable=True)
         x_u = torch.gather(x_u, 1, ind.expand_as(x_u))
         sam = x_u * query + x * (1 - query)
 
@@ -290,7 +289,7 @@ class Affine(BaseTransform):
         shift, scale = torch.split(params, len(params) / 2, dim=1)
         
         query = m * (1-b)   
-        _, order = torch.sort(query, descending = True)
+        _, order = torch.sort(query, descending = True, stable=True)
 
         t = torch.diag_embed(query)
         t = t.gather(1, order.unsqueeze(-1).expand(-1, -1, query.size(-1)))
@@ -339,7 +338,7 @@ class Coupling2(BaseTransform):
         shift, scale = torch.split(params, len(params) / 2, dim=1)
         
         query = m * (1-b)   
-        _, order = torch.sort(query, descending = True)
+        _, order = torch.sort(query, descending = True, stable=True)
 
         t = torch.diag_embed(query)
         t = t.gather(1, order.unsqueeze(-1).expand(-1, -1, query.size(-1)))
@@ -372,7 +371,7 @@ class LeakyReLU(BaseTransform):
 
     def forward(self, x, c, b, m):
         query = m * (1-b) # [B, d]
-        sorted_query, _ = torch.sort(query, dim=-1, descending = True)
+        sorted_query, _ = torch.sort(query, dim=-1, descending = True, stable=True)
         num_negative = torch.sum((x < 0.).float() * sorted_query, axis=1)
         ldet = num_negative * torch.log(self.alpha)
         z = torch.maximum(x, self.alpha * x)
@@ -381,7 +380,7 @@ class LeakyReLU(BaseTransform):
 
     def inverse(self, z, c, b, m):
         query = m * (1-b) # [B, d]
-        sorted_query, _ = torch.sort(query, dim=-1, descending = True)
+        sorted_query, _ = torch.sort(query, dim=-1, descending = True, stable=True)
         num_negative = torch.sum((z < 0.).float() * sorted_query, axis=1)
         ldet = -1. * num_negative * torch.log(self.alpha)
         x = torch.minimum(z, z / self.alpha)
@@ -417,9 +416,67 @@ class LULinear(BaseTransform):
         torch.nn.init.zeros_(bnn[-1].weight)
         self.bnn = torch.nn.Sequential(*bnn)
 
+    def get_params(self, c, b, m):
+        B = torch.shape(c)[0]
+        d = self.n_concepts
+        r = self.linear_rank
+        r = d if r <= 0 else r
+        h = torch.concat([c, b, m], dim=1)
+        wc = self.wnn(h)
+        wc1, wc2 = torch.split(wc, 2, dim=1)
+        wc1 = torch.reshape(wc1, [B,d,r])
+        wc2 = torch.reshape(wc2, [B,r,d])
+        wc = torch.matmul(wc1, wc2)
+        bc = self.bnn(h)
+        weight = wc + self.w
+        bias = bc + self.b
+        # reorder
+        query = m * (1-b)
+        order = torch.argsort(query, descending = True, stable=True)
+        t = torch.diag_embed(query)
+        t = torch.gather(t, 1, order)
+        weight = torch.matmul(torch.matmul(t, weight), torch.permute(t, (0,2,1)))
+        bias = torch.squeeze(torch.matmul(t, torch.unsqueeze(bias, dim = 1)), dim = -1)
+        
+        return weight, bias
+
+    def get_LU(self, W, b, m):
+        d = self.n_concepts
+        U = torch.triu(W)
+        L = torch.eye(d, device=W.device) + W - U
+        A = torch.matmul(L, U)
+
+        # add a diagnal part
+        query = m * (1 - b)
+        diag = torch.diag_embed(torch.sort(1 - query, dim = 1, descending = False))
+        U += diag
+
+        return A, L, U
+
+    def forward(self, x, c, b, m):
+        weight, bias = self.get_params(c, b, m)
+        A, L, U = self.get_LU(weight, b, m)    
+        ldet = torch.sum(torch.log(torch.abs(torch.diag(U, offset = 0, dim1=-2, dim2=-1))), dim=1)
+        z = torch.einsum('ai,aik->ak', x, A) + bias    
+
+        return z, ldet
+
+    def inverse(self, z, c, b, m):
+        weight, bias = self.get_params(c, b, m)
+        A, L, U = self.get_LU(weight, b, m)
+        ldet = -1 * torch.sum(torch.log(torch.abs(torch.diag(U, offset = 0, dim1=-2, dim2=-1))), dim=1)
+        Ut = torch.permute(U, (0, 2, 1))
+        Lt = torch.permute(L, (0, 2, 1))
+        zt = torch.unsqueeze(z - bias, dim = -1)
+        sol, _ = torch.triangular_solve(Ut, zt, upper=False)
+        x, _ = torch.triangular_solve(Lt, sol, upper=True)
+        x = torch.squeeze(x, dim=-1)
+
+        return x, ldet
+
     
 class TransLayer(BaseTransform):
-    def __init__(self, n_concepts, n_tasks, affine_hids, layer_cfg):
+    def __init__(self, n_concepts, n_tasks, affine_hids, layer_cfg, linear_rank, linear_hids):
         super(Transform, self).__init__()
         self.transformations = []
         for name in layer_cfg:
@@ -428,9 +485,9 @@ class TransLayer(BaseTransform):
             elif name == "CP2":
                 self.transformations.append(Coupling2(n_concepts, n_tasks, affine_hids))
             elif name == "LR":
-                self.transformations.append(LeakyReLU())
+                self.transformations.append(LeakyReLU(n_concepts, n_tasks, affine_hids))
             elif name == "ML":
-                self.transformations.append((n_concepts, n_tasks, affine_hids))
+                self.transformations.append(LULinear(n_concepts, n_tasks, linear_rank, linear_hids))
 
     def forward(self, x, c, b, m):
         logdet = 0.
@@ -449,12 +506,14 @@ class TransLayer(BaseTransform):
         return z, logdet
     
 class Transform(BaseTransform):
-    def __init__(self, n_concepts, n_tasks, affine_hids, layer_cfg, transformations):
+    def __init__(self, n_concepts, n_tasks, affine_hids, layer_cfg, linear_rank, linear_hids, transformations):
         super(BaseTransform, self).__init__()
         self.n_concepts = n_concepts
         self.n_tasks = n_tasks
         self.affine_hids = affine_hids
         self.layer_cfg = layer_cfg
+        self.linear_rank = linear_rank
+        self.linear_hids = linear_hids
 
         self.transformations = []
         for name in transformations:
@@ -487,7 +546,7 @@ class Transform(BaseTransform):
         elif name == "ML":
             return LULinear(self.n_concepts, self.n_tasks, self.affine_hids)
         elif name == "TransLayer":
-            return TransLayer(self.n_concepts, self.n_tasks, self.affine_hids)
+            return TransLayer(self.n_concepts, self.n_tasks, self.affine_hids, self.linear_rank, self.linear_hids)
 
 class AutoReg(Module):
     def __init__(self, n_concepts, n_tasks, prior_units, prior_layers, prior_hids, n_components):
@@ -529,7 +588,7 @@ class AutoReg(Module):
         params = torch.stack(p_list, dim = 1)
         log_like1 = mixture_likelihoods(params, z)
         query = m * (1 - b)
-        mask = torch.sort(query, dim = 1, descending = True)
+        mask = torch.sort(query, dim = 1, descending = True, stable=True)
         log_likel = torch.sum(log_like1 * mask, dim = 1)
         return log_likel
         
