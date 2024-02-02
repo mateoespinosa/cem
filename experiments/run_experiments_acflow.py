@@ -217,6 +217,8 @@ def main(
             n_tasks = n_tasks,
             layer_cfg = experiment_config['shared_params']['layer_cfg'], 
             affine_hids = experiment_config['shared_params']['affine_hids'], 
+            linear_rank = experiment_config['shared_params']['linear_rank'],
+            linear_hids = experiment_config['shared_params']['linear_hids'], 
             transformations = experiment_config['shared_params']['transform'], 
             optimizer = experiment_config['shared_params']['optimizer'], 
             learning_rate = experiment_config['shared_params']['learning_rate'], 
