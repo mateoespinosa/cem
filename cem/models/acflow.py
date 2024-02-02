@@ -546,7 +546,7 @@ class Transform(BaseTransform):
         elif name == "ML":
             return LULinear(self.n_concepts, self.n_tasks, self.affine_hids)
         elif name == "TL":
-            return TransLayer(self.n_concepts, self.n_tasks, self.affine_hids, self.layer_cf, self.linear_rank, self.linear_hids)
+            return TransLayer(self.n_concepts, self.n_tasks, self.affine_hids, self.layer_cfg, self.linear_rank, self.linear_hids)
             
 
 class AutoReg(Module):
