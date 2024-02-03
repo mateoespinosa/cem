@@ -412,7 +412,7 @@ class LULinear(BaseTransform):
         torch.nn.init.zeros_(wnn[-1].weight)
         self.wnn = torch.nn.Sequential(*wnn)
 
-        bnn.append(torch.nn.Linear(self.affine_hids[-1], self.n_concepts))
+        bnn.append(torch.nn.Linear(self.linear_hids[-1], self.n_concepts))
         torch.nn.init.zeros_(bnn[-1].weight)
         self.bnn = torch.nn.Sequential(*bnn)
 
