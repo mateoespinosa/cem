@@ -1,0 +1,608 @@
+2024-02-02 15:58:19.645460: I tensorflow/core/platform/cpu_feature_guard.cc:182] This TensorFlow binary is optimized to use available CPU instructions in performance-critical operations.
+To enable the following instructions: AVX2 FMA, in other operations, rebuild TensorFlow with the appropriate compiler flags.
+2024-02-02 15:58:29.429114: W tensorflow/compiler/tf2tensorrt/utils/py_utils.cc:38] TF-TRT Warning: Could not find TensorRT
+INFO:root:Results will be dumped in results/mnist_add_new
+[rank: 0] Global seed set to 42
+/home/xty20/cem/venv/lib/python3.8/site-packages/pytorch_lightning/utilities/seed.py:47: LightningDeprecationWarning: `pytorch_lightning.utilities.seed.seed_everything` has been deprecated in v1.8.0 and will be removed in v2.0.0. Please use `lightning_fabric.utilities.seed.seed_everything` instead.
+  rank_zero_deprecation(
+[rank: 0] Global seed set to 42
+INFO:root:Training sample shape is: torch.Size([2048, 12, 28, 28]) with type torch.FloatTensor
+INFO:root:Training label shape is: torch.Size([2048]) with type torch.FloatTensor
+INFO:root:	Number of output classes: 1
+INFO:root:Training concept shape is: torch.Size([2048, 54]) with type torch.FloatTensor
+INFO:root:	Number of training concepts: 54
+INFO:root:Computing task class weights in the training dataset with size 5...
+INFO:root:Setting log level to: "INFO"
+[rank: 0] Global seed set to 42
+[rank: 0] Global seed set to 42
+[rank: 0] Global seed set to 42
+srun: interrupt (one more within 1 sec to abort)
+srun: StepId=43535458.1 task 0: running
+srun: sending Ctrl-C to StepId=43535458.1
+srun: forcing job termination
+srun: sending Ctrl-C to StepId=43535458.1
+Class distribution is: [0.4847 0.5153]
+[TRIAL 1/5 BEGINS AT 02/02/2024 at 15:59:03
+[Training ConceptBottleneckModelSigmoid_lambda_fold_1]
+config:
+<built-in function localtime>
+	top_k_accuracy -> None
+	save_model -> True
+	patience -> 5
+	emb_size -> 16
+	extra_dims -> 0
+	concept_loss_weight -> 10
+	learning_rate -> 0.001
+	weight_decay -> 4e-06
+	c_extractor_arch -> <function get_mnist_extractor_arch.<locals>.c_extractor_arch at 0x7f4bc334d820>
+	optimizer -> sgd
+	bool -> False
+	early_stopping_monitor -> val_loss
+	early_stopping_mode -> min
+	early_stopping_delta -> 0.0
+	momentum -> 0.9
+	sigmoidal_prob -> True
+	training_intervention_prob -> 0.25
+	trials -> 5
+	results_dir -> results/mnist_add_new
+	dataset -> mnist_add
+	num_workers -> 8
+	batch_size -> 2048
+	num_operands -> 12
+	selected_digits -> [[0, 1, 2], [0, 1, 2], [0, 1, 2], [0, 1, 2], [0, 1, 2, 3, 4], [0, 1, 2, 3, 4], [0, 1, 2, 3, 4], [0, 1, 2, 3, 4], [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]]
+	threshold_labels -> 30
+	noise_level -> 0.0
+	max_epochs -> 300
+	train_dataset_size -> 10000
+	sampling_percent -> 0.625
+	sampling_groups -> True
+	c2y_layers -> [128, 128]
+	skip_repr_evaluation -> True
+	intervention_freq -> 1
+	intervention_batch_size -> 2048
+	intervention_policies -> ['intcem_policy', 'behavioural_cloning_no_prior', 'optimal_greedy_no_prior', 'group_optimal_global_no_prior']
+	root_dir -> /home/xty20/data
+	test_subsampling -> 1
+	weight_loss -> True
+	use_task_class_weights -> True
+	check_val_every_n_epoch -> 2
+	time_last_called -> 2024/02/02 at 15:58:42
+	n_concepts -> 54
+	n_tasks -> 1
+	concept_map -> {0: [0, 1, 2], 1: [3, 4, 5], 2: [6, 7, 8], 5: [9, 10, 11, 12, 13], 8: [14, 15, 16, 17, 18, 19, 20, 21, 22, 23], 9: [24, 25, 26, 27, 28, 29, 30, 31, 32, 33], 10: [34, 35, 36, 37, 38, 39, 40, 41, 42, 43], 11: [44, 45, 46, 47, 48, 49, 50, 51, 52, 53]}
+	architecture -> ConceptBottleneckModel
+	extra_name -> Sigmoid
+	sigmoidal_embedding -> False
+	concat_prob -> False
+	embedding_activation -> leakyrelu
+	sigmoidal_extra_capacity -> False
+[Number of parameters in model 709943 ]
+[Number of non-trainable parameters in model 0 ]
+	Found cached model... loading it
+c_acc: 96.40%, y_acc: 48.93%, c_auc: 90.81%, y_auc: 71.64% with 128.0 epochs in 278.59 seconds
+	Intervening in ConceptBottleneckModelSigmoid with policy intcem_policy and competence 1
+	Average intervention took 0.00043 seconds and construction took 0.00007 seconds.
+	Intervening in ConceptBottleneckModelSigmoid with policy behavioural_cloning_no_prior and competence 1
+	Intervening in ConceptBottleneckModelSigmoid with policy optimal_greedy_no_prior and competence 1
+	Intervening in ConceptBottleneckModelSigmoid with policy group_optimal_global_no_prior and competence 1
+Traceback (most recent call last):
+  File "experiments/run_experiments.py", line 826, in <module>
+    main(
+  File "experiments/run_experiments.py", line 444, in main
+    intervention_utils.test_interventions(
+  File "/home/xty20/cem/venv/lib/python3.8/site-packages/cem-1.1.0-py3.8.egg/cem/interventions/utils.py", line 1267, in test_interventions
+  File "/home/xty20/cem/venv/lib/python3.8/site-packages/cem-1.1.0-py3.8.egg/cem/train/utils.py", line 90, in load_call
+  File "/home/xty20/cem/venv/lib/python3.8/site-packages/cem-1.1.0-py3.8.egg/cem/interventions/utils.py", line 427, in intervene_in_cbm
+TypeError: cannot unpack non-iterable NoneType object
+srun: Job step aborted: Waiting up to 122 seconds for job step to finish.
+slurmstepd: error: *** STEP 43535458.1 ON gpu-q-1 CANCELLED AT 2024-02-02T16:08:23 ***
+srun: job abort in progress
+2024-02-02 16:08:56.971925: I tensorflow/core/platform/cpu_feature_guard.cc:182] This TensorFlow binary is optimized to use available CPU instructions in performance-critical operations.
+To enable the following instructions: AVX2 FMA, in other operations, rebuild TensorFlow with the appropriate compiler flags.
+2024-02-02 16:08:58.554413: W tensorflow/compiler/tf2tensorrt/utils/py_utils.cc:38] TF-TRT Warning: Could not find TensorRT
+INFO:root:Results will be dumped in results/mnist_add_new
+DEBUG:root:And the dataset's root directory is /home/xty20/data
+[rank: 0] Global seed set to 42
+DEBUG:root:		Updated concept group map (with 8 groups):
+DEBUG:root:			0 -> [0, 1, 2]
+DEBUG:root:			1 -> [3, 4, 5]
+DEBUG:root:			2 -> [6, 7, 8]
+DEBUG:root:			5 -> [9, 10, 11, 12, 13]
+DEBUG:root:			8 -> [14, 15, 16, 17, 18, 19, 20, 21, 22, 23]
+DEBUG:root:			9 -> [24, 25, 26, 27, 28, 29, 30, 31, 32, 33]
+DEBUG:root:			10 -> [34, 35, 36, 37, 38, 39, 40, 41, 42, 43]
+DEBUG:root:			11 -> [44, 45, 46, 47, 48, 49, 50, 51, 52, 53]
+/home/xty20/cem/venv/lib/python3.8/site-packages/pytorch_lightning/utilities/seed.py:47: LightningDeprecationWarning: `pytorch_lightning.utilities.seed.seed_everything` has been deprecated in v1.8.0 and will be removed in v2.0.0. Please use `lightning_fabric.utilities.seed.seed_everything` instead.
+  rank_zero_deprecation(
+[rank: 0] Global seed set to 42
+{
+    "batch_size": 2048,
+    "c2y_layers": [
+        128,
+        128
+    ],
+    "c_extractor_arch": "Function: c_extractor_arch",
+    "check_val_every_n_epoch": 2,
+    "dataset": "mnist_add",
+    "intervention_batch_size": 2048,
+    "intervention_freq": 1,
+    "intervention_policies": [
+        "intcem_policy",
+        "behavioural_cloning_no_prior",
+        "optimal_greedy_no_prior",
+        "group_optimal_global_no_prior"
+    ],
+    "max_epochs": 300,
+    "noise_level": 0.0,
+    "num_operands": 12,
+    "num_workers": 8,
+    "results_dir": "results/mnist_add_new",
+    "root_dir": "/home/xty20/data",
+    "runs": [
+        {
+            "architecture": "ConceptBottleneckModel",
+            "bool": false,
+            "concat_prob": false,
+            "embedding_activation": "leakyrelu",
+            "extra_dims": 0,
+            "extra_name": "Sigmoid",
+            "sigmoidal_embedding": false,
+            "sigmoidal_extra_capacity": false,
+            "sigmoidal_prob": true,
+            "training_intervention_prob": 0.25
+        },
+        {
+            "architecture": "IntAwareConceptEmbeddingModel",
+            "average_trajectory": true,
+            "beta_a": 1,
+            "beta_b": 3,
+            "embedding_activation": "leakyrelu",
+            "extra_name": "Retry_intervention_weight_{intervention_weight}_horizon_rate_{horizon_rate}_intervention_discount_{intervention_discount}_task_discount_{intervention_task_discount}",
+            "grid_search_mode": "exhaustive",
+            "grid_variables": [
+                "intervention_task_discount",
+                "intervention_weight"
+            ],
+            "horizon_binary_representation": true,
+            "horizon_rate": 1.005,
+            "horizon_uniform_distr": true,
+            "include_only_last_trajectory_loss": true,
+            "include_task_trajectory_loss": true,
+            "initial_horizon": 2,
+            "initialize_discount": false,
+            "int_model_layers": [
+                128,
+                128,
+                64,
+                64
+            ],
+            "int_model_use_bn": true,
+            "intcem_task_loss_weight": 0,
+            "intervention_discount": 1,
+            "intervention_task_discount": [
+                1.5,
+                1.1
+            ],
+            "intervention_task_loss_weight": 1,
+            "intervention_weight": [
+                5,
+                1,
+                0.1,
+                0
+            ],
+            "legacy_mode": false,
+            "max_horizon": 6,
+            "model_pretrain_path": null,
+            "propagate_target_gradients": false,
+            "task_loss_weight": 0,
+            "tau": 1,
+            "training_intervention_prob": 0.25,
+            "use_concept_groups": true,
+            "use_full_mask_distr": false,
+            "use_horizon": false
+        },
+        {
+            "architecture": "ConceptEmbeddingModel",
+            "concat_prob": false,
+            "embedding_activation": "leakyrelu",
+            "extra_name": "",
+            "shared_prob_gen": true,
+            "sigmoidal_embedding": false,
+            "sigmoidal_prob": true,
+            "training_intervention_prob": 0.25
+        }
+    ],
+    "sampling_groups": true,
+    "sampling_percent": 0.625,
+    "selected_digits": [
+        [
+            0,
+            1,
+            2
+        ],
+        [
+            0,
+            1,
+            2
+        ],
+        [
+            0,
+            1,
+            2
+        ],
+        [
+            0,
+            1,
+            2
+        ],
+        [
+            0,
+            1,
+            2,
+            3,
+            4
+        ],
+        [
+            0,
+            1,
+            2,
+            3,
+            4
+        ],
+        [
+            0,
+            1,
+            2,
+            3,
+            4
+        ],
+        [
+            0,
+            1,
+            2,
+            3,
+            4
+        ],
+        [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9
+        ],
+        [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9
+        ],
+        [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9
+        ],
+        [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9
+        ]
+    ],
+    "shared_params": {
+        "bool": false,
+        "c_extractor_arch": "resnet18",
+        "concept_loss_weight": 10,
+        "early_stopping_delta": 0.0,
+        "early_stopping_mode": "min",
+        "early_stopping_monitor": "val_loss",
+        "emb_size": 16,
+        "extra_dims": 0,
+        "learning_rate": 0.001,
+        "momentum": 0.9,
+        "optimizer": "sgd",
+        "patience": 5,
+        "save_model": true,
+        "sigmoidal_prob": false,
+        "top_k_accuracy": null,
+        "training_intervention_prob": 0.25,
+        "weight_decay": 4e-06
+    },
+    "skip_repr_evaluation": true,
+    "test_subsampling": 1,
+    "threshold_labels": 30,
+    "train_dataset_size": 10000,
+    "trials": 5,
+    "use_task_class_weights": true,
+    "weight_loss": true
+}
+INFO:root:Training sample shape is: torch.Size([2048, 12, 28, 28]) with type torch.FloatTensor
+INFO:root:Training label shape is: torch.Size([2048]) with type torch.FloatTensor
+INFO:root:	Number of output classes: 1
+INFO:root:Training concept shape is: torch.Size([2048, 54]) with type torch.FloatTensor
+INFO:root:	Number of training concepts: 54
+INFO:root:Computing task class weights in the training dataset with size 5...
+INFO:root:Setting log level to: "DEBUG"
+[rank: 0] Global seed set to 42
+DEBUG:root:Restarting run because we could not find test_acc_y_intcem_policy_ints_ConceptBottleneckModelSigmoid in old results.
+[rank: 0] Global seed set to 42
+DEBUG:root:		Test AUC when intervening with 0 concept groups is 71.62% (avg int time is 0.00043s and construction time is 0.00007s).
+DEBUG:root:		Test AUC when intervening with 1 concept groups is 71.72% (avg int time is 0.00043s and construction time is 0.00007s).
+DEBUG:root:		Test AUC when intervening with 2 concept groups is 71.74% (avg int time is 0.00043s and construction time is 0.00007s).
+DEBUG:root:		Test AUC when intervening with 3 concept groups is 72.22% (avg int time is 0.00043s and construction time is 0.00007s).
+DEBUG:root:		Test AUC when intervening with 4 concept groups is 72.74% (avg int time is 0.00043s and construction time is 0.00007s).
+DEBUG:root:		Test AUC when intervening with 5 concept groups is 72.87% (avg int time is 0.00043s and construction time is 0.00007s).
+DEBUG:root:		Test AUC when intervening with 6 concept groups is 73.13% (avg int time is 0.00043s and construction time is 0.00007s).
+DEBUG:root:		Test AUC when intervening with 7 concept groups is 73.31% (avg int time is 0.00043s and construction time is 0.00007s).
+DEBUG:root:		Test AUC when intervening with 8 concept groups is 73.24% (avg int time is 0.00043s and construction time is 0.00007s).
+DEBUG:root:		Test AUC when intervening with 0 concept groups is 71.58% (avg int time is 0.00013s and construction time is 13.96975s).
+DEBUG:root:		Test AUC when intervening with 1 concept groups is 71.31% (avg int time is 0.00013s and construction time is 13.96975s).
+DEBUG:root:		Test AUC when intervening with 2 concept groups is 71.41% (avg int time is 0.00013s and construction time is 13.96975s).
+DEBUG:root:		Test AUC when intervening with 3 concept groups is 71.48% (avg int time is 0.00013s and construction time is 13.96975s).
+DEBUG:root:		Test AUC when intervening with 4 concept groups is 71.57% (avg int time is 0.00013s and construction time is 13.96975s).
+DEBUG:root:		Test AUC when intervening with 5 concept groups is 72.47% (avg int time is 0.00013s and construction time is 13.96975s).
+DEBUG:root:		Test AUC when intervening with 6 concept groups is 73.10% (avg int time is 0.00013s and construction time is 13.96975s).
+DEBUG:root:		Test AUC when intervening with 7 concept groups is 73.35% (avg int time is 0.00013s and construction time is 13.96975s).
+DEBUG:root:		Test AUC when intervening with 8 concept groups is 73.24% (avg int time is 0.00013s and construction time is 13.96975s).
+DEBUG:root:		Test AUC when intervening with 0 concept groups is 71.62% (avg int time is 0.00013s and construction time is 0.00005s).
+DEBUG:root:		Test AUC when intervening with 1 concept groups is 85.45% (avg int time is 0.00013s and construction time is 0.00005s).
+DEBUG:root:		Test AUC when intervening with 2 concept groups is 89.07% (avg int time is 0.00013s and construction time is 0.00005s).
+DEBUG:root:		Test AUC when intervening with 3 concept groups is 90.16% (avg int time is 0.00013s and construction time is 0.00005s).
+DEBUG:root:		Test AUC when intervening with 4 concept groups is 90.34% (avg int time is 0.00013s and construction time is 0.00005s).
+DEBUG:root:		Test AUC when intervening with 5 concept groups is 89.94% (avg int time is 0.00013s and construction time is 0.00005s).
+DEBUG:root:		Test AUC when intervening with 6 concept groups is 88.63% (avg int time is 0.00013s and construction time is 0.00005s).
+DEBUG:root:		Test AUC when intervening with 7 concept groups is 84.77% (avg int time is 0.00013s and construction time is 0.00005s).
+DEBUG:root:		Test AUC when intervening with 8 concept groups is 73.24% (avg int time is 0.00013s and construction time is 0.00005s).
+DEBUG:root:effective number of concepts is 8 and intervened groups are [0, 1, 2, 3, 4, 5, 6, 7, 8]used intervened groups are [0, 1, 2, 3, 4, 5, 6, 7, 8]
+DEBUG:root:Restarting run because we could not find test_acc_y_group_optimal_global_no_prior_ints_ConceptBottleneckModelSigmoid in old results.
+[rank: 0] Global seed set to 42
+DEBUG:root:Intervention groups: [0, 1, 2, 3, 4, 5, 6, 7, 8]
+DEBUG:root:Intervening with 0 out of 8 concept groups
+DEBUG:root:	For split 0 with 0 groups intervened
+DEBUG:root:	Test AUC when intervening with 0 concept groups is 71.62% (accuracy is 64.77%).
+DEBUG:root:Intervening with 1 out of 8 concept groups
+DEBUG:root:	For split 0 with 1 groups intervened
+DEBUG:root:	Test AUC when intervening with 1 concept groups is 86.40% (accuracy is 77.07%).
+DEBUG:root:Intervening with 2 out of 8 concept groups
+DEBUG:root:	For split 0 with 2 groups intervened
+DEBUG:root:	Test AUC when intervening with 2 concept groups is 89.59% (accuracy is 80.58%).
+DEBUG:root:Intervening with 3 out of 8 concept groups
+DEBUG:root:	For split 0 with 3 groups intervened
+DEBUG:root:	Test AUC when intervening with 3 concept groups is 90.42% (accuracy is 81.29%).
+DEBUG:root:Intervening with 4 out of 8 concept groups
+DEBUG:root:	For split 0 with 4 groups intervened
+DEBUG:root:	Test AUC when intervening with 4 concept groups is 90.57% (accuracy is 81.30%).
+DEBUG:root:Intervening with 5 out of 8 concept groups
+DEBUG:root:	For split 0 with 5 groups intervened
+DEBUG:root:	Test AUC when intervening with 5 concept groups is 90.24% (accuracy is 80.89%).
+DEBUG:root:Intervening with 6 out of 8 concept groups
+DEBUG:root:	For split 0 with 6 groups intervened
+DEBUG:root:	Test AUC when intervening with 6 concept groups is 89.11% (accuracy is 79.65%).
+DEBUG:root:Intervening with 7 out of 8 concept groups
+DEBUG:root:	For split 0 with 7 groups intervened
+DEBUG:root:	Test AUC when intervening with 7 concept groups is 85.78% (accuracy is 76.05%).
+DEBUG:root:Intervening with 8 out of 8 concept groups
+DEBUG:root:	For split 0 with 8 groups intervened
+DEBUG:root:	Test AUC when intervening with 8 concept groups is 73.24% (accuracy is 66.21%).
+DEBUG:root:		Test AUC when intervening with 0 concept groups is 71.62% (avg int time is 0.00170s and construction time is 0.00004s).
+DEBUG:root:		Test AUC when intervening with 1 concept groups is 86.40% (avg int time is 0.00170s and construction time is 0.00004s).
+DEBUG:root:		Test AUC when intervening with 2 concept groups is 89.59% (avg int time is 0.00170s and construction time is 0.00004s).
+DEBUG:root:		Test AUC when intervening with 3 concept groups is 90.42% (avg int time is 0.00170s and construction time is 0.00004s).
+DEBUG:root:		Test AUC when intervening with 4 concept groups is 90.57% (avg int time is 0.00170s and construction time is 0.00004s).
+DEBUG:root:		Test AUC when intervening with 5 concept groups is 90.24% (avg int time is 0.00170s and construction time is 0.00004s).
+DEBUG:root:		Test AUC when intervening with 6 concept groups is 89.11% (avg int time is 0.00170s and construction time is 0.00004s).
+DEBUG:root:		Test AUC when intervening with 7 concept groups is 85.78% (avg int time is 0.00170s and construction time is 0.00004s).
+DEBUG:root:		Test AUC when intervening with 8 concept groups is 73.24% (avg int time is 0.00170s and construction time is 0.00004s).
+DEBUG:root:	Results for ConceptBottleneckModelSigmoid in split 0:
+DEBUG:root:		test_acc_y -> 0.4893
+DEBUG:root:		test_auc_y -> 0.7164377741345884
+DEBUG:root:		test_f1_y -> 0.0
+DEBUG:root:		test_acc_c -> 0.9640111111111112
+DEBUG:root:		test_auc_c -> 0.9080977022833074
+DEBUG:root:		test_f1_c -> 0.9192262071441917
+DEBUG:root:		training_epochs -> 128.0
+DEBUG:root:		training_time -> 278.5853395462036
+DEBUG:root:		num_trainable_params -> 0
+DEBUG:root:		num_non_trainable_params -> 709943
+DEBUG:root:		test_acc_y_intcem_policy_ints -> [0.71621742 0.71715501 0.71741712 0.72221464 0.7274181  0.72867812
+ 0.73125536 0.73308514 0.73238272]
+DEBUG:root:		avg_int_time_intcem_policy_ints -> 0.000431653372446696
+DEBUG:root:		construction_time_intcem_policy_ints -> 7.009506225585938e-05
+DEBUG:root:		test_acc_y_behavioural_cloning_no_prior_ints -> [0.7157574328154821, 0.7130686488625736, 0.7141131455289914, 0.7148080918310333, 0.715740900663195, 0.724715521500891, 0.7310073343260893, 0.7335304373950544, 0.7323827154795084]
+DEBUG:root:		avg_int_time_behavioural_cloning_no_prior_ints -> 0.00012799978786044654
+DEBUG:root:		construction_time_behavioural_cloning_no_prior_ints -> 13.969750165939331
+DEBUG:root:		test_acc_y_optimal_greedy_no_prior_ints -> [0.7162174215142849, 0.8544564108954652, 0.8907002139061143, 0.9016231057732906, 0.903405389052751, 0.8993672723272798, 0.8862652186252784, 0.847712558301638, 0.7323827154795084]
+DEBUG:root:		avg_int_time_optimal_greedy_no_prior_ints -> 0.00012587566110822894
+DEBUG:root:		construction_time_optimal_greedy_no_prior_ints -> 4.76837158203125e-05
+DEBUG:root:		test_acc_y_group_optimal_global_no_prior_ints -> [0.7162174215142849, 0.8639968442051912, 0.895890644234958, 0.904219955622607, 0.9056625264144064, 0.9023797274531443, 0.8911343968967381, 0.8577602143096701, 0.7323827154795084]
+DEBUG:root:		avg_int_time_group_optimal_global_no_prior_ints -> 0.0016968683307952983
+DEBUG:root:		construction_time_group_optimal_global_no_prior_ints -> 4.410743713378906e-05
+DEBUG:root:	Trial 1 COMPLETED for ConceptBottleneckModelSigmoid ending at 02/02/2024 at 16:29:44 (20.3898 minutes):
+DEBUG:root:		Done with trial 1
+[rank: 0] Global seed set to 42
+DEBUG:root:Restarting run because we could not find test_acc_y_intcem_policy_ints_IntAwareConceptEmbeddingModelRetry_intervention_weight_5_horizon_rate_1.005_intervention_discount_1_task_discount_1.5 in old results.
+[rank: 0] Global seed set to 42
+DEBUG:root:Intervention groups: [0, 1, 2, 3, 4, 5, 6, 7, 8]
+DEBUG:root:Intervening with 0 out of 8 concept groups
+DEBUG:root:	For split 0 with 0 groups intervened
+DEBUG:root:	Test AUC when intervening with 0 concept groups is 88.44% (accuracy is 80.01%).
+DEBUG:root:Intervening with 1 out of 8 concept groups
+DEBUG:root:	For split 0 with 1 groups intervened
+DEBUG:root:Intervening with 1/1 concepts in CooP
+DEBUG:root:Intervening with 1/1 concepts in CooP
+DEBUG:root:Intervening with 1/1 concepts in CooP
+DEBUG:root:Intervening with 1/1 concepts in CooP
+DEBUG:root:Intervening with 1/1 concepts in CooP
+DEBUG:root:Intervening with 1/1 concepts in CooP
+DEBUG:root:Intervening with 1/1 concepts in CooP
+DEBUG:root:Intervening with 1/1 concepts in CooP
+DEBUG:root:Intervening with 1/1 concepts in CooP
+DEBUG:root:Intervening with 1/1 concepts in CooP
+DEBUG:root:	Test AUC when intervening with 1 concept groups is 90.79% (accuracy is 82.39%).
+DEBUG:root:Intervening with 2 out of 8 concept groups
+DEBUG:root:	For split 0 with 2 groups intervened
+DEBUG:root:Intervening with 1/1 concepts in CooP
+DEBUG:root:Intervening with 1/1 concepts in CooP
+DEBUG:root:Intervening with 1/1 concepts in CooP
+DEBUG:root:Intervening with 1/1 concepts in CooP
+DEBUG:root:Intervening with 1/1 concepts in CooP
+DEBUG:root:Intervening with 1/1 concepts in CooP
+DEBUG:root:Intervening with 1/1 concepts in CooP
+DEBUG:root:Intervening with 1/1 concepts in CooP
+DEBUG:root:Intervening with 1/1 concepts in CooP
+DEBUG:root:Intervening with 1/1 concepts in CooP
+DEBUG:root:	Test AUC when intervening with 2 concept groups is 91.59% (accuracy is 83.45%).
+DEBUG:root:Intervening with 3 out of 8 concept groups
+DEBUG:root:	For split 0 with 3 groups intervened
+DEBUG:root:Intervening with 1/1 concepts in CooP
+DEBUG:root:Intervening with 1/1 concepts in CooP
+DEBUG:root:Intervening with 1/1 concepts in CooP
+DEBUG:root:Intervening with 1/1 concepts in CooP
+DEBUG:root:Intervening with 1/1 concepts in CooP
+DEBUG:root:Intervening with 1/1 concepts in CooP
+DEBUG:root:Intervening with 1/1 concepts in CooP
+DEBUG:root:Intervening with 1/1 concepts in CooP
+DEBUG:root:Intervening with 1/1 concepts in CooP
+DEBUG:root:Intervening with 1/1 concepts in CooP
+DEBUG:root:	Test AUC when intervening with 3 concept groups is 92.03% (accuracy is 84.10%).
+DEBUG:root:Intervening with 4 out of 8 concept groups
+DEBUG:root:	For split 0 with 4 groups intervened
+DEBUG:root:Intervening with 1/1 concepts in CooP
+DEBUG:root:Intervening with 1/1 concepts in CooP
+DEBUG:root:Intervening with 1/1 concepts in CooP
+DEBUG:root:Intervening with 1/1 concepts in CooP
+DEBUG:root:Intervening with 1/1 concepts in CooP
+DEBUG:root:Intervening with 1/1 concepts in CooP
+DEBUG:root:Intervening with 1/1 concepts in CooP
+DEBUG:root:Intervening with 1/1 concepts in CooP
+DEBUG:root:Intervening with 1/1 concepts in CooP
+DEBUG:root:Intervening with 1/1 concepts in CooP
+DEBUG:root:	Test AUC when intervening with 4 concept groups is 92.35% (accuracy is 84.62%).
+DEBUG:root:Intervening with 5 out of 8 concept groups
+DEBUG:root:	For split 0 with 5 groups intervened
+DEBUG:root:Intervening with 1/1 concepts in CooP
+DEBUG:root:Intervening with 1/1 concepts in CooP
+DEBUG:root:Intervening with 1/1 concepts in CooP
+DEBUG:root:Intervening with 1/1 concepts in CooP
+DEBUG:root:Intervening with 1/1 concepts in CooP
+DEBUG:root:Intervening with 1/1 concepts in CooP
+DEBUG:root:Intervening with 1/1 concepts in CooP
+DEBUG:root:Intervening with 1/1 concepts in CooP
+DEBUG:root:Intervening with 1/1 concepts in CooP
+DEBUG:root:Intervening with 1/1 concepts in CooP
+DEBUG:root:	Test AUC when intervening with 5 concept groups is 92.71% (accuracy is 84.99%).
+DEBUG:root:Intervening with 6 out of 8 concept groups
+DEBUG:root:	For split 0 with 6 groups intervened
+DEBUG:root:Intervening with 1/1 concepts in CooP
+DEBUG:root:Intervening with 1/1 concepts in CooP
+DEBUG:root:Intervening with 1/1 concepts in CooP
+DEBUG:root:Intervening with 1/1 concepts in CooP
+DEBUG:root:Intervening with 1/1 concepts in CooP
+DEBUG:root:Intervening with 1/1 concepts in CooP
+DEBUG:root:Intervening with 1/1 concepts in CooP
+DEBUG:root:Intervening with 1/1 concepts in CooP
+DEBUG:root:Intervening with 1/1 concepts in CooP
+DEBUG:root:Intervening with 1/1 concepts in CooP
+DEBUG:root:	Test AUC when intervening with 6 concept groups is 93.10% (accuracy is 85.54%).
+DEBUG:root:Intervening with 7 out of 8 concept groups
+DEBUG:root:	For split 0 with 7 groups intervened
+DEBUG:root:Intervening with 1/1 concepts in CooP
+DEBUG:root:Intervening with 1/1 concepts in CooP
+DEBUG:root:Intervening with 1/1 concepts in CooP
+DEBUG:root:Intervening with 1/1 concepts in CooP
+DEBUG:root:Intervening with 1/1 concepts in CooP
+DEBUG:root:Intervening with 1/1 concepts in CooP
+DEBUG:root:Intervening with 1/1 concepts in CooP
+DEBUG:root:Intervening with 1/1 concepts in CooP
+DEBUG:root:Intervening with 1/1 concepts in CooP
+DEBUG:root:Intervening with 1/1 concepts in CooP
+DEBUG:root:	Test AUC when intervening with 7 concept groups is 93.81% (accuracy is 85.85%).
+DEBUG:root:Intervening with 8 out of 8 concept groups
+DEBUG:root:	For split 0 with 8 groups intervened
+DEBUG:root:Intervening with 1/1 concepts in CooP
+DEBUG:root:Intervening with 1/1 concepts in CooP
+DEBUG:root:Intervening with 1/1 concepts in CooP
+DEBUG:root:Intervening with 1/1 concepts in CooP
+DEBUG:root:Intervening with 1/1 concepts in CooP
+DEBUG:root:Intervening with 1/1 concepts in CooP
+DEBUG:root:Intervening with 1/1 concepts in CooP
+DEBUG:root:Intervening with 1/1 concepts in CooP
+DEBUG:root:Intervening with 1/1 concepts in CooP
+DEBUG:root:Intervening with 1/1 concepts in CooP
+DEBUG:root:	Test AUC when intervening with 8 concept groups is 95.04% (accuracy is 86.65%).
+DEBUG:root:		Test AUC when intervening with 0 concept groups is 88.44% (avg int time is 0.00017s and construction time is 0.00006s).
+DEBUG:root:		Test AUC when intervening with 1 concept groups is 90.79% (avg int time is 0.00017s and construction time is 0.00006s).
+DEBUG:root:		Test AUC when intervening with 2 concept groups is 91.59% (avg int time is 0.00017s and construction time is 0.00006s).
+DEBUG:root:		Test AUC when intervening with 3 concept groups is 92.03% (avg int time is 0.00017s and construction time is 0.00006s).
+DEBUG:root:		Test AUC when intervening with 4 concept groups is 92.35% (avg int time is 0.00017s and construction time is 0.00006s).
+DEBUG:root:		Test AUC when intervening with 5 concept groups is 92.71% (avg int time is 0.00017s and construction time is 0.00006s).
+DEBUG:root:		Test AUC when intervening with 6 concept groups is 93.10% (avg int time is 0.00017s and construction time is 0.00006s).
+DEBUG:root:		Test AUC when intervening with 7 concept groups is 93.81% (avg int time is 0.00017s and construction time is 0.00006s).
+DEBUG:root:		Test AUC when intervening with 8 concept groups is 95.04% (avg int time is 0.00017s and construction time is 0.00006s).
+DEBUG:root:		Test AUC when intervening with 0 concept groups is 88.75% (avg int time is 0.00014s and construction time is 17.95510s).
+DEBUG:root:		Test AUC when intervening with 1 concept groups is 89.12% (avg int time is 0.00014s and construction time is 17.95510s).
+DEBUG:root:		Test AUC when intervening with 2 concept groups is 89.64% (avg int time is 0.00014s and construction time is 17.95510s).
+DEBUG:root:		Test AUC when intervening with 3 concept groups is 90.38% (avg int time is 0.00014s and construction time is 17.95510s).
+DEBUG:root:		Test AUC when intervening with 4 concept groups is 91.72% (avg int time is 0.00014s and construction time is 17.95510s).
+DEBUG:root:		Test AUC when intervening with 5 concept groups is 92.69% (avg int time is 0.00014s and construction time is 17.95510s).
+DEBUG:root:		Test AUC when intervening with 6 concept groups is 93.50% (avg int time is 0.00014s and construction time is 17.95510s).
+DEBUG:root:		Test AUC when intervening with 7 concept groups is 94.26% (avg int time is 0.00014s and construction time is 17.95510s).
+DEBUG:root:		Test AUC when intervening with 8 concept groups is 95.05% (avg int time is 0.00014s and construction time is 17.95510s).
+DEBUG:root:		Test AUC when intervening with 0 concept groups is 88.44% (avg int time is 0.00014s and construction time is 0.00005s).
+DEBUG:root:		Test AUC when intervening with 1 concept groups is 96.96% (avg int time is 0.00014s and construction time is 0.00005s).
+DEBUG:root:		Test AUC when intervening with 2 concept groups is 98.76% (avg int time is 0.00014s and construction time is 0.00005s).
+DEBUG:root:		Test AUC when intervening with 3 concept groups is 99.24% (avg int time is 0.00014s and construction time is 0.00005s).
+DEBUG:root:		Test AUC when intervening with 4 concept groups is 99.37% (avg int time is 0.00014s and construction time is 0.00005s).
+DEBUG:root:		Test AUC when intervening with 5 concept groups is 99.36% (avg int time is 0.00014s and construction time is 0.00005s).
+DEBUG:root:		Test AUC when intervening with 6 concept groups is 99.18% (avg int time is 0.00014s and construction time is 0.00005s).
+DEBUG:root:		Test AUC when intervening with 7 concept groups is 98.46% (avg int time is 0.00014s and construction time is 0.00005s).
+DEBUG:root:		Test AUC when intervening with 8 concept groups is 95.04% (avg int time is 0.00014s and construction time is 0.00005s).
+DEBUG:root:effective number of concepts is 8 and intervened groups are [0, 1, 2, 3, 4, 5, 6, 7, 8]used intervened groups are [0, 1, 2, 3, 4, 5, 6, 7, 8]
+DEBUG:root:Restarting run because we could not find test_acc_y_group_optimal_global_no_prior_ints_IntAwareConceptEmbeddingModelRetry_intervention_weight_5_horizon_rate_1.005_intervention_discount_1_task_discount_1.5 in old results.
+[rank: 0] Global seed set to 42
+DEBUG:root:Intervention groups: [0, 1, 2, 3, 4, 5, 6, 7, 8]
+DEBUG:root:Intervening with 0 out of 8 concept groups
+DEBUG:root:	For split 0 with 0 groups intervened
+DEBUG:root:	Test AUC when intervening with 0 concept groups is 88.44% (accuracy is 80.01%).
+DEBUG:root:Intervening with 1 out of 8 concept groups
+DEBUG:root:	For split 0 with 1 groups intervened
+DEBUG:root:	Test AUC when intervening with 1 concept groups is 97.61% (accuracy is 91.72%).
+DEBUG:root:Intervening with 2 out of 8 concept groups
+DEBUG:root:	For split 0 with 2 groups intervened
+DEBUG:root:	Test AUC when intervening with 2 concept groups is 98.95% (accuracy is 94.68%).
+DEBUG:root:Intervening with 3 out of 8 concept groups
+DEBUG:root:	For split 0 with 3 groups intervened
+DEBUG:root:	Test AUC when intervening with 3 concept groups is 99.31% (accuracy is 95.76%).
+DEBUG:root:Intervening with 4 out of 8 concept groups
+DEBUG:root:	For split 0 with 4 groups intervened
+DEBUG:root:	Test AUC when intervening with 4 concept groups is 99.40% (accuracy is 96.10%).
+DEBUG:root:Intervening with 5 out of 8 concept groups
+DEBUG:root:	For split 0 with 5 groups intervened
+srun: Job step aborted: Waiting up to 122 seconds for job step to finish.
+slurmstepd: error: *** STEP 43535458.2 ON gpu-q-1 CANCELLED AT 2024-02-02T16:45:53 ***
+srun: forcing job termination
+srun: forcing job termination
+srun: got SIGCONT

@@ -172,7 +172,7 @@ class ACFlow(pl.LightningModule):
 
 class Flow(Module):
     def __init__(self, n_concepts, n_tasks, layer_cfg, affine_hids, linear_rank, linear_hids, transformations, prior_units, prior_layers, prior_hids, n_components):
-        super(Flow, self).__init__()
+        super().__init__()
         self.n_concepts = n_concepts
         self.n_tasks = n_tasks
         self.layer_cfg = layer_cfg
@@ -477,7 +477,7 @@ class LULinear(BaseTransform):
     
 class TransLayer(BaseTransform):
     def __init__(self, n_concepts, n_tasks, affine_hids, layer_cfg, linear_rank, linear_hids):
-        super(Transform, self).__init__()
+        super().__init__()
         self.transformations = []
         for name in layer_cfg:
             if name == "AF":
@@ -507,7 +507,7 @@ class TransLayer(BaseTransform):
     
 class Transform(BaseTransform):
     def __init__(self, n_concepts, n_tasks, affine_hids, layer_cfg, linear_rank, linear_hids, transformations):
-        super(BaseTransform, self).__init__()
+        super().__init__()
         self.n_concepts = n_concepts
         self.n_tasks = n_tasks
         self.affine_hids = affine_hids
