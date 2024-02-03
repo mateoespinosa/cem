@@ -408,7 +408,7 @@ class LULinear(BaseTransform):
             bnn.append(torch.nn.Linear(self.n_concepts * 3 + self.n_tasks if i == 0 else linear_hids[i-1], h))
             bnn.append(torch.nn.Tanh())
 
-        wnn.append(torch.nn.Linear(self.affine_hids[-1], self.n_concepts * 2 * self.linear_rank))
+        wnn.append(torch.nn.Linear(self.linear_hids[-1], self.n_concepts * 2 * self.linear_rank))
         torch.nn.init.zeros_(wnn[-1].weight)
         self.wnn = torch.nn.Sequential(*wnn)
 
