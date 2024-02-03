@@ -104,6 +104,8 @@ def main(
     logging.debug(
         f"Applying transformations..."
     )
+    import pdb
+    pdb.set_trace()
     train_dl = TransformedDataset(train_dl)
     val_dl = TransformedDataset(val_dl)
     test_dl = TransformedDataset(test_dl)
