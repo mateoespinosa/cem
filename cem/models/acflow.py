@@ -145,8 +145,6 @@ class ACFlow(pl.LightningModule):
 
     def configure_optimizers(self):
         if self.optimizer_name.lower() == "adam":
-            import pdb
-            pdb.set_trace()
             optimizer = torch.optim.Adam(
                 self.flow.parameters(),
                 lr=self.learning_rate,
