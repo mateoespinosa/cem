@@ -478,7 +478,7 @@ class LULinear(BaseTransform):
 class TransLayer(BaseTransform):
     def __init__(self, n_concepts, n_tasks, affine_hids, layer_cfg, linear_rank, linear_hids):
         super().__init__()
-        self.transformations = []
+        self.transformations = torch.nn.ModuleList([])
         for name in layer_cfg:
             if name == "AF":
                 self.transformations.append(Affine(n_concepts, n_tasks, affine_hids))
@@ -515,7 +515,7 @@ class Transform(BaseTransform):
         self.linear_rank = linear_rank
         self.linear_hids = linear_hids
 
-        self.transformations = []
+        self.transformations = torch.nn.ModuleList([])
         for name in transformations:
             m = self.create_transformation(name)
             self.transformations.append(m)
