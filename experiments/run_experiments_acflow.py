@@ -158,16 +158,6 @@ def main(
         samples_seen = 0
         for i, data in enumerate(train_dl):
             y = data['y']
-            if n_tasks > 1:
-                y = torch.nn.functional.one_hot(
-                    y,
-                    num_classes=n_tasks,
-                ).cpu().detach().numpy()
-            else:
-                y = torch.cat(
-                    [torch.unsqueeze(1 - y, dim=-1), torch.unsqueeze(y, dim=-1)],
-                    dim=-1,
-                ).cpu().detach().numpy()
             attribute_count += np.sum(y, axis=0)
             samples_seen += y.shape[0]
         print("Class distribution is:", attribute_count / samples_seen)
