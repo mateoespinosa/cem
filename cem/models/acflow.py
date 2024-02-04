@@ -45,7 +45,7 @@ class ACFlow(pl.LightningModule):
             if(y.shape == (B)):
                 y = torch.tile(torch.unsqueeze(y, dim = 1), [1, N])
                 y = torch.reshape(y, [B * N])
-            if(y.shape == (B, N)):
+            elif(y.shape == (B, N)):
                 y = torch.reshape(y, [B * N])
             else:
                 raise ValueError(f"y should have shape ({B}) or ({B},{N}). Instead y is of shape {y.shape}")
