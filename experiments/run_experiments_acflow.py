@@ -151,7 +151,7 @@ def main(
             if n_tasks > 1:
                 y = torch.nn.functional.one_hot(
                     y,
-                    num_classes=self.n_tasks,
+                    num_classes=n_tasks,
                 ).clone().cpu().numpy()
             else:
                 y = torch.cat(
