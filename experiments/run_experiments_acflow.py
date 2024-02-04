@@ -63,10 +63,10 @@ class TransformedDataset(Dataset):
         m = torch.tensor(m)
         b.to(x.device)
         m.to(x.device)
-        if n_tasks > 1:
+        if self.n_tasks > 1:
             y = torch.nn.functional.one_hot(
                 y,
-                num_classes=n_tasks,
+                num_classes=self.n_tasks,
             )
         else:
             y = torch.cat(
