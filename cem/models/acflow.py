@@ -42,9 +42,7 @@ class ACFlow(pl.LightningModule):
                 y = torch.randint(0, self.n_concepts, [B*N])
                 forward = False
         if(y.shape != (B*N)):
-            import pdb
-            pdb.set_trace()
-            if(y.shape == (B)):
+            if(y.shape == (B,)):
                 y = torch.tile(torch.unsqueeze(y, dim = 1), [1, N])
                 y = torch.reshape(y, [B * N])
             elif(y.shape == (B, N)):
