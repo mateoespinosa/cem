@@ -46,8 +46,6 @@ class TransformedDataset(Dataset):
         return x, y, (c, competencies, prev_interventions)
     
     def transform(self, batch):
-        import pdb
-        pdb.set_trace()
         _, y, (x, _, _) = self._unpack_batch(batch)
         d = x.shape[-1]
         b = np.zeros([d], dtype=np.float32)
@@ -122,28 +120,9 @@ def main(
             n_tasks,
         )
 
-    sample = next(iter(train_dl.dataset))
-    real_sample = []
-    for x in sample:
-        if isinstance(x, list):
-            real_sample += x
-        else:
-            real_sample.append(x)
-    sample = real_sample
-    logging.info(
-        f"Training sample shape is: {sample[0].shape} with "
-        f"type {sample[0].type()}"
-    )
-    logging.info(
-        f"Training label shape is: {sample[1].shape} with "
-        f"type {sample[1].type()}"
-    )
+    
     logging.info(
         f"\tNumber of output classes: {n_tasks}"
-    )
-    logging.info(
-        f"Training concept shape is: {sample[2].shape} with "
-        f"type {sample[2].type()}"
     )
     logging.info(
         f"\tNumber of training concepts: {n_concepts}"
