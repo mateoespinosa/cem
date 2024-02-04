@@ -46,6 +46,8 @@ class TransformedDataset(Dataset):
         return x, y, (c, competencies, prev_interventions)
     
     def transform(self, batch):
+        import pdb
+        pdb.set_trace()
         _, x, (y, _, _) = self._unpack_batch(batch)
         x = torch.tensor(x)
         y = torch.tensor(y)
