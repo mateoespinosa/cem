@@ -72,6 +72,10 @@ class TransformedDataset(Dataset):
     def __len__(self):
         return len(self.dataset)
 
+def transform_dataloader(dataloader):
+    dataset = TransformedDataset(dataloader.dataset)
+    return torch.utils.data.Dataloader(dataset, batch_size = dataloader.batch_size, shuffle = isinstance(dataloader.sampler, RandomSampler), num_workers = dataloader.num_workers)
+
 
 
 def main(
@@ -106,9 +110,9 @@ def main(
     )
     import pdb
     pdb.set_trace()
-    train_dl.dataset = TransformedDataset(train_dl.dataset)
-    val_dl.dataset = TransformedDataset(val_dl.dataset)
-    test_dl.dataset = TransformedDataset(test_dl.dataset)
+    train_dl = transform_dataloader(train_dl)
+    val_dl = transform_dataloader(val_dl)
+    test_dl = transform_dataloader(test_dl)
     # For now, we assume that all concepts have the same
     # aquisition cost
     experiment_config["shared_params"]["n_concepts"] = \
