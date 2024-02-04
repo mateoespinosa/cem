@@ -63,16 +63,6 @@ class TransformedDataset(Dataset):
         m = torch.tensor(m)
         b.to(x.device)
         m.to(x.device)
-        if self.n_tasks > 1:
-            y = torch.nn.functional.one_hot(
-                y,
-                num_classes=self.n_tasks,
-            )
-        else:
-            y = torch.cat(
-                [torch.unsqueeze(1 - y, dim=-1), torch.unsqueeze(y, dim=-1)],
-                dim=-1,
-            )
         return {'x': x, 'b': b, 'm': m, 'y': y}
 
     def __getitem__(self, index):
@@ -158,7 +148,17 @@ def main(
         samples_seen = 0
         for i, data in enumerate(train_dl):
             y = data['y']
-            attribute_count += np.sum(y.clone().cpu().numpy(), axis=0)
+            if self.n_tasks > 1:
+                y = torch.nn.functional.one_hot(
+                    y,
+                    num_classes=self.n_tasks,
+                ).clone().cpu().numpy()
+            else:
+                y = torch.cat(
+                    [torch.unsqueeze(1 - y, dim=-1), torch.unsqueeze(y, dim=-1)],
+                    dim=-1,
+                ).clone().cpu().numpy()
+            attribute_count += np.sum(y, axis=0)
             samples_seen += y.shape[0]
         print("Class distribution is:", attribute_count / samples_seen)
         if n_tasks > 1:
