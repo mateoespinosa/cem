@@ -26,8 +26,9 @@ from cem.models.acflow import ACFlow
 
 # Helper class to apply transformations to a dataset
 class TransformedDataset(Dataset):
-    def __init__(self, dataset):
+    def __init__(self, dataset, n_tasks):
         self.dataset = dataset
+        self.n_tasks = n_tasks
 
     def _unpack_batch(self, batch):
         x = batch[0]
@@ -62,6 +63,10 @@ class TransformedDataset(Dataset):
         m = torch.tensor(m)
         b.to(x.device)
         m.to(x.device)
+        y = torch.nn.functional.one_hot(
+            y,
+            num_classes=self.n_tasks,
+        )
         return {'x': x, 'b': b, 'm': m, 'y': y}
 
     def __getitem__(self, index):
@@ -70,8 +75,8 @@ class TransformedDataset(Dataset):
     def __len__(self):
         return len(self.dataset)
 
-def transform_dataloader(dataloader):
-    dataset = TransformedDataset(dataloader.dataset)
+def transform_dataloader(dataloader, n_tasks):
+    dataset = TransformedDataset(dataloader.dataset, n_tasks)
     return torch.utils.data.DataLoader(dataset, batch_size = dataloader.batch_size, shuffle = isinstance(dataloader.sampler, RandomSampler), num_workers = dataloader.num_workers)
 
 
@@ -106,7 +111,7 @@ def main(
     logging.debug(
         f"Applying transformations..."
     )
-    train_dl = transform_dataloader(train_dl)
+    train_dl = transform_dataloader(train_dl, n_tasks)
     # For now, we assume that all concepts have the same
     # aquisition cost
     experiment_config["shared_params"]["n_concepts"] = \
@@ -127,8 +132,8 @@ def main(
     logging.info(
         f"\tNumber of training concepts: {n_concepts}"
     )
-    val_dl = transform_dataloader(val_dl)
-    test_dl = transform_dataloader(test_dl)
+    val_dl = transform_dataloader(val_dl, n_tasks)
+    test_dl = transform_dataloader(test_dl, n_tasks)
 
     task_class_weights = None
 
