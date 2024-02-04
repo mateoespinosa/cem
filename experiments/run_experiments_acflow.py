@@ -139,6 +139,12 @@ def main(
     val_dl = transform_dataloader(val_dl, n_tasks)
     test_dl = transform_dataloader(test_dl, n_tasks)
 
+    sample = next(iter(train_dl.dataset))
+
+    logging.debug(
+        f"Sample: f{sample}"
+    )
+
     task_class_weights = None
 
     if experiment_config['shared_params'].get('use_task_class_weights', False):
