@@ -160,7 +160,7 @@ def main(
             y = data['y']
             import pdb
             pdb.set_trace()
-            attribute_count += np.sum(np.array(y), axis=0)
+            attribute_count += np.sum(y.clone().cpu().numpy(), axis=0)
             samples_seen += y.shape[0]
         print("Class distribution is:", attribute_count / samples_seen)
         if n_tasks > 1:
