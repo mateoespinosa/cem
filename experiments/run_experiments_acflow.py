@@ -142,7 +142,7 @@ def main(
     sample = next(iter(train_dl.dataset))
 
     logging.debug(
-        f"Sample: f{sample}"
+        f"Sample: {sample}"
     )
 
     task_class_weights = None
