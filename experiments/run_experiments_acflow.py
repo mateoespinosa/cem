@@ -48,9 +48,7 @@ class TransformedDataset(Dataset):
     def transform(self, batch):
         import pdb
         pdb.set_trace()
-        _, x, (y, _, _) = self._unpack_batch(batch)
-        x = torch.tensor(x)
-        y = torch.tensor(y)
+        _, y, (x, _, _) = self._unpack_batch(batch)
         d = x.shape[-1]
         b = np.zeros([d], dtype=np.float32)
         no = np.random.choice(d+1)
