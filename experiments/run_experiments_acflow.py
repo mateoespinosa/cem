@@ -110,11 +110,7 @@ def main(
     logging.debug(
         f"Applying transformations..."
     )
-    import pdb
-    pdb.set_trace()
     train_dl = transform_dataloader(train_dl)
-    val_dl = transform_dataloader(val_dl)
-    test_dl = transform_dataloader(test_dl)
     # For now, we assume that all concepts have the same
     # aquisition cost
     experiment_config["shared_params"]["n_concepts"] = \
@@ -154,6 +150,8 @@ def main(
     logging.info(
         f"\tNumber of training concepts: {n_concepts}"
     )
+    val_dl = transform_dataloader(val_dl)
+    test_dl = transform_dataloader(test_dl)
 
     task_class_weights = None
 
