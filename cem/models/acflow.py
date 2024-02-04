@@ -44,7 +44,7 @@ class ACFlow(pl.LightningModule):
         if(y.shape != (B*N)):
             if(y.shape == (B, N)):
                 y = torch.tile(torch.unsqueeze(y, dim = 1), [1, N])
-                y = torch.reshape(x, [B * N])
+                y = torch.reshape(y, [B * N])
             else:
                 raise ValueError(f"y should have shape ({B}*{N}) or ({B},{N}). Instead y is of shape {y.shape}")
         # log p(x_u | x_o, y)
