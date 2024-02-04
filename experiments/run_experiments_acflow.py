@@ -74,7 +74,7 @@ class TransformedDataset(Dataset):
 
 def transform_dataloader(dataloader):
     dataset = TransformedDataset(dataloader.dataset)
-    return torch.utils.data.Dataloader(dataset, batch_size = dataloader.batch_size, shuffle = isinstance(dataloader.sampler, RandomSampler), num_workers = dataloader.num_workers)
+    return torch.utils.data.DataLoader(dataset, batch_size = dataloader.batch_size, shuffle = isinstance(dataloader.sampler, RandomSampler), num_workers = dataloader.num_workers)
 
 
 
