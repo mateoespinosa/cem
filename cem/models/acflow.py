@@ -212,6 +212,8 @@ class Flow(Module):
         return x_mean
 
     def cond_forward(self, x, y, b, m):
+        import pdb
+        pdb.set_trace()
         x_u, x_o = self.preprocess(x, b, m)
         c = torch.concat([F.one_hot(y, self.n_tasks), x_o], dim=1)
         z_u, logdet = self.transform.forward(x_u, c, b, m)
