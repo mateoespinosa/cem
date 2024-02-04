@@ -158,8 +158,6 @@ def main(
         samples_seen = 0
         for i, data in enumerate(train_dl):
             y = data['y']
-            import pdb
-            pdb.set_trace()
             attribute_count += np.sum(y.clone().cpu().numpy(), axis=0)
             samples_seen += y.shape[0]
         print("Class distribution is:", attribute_count / samples_seen)
