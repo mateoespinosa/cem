@@ -64,7 +64,7 @@ class TransformedDataset(Dataset):
         b.to(x.device)
         m.to(x.device)
         y = torch.nn.functional.one_hot(
-            y,
+            y.long(),
             num_classes=self.n_tasks,
         )
         return {'x': x, 'b': b, 'm': m, 'y': y}
