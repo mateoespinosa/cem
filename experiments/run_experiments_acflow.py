@@ -148,7 +148,7 @@ def main(
         samples_seen = 0
         for i, data in enumerate(train_dl):
             y = data['y']
-            if self.n_tasks > 1:
+            if n_tasks > 1:
                 y = torch.nn.functional.one_hot(
                     y,
                     num_classes=self.n_tasks,
