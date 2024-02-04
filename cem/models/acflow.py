@@ -42,11 +42,13 @@ class ACFlow(pl.LightningModule):
                 y = torch.randint(0, self.n_concepts, [B*N])
                 forward = False
         if(y.shape != (B*N)):
-            if(y.shape == (B, N)):
+            if(y.shape == (B)):
                 y = torch.tile(torch.unsqueeze(y, dim = 1), [1, N])
                 y = torch.reshape(y, [B * N])
+            if(y.shape == (B, N)):
+                y = torch.reshape(y, [B * N])
             else:
-                raise ValueError(f"y should have shape ({B}*{N}) or ({B},{N}). Instead y is of shape {y.shape}")
+                raise ValueError(f"y should have shape ({B}) or ({B},{N}). Instead y is of shape {y.shape}")
         # log p(x_u | x_o, y)
         if forward:
             logp = self.flow.cond_forward(x, y, b, m)
