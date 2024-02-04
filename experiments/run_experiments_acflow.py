@@ -63,10 +63,14 @@ class TransformedDataset(Dataset):
         m = torch.tensor(m)
         b.to(x.device)
         m.to(x.device)
-        y = torch.nn.functional.one_hot(
-            y.long(),
-            num_classes=self.n_tasks,
-        )
+        try:
+            y = torch.nn.functional.one_hot(
+                y.long(),
+                num_classes=self.n_tasks,
+            )
+        except:
+            import pdb
+            pdb.set_trace()
         return {'x': x, 'b': b, 'm': m, 'y': y}
 
     def __getitem__(self, index):
