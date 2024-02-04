@@ -63,14 +63,16 @@ class TransformedDataset(Dataset):
         m = torch.tensor(m)
         b.to(x.device)
         m.to(x.device)
-        try:
+        if n_tasks > 1:
             y = torch.nn.functional.one_hot(
-                y.long(),
-                num_classes=self.n_tasks,
+                y,
+                num_classes=n_tasks,
             )
-        except:
-            import pdb
-            pdb.set_trace()
+        else:
+            y = torch.cat(
+                [torch.unsqueeze(1 - y, dim=-1), torch.unsqueeze(y, dim=-1)],
+                dim=-1,
+            )
         return {'x': x, 'b': b, 'm': m, 'y': y}
 
     def __getitem__(self, index):
