@@ -436,7 +436,7 @@ class LULinear(BaseTransform):
         query = m * (1-b)
         order = torch.argsort(query, descending = True, stable=True)
         order = torch.unsqueeze(order, dim = -1)
-        order = torch.tile(order, dims = (B,d,d))
+        order = torch.tile(order, dims = (1,d,d))
         t = torch.diag_embed(query)
         t = torch.gather(t, 1, order)
         weight = torch.matmul(torch.matmul(t, weight), torch.permute(t, (0,2,1)))
