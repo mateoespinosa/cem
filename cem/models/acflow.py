@@ -37,7 +37,7 @@ class ACFlow(pl.LightningModule):
         m = torch.reshape(x, [B * N, d])
         if(y == None):
             if(task == "classify"):
-                y = torch.tile(torch.unsqueeze(torch.range(N), dim = 0), [B, 1])
+                y = torch.tile(torch.unsqueeze(torch.arange(N), dim = 0), [B, 1])
                 forward = True
             elif(task == "sample"):
                 y = torch.randint(0, self.n_concepts, [B*N])
