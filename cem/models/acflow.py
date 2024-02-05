@@ -417,7 +417,7 @@ class LULinear(BaseTransform):
         self.bnn = torch.nn.Sequential(*bnn)
 
     def get_params(self, c, b, m):
-        B = torch.shape(c)[0]
+        B = c.shape[0]
         d = self.n_concepts
         r = self.linear_rank
         r = d if r <= 0 else r
