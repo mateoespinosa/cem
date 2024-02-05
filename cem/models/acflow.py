@@ -431,6 +431,8 @@ class LULinear(BaseTransform):
         weight = wc + self.w
         bias = bc + self.b
         # reorder
+        import pdb
+        pdb.set_trace()
         query = m * (1-b)
         order = torch.argsort(query, descending = True, stable=True)
         t = torch.diag_embed(query)
