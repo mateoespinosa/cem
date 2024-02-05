@@ -53,7 +53,11 @@ class ACFlow(pl.LightningModule):
                 raise ValueError(f"y should have shape ({B}) or ({B},{N}). Instead y is of shape {y.shape}")
         # log p(x_u | x_o, y)
         if forward:
-            logp = self.flow.cond_forward(x, y, b, m)
+            try:
+                logp = self.flow.cond_forward(x, y, b, m)
+            except:
+                import pdb
+                pdb.set_trace()
             # logits
             logits = torch.reshape(logp, [B,N])
             return logits
