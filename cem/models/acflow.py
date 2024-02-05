@@ -39,11 +39,11 @@ class ACFlow(pl.LightningModule):
         if(y == None):
             if(task == "classify"):
                 y = torch.tile(torch.unsqueeze(torch.arange(N), dim = 0), [B, 1])
-                y.to(x.device)
+                y = y.to(x.device)
                 forward = True
             elif(task == "sample"):
                 y = torch.randint(0, self.n_concepts, [B*N])
-                y.to(x.device)
+                y = y.to(x.device)
                 forward = False
         if(y.shape != (B*N)):
             if(y.shape == (B,)):
