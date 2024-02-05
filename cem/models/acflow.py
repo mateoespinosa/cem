@@ -34,6 +34,8 @@ class ACFlow(pl.LightningModule):
         b = torch.reshape(b, [B * N, d])
         m = torch.tile(torch.unsqueeze(m, dim = 1), [1, N, 1])
         m = torch.reshape(x, [B * N, d])
+        import pdb
+        pdb.set_trace()
         if(y == None):
             if(task == "classify"):
                 y = torch.tile(torch.unsqueeze(torch.arange(N), dim = 0), [B, 1])
@@ -53,11 +55,7 @@ class ACFlow(pl.LightningModule):
                 raise ValueError(f"y should have shape ({B}) or ({B},{N}). Instead y is of shape {y.shape}")
         # log p(x_u | x_o, y)
         if forward:
-            try:
-                logp = self.flow.cond_forward(x, y, b, m)
-            except:
-                import pdb
-                pdb.set_trace()
+            logp = self.flow.cond_forward(x, y, b, m)
             # logits
             logits = torch.reshape(logp, [B,N])
             return logits
