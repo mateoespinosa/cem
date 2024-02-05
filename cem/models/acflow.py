@@ -28,8 +28,6 @@ class ACFlow(pl.LightningModule):
         B = x.shape[0]
         d = self.n_concepts
         N = self.n_tasks
-        import pdb
-        pdb.set_trace()
         x = torch.tile(torch.unsqueeze(x, dim = 1), [1, N, 1])
         x = torch.reshape(x, [B * N, d])
         b = torch.tile(torch.unsqueeze(b, dim = 1), [1, N, 1])
@@ -39,9 +37,11 @@ class ACFlow(pl.LightningModule):
         if(y == None):
             if(task == "classify"):
                 y = torch.tile(torch.unsqueeze(torch.arange(N), dim = 0), [B, 1])
+                y.to(x.device)
                 forward = True
             elif(task == "sample"):
                 y = torch.randint(0, self.n_concepts, [B*N])
+                y.to(x.device)
                 forward = False
         if(y.shape != (B*N)):
             if(y.shape == (B,)):
@@ -52,7 +52,6 @@ class ACFlow(pl.LightningModule):
             else:
                 raise ValueError(f"y should have shape ({B}) or ({B},{N}). Instead y is of shape {y.shape}")
         # log p(x_u | x_o, y)
-        y.to(x.device)
         if forward:
             logp = self.flow.cond_forward(x, y, b, m)
             # logits
