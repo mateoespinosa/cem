@@ -64,8 +64,6 @@ class TransformedDataset(Dataset):
         b.to(x.device)
         m.to(x.device)
         y = y.to(torch.int64)
-        import pdb
-        pdb.set_trace()
         return {'x': x, 'b': b, 'm': m, 'y': y}
 
     def __getitem__(self, index):
