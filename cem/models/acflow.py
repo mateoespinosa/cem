@@ -34,8 +34,6 @@ class ACFlow(pl.LightningModule):
         b = torch.reshape(b, [B * N, d])
         m = torch.tile(torch.unsqueeze(m, dim = 1), [1, N, 1])
         m = torch.reshape(x, [B * N, d])
-        import pdb
-        pdb.set_trace()
         if(y == None):
             if(task == "classify"):
                 y = torch.tile(torch.unsqueeze(torch.arange(N), dim = 0), [B, 1])
