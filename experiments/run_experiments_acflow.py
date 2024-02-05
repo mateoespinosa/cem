@@ -63,7 +63,8 @@ class TransformedDataset(Dataset):
         m = torch.tensor(m)
         b.to(x.device)
         m.to(x.device)
-        return {'x': x, 'b': b, 'm': m, 'y': y.to(torch.int64)}
+        y = y.to(torch.int64)
+        return {'x': x, 'b': b, 'm': m, 'y': y}
 
     def __getitem__(self, index):
         return self.transform(self.dataset[index])
