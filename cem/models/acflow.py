@@ -439,6 +439,7 @@ class LULinear(BaseTransform):
         order = torch.tile(order, dims = (1,1,d))
         t = torch.diag_embed(query)
         t = torch.gather(t, 1, order)
+        t = torch.diagonal(t, dim1 = -2, dim2 = -1)
         weight = torch.matmul(torch.matmul(t, weight), torch.permute(t, (0,2,1)))
         bias = torch.squeeze(torch.matmul(t, torch.unsqueeze(bias, dim = 1)), dim = -1)
         
