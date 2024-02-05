@@ -286,9 +286,7 @@ class Affine(BaseTransform):
     def get_params(self, c, b, m):
         h = torch.concat([c, b, m], dim=1)
         params = self.net(h)
-        import pdb
-        pdb.set_trace()
-        shift, scale = torch.split(params, len(params) / 2, dim=1)
+        shift, scale = torch.split(params, int(len(params) / 2), dim=1)
         
         query = m * (1-b)   
         _, order = torch.sort(query, descending = True, stable=True)
@@ -337,7 +335,7 @@ class Coupling2(BaseTransform):
     def get_params(self, c, b, m):
         h = torch.concat([c, b, m], dim=1)
         params = self.net(h)
-        shift, scale = torch.split(params, len(params) / 2, dim=1)
+        shift, scale = torch.split(params, int(len(params) / 2), dim=1)
         
         query = m * (1-b)   
         _, order = torch.sort(query, descending = True, stable=True)
@@ -425,7 +423,7 @@ class LULinear(BaseTransform):
         r = d if r <= 0 else r
         h = torch.concat([c, b, m], dim=1)
         wc = self.wnn(h)
-        wc1, wc2 = torch.split(wc, 2, dim=1)
+        wc1, wc2 = torch.split(wc, self.n_concepts * self.linear_rank, dim=1)
         wc1 = torch.reshape(wc1, [B,d,r])
         wc2 = torch.reshape(wc2, [B,r,d])
         wc = torch.matmul(wc1, wc2)
@@ -589,7 +587,7 @@ class AutoReg(Module):
             p_list.append(p_t)
             z_t = torch.unsqueeze(z[:,t], dim = 1)
         params = torch.stack(p_list, dim = 1)
-        log_like1 = mixture_likelihoods(params, z)
+        log_like1 = mixture_likelihoods(params, z, self.n_components)
         query = m * (1 - b)
         mask = torch.sort(query, dim = 1, descending = True, stable=True)
         log_likel = torch.sum(log_like1 * mask, dim = 1)
@@ -609,7 +607,7 @@ class AutoReg(Module):
             h_t = torch.squeeze(h_t, 1)
             h_t = torch.cat([h_t, c, b, m], dim = 1)
             p_t = self.rnn_out(h_t)
-            z_t = mixture_sample_dim(p_t)
+            z_t = mixture_sample_dim(p_t, self.n_components)
             z_list.append(z_t)
         z = torch.concat(z_list, dim=1)
         return z
@@ -628,12 +626,12 @@ class AutoReg(Module):
             h_t = torch.squeeze(h_t, 1)
             h_t = torch.cat([h_t, c, b, m], dim = 1)
             p_t = self.rnn_out(h_t)
-            z_t = mixture_mean_dim(p_t)
+            z_t = mixture_mean_dim(p_t, self.n_components)
             z_list.append(z_t)
         z = torch.concat(z_list, dim=1)
         return z
 
-def mixture_likelihoods(params, targets, base_distribution='gaussian'):
+def mixture_likelihoods(params, targets, n_components, base_distribution='gaussian'):
     '''
     Args:
         params: [B,d,c*3]
@@ -642,7 +640,7 @@ def mixture_likelihoods(params, targets, base_distribution='gaussian'):
         log_likelihood: [B,d]
     '''
     targets = torch.unsqueeze(targets, dim = -1)
-    logits, means, lsigmas = torch.split(params, 3, dim=2)
+    logits, means, lsigmas = torch.split(params, n_components, dim=2)
     sigmas = torch.exp(lsigmas)
     if base_distribution == 'gaussian':
         log_norm_consts = -lsigmas - 0.5 * np.log(2.0 * np.pi)
@@ -661,7 +659,7 @@ def mixture_likelihoods(params, targets, base_distribution='gaussian'):
     
     return log_likelihoods
 
-def mixture_sample_dim(params_dim, base_distribution='gaussian'):
+def mixture_sample_dim(params_dim, n_components, base_distribution='gaussian'):
     '''
     Args:
         params_dim: [B,n*3]
@@ -669,7 +667,7 @@ def mixture_sample_dim(params_dim, base_distribution='gaussian'):
         samp: [B,1]
     '''
     B = params_dim.shape[0]
-    logits, means, lsigmas = torch.split(params_dim, 3, dim=1)
+    logits, means, lsigmas = torch.split(params_dim, n_components, dim=1)
     sigmas = torch.exp(lsigmas)
     # sample multinomial
     js = torch.multinomial(logits, 1)  # int64
@@ -695,8 +693,8 @@ def mixture_sample_dim(params_dim, base_distribution='gaussian'):
     
     return samp
 
-def mixture_mean_dim(params_dim, base_distribution='gaussian'):
-    logits, means, lsigmas = torch.split(params_dim, 3, dim=1)
+def mixture_mean_dim(params_dim, n_components, base_distribution='gaussian'):
+    logits, means, lsigmas = torch.split(params_dim, n_components, dim=1)
     weights = torch.nn.softmax(logits, dim=-1)
 
     return torch.sum(weights * means, dim=1, keepdims=True)
