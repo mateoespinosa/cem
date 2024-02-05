@@ -2,7 +2,7 @@ trials: 5
 results_dir: results/mnist_add_new
 dataset: mnist_add
 num_workers: 8
-batch_size: 2048
+batch_size: 128
 num_operands: 12
 selected_digits:
   - [0,1,2]
