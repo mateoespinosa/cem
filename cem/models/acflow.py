@@ -62,8 +62,6 @@ class ACFlow(pl.LightningModule):
             return sample
 
     def forward(self, x, b, m, y):
-        y = y.int()
-        cond_logpu = self.flow_forward(x, b, m, y, forward = True)
         # log p(x_u | x_o, y)
         logpu = self.flow_forward(x, b, m, None, task = "classify")
         # log p(x_o | y)
@@ -213,8 +211,6 @@ class Flow(Module):
         return x_mean
 
     def cond_forward(self, x, y, b, m):
-        import pdb
-        pdb.set_trace()
         x_u, x_o = self.preprocess(x, b, m)
         c = torch.concat([F.one_hot(y, self.n_tasks), x_o], dim=1)
         z_u, logdet = self.transform.forward(x_u, c, b, m)
