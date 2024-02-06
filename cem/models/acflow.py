@@ -580,8 +580,8 @@ class AutoReg(Module):
     def logp(self, z, c, b, m):
         B = z.shape[0]
         d = self.n_concepts
-        state = torch.zeros(self.prior_layers, B, self.prior_units)
-        z_t = -torch.ones((B,1), dtype = torch.float).to(z.device)
+        state = torch.zeros(self.prior_layers, B, self.prior_units).to(c.device)
+        z_t = -torch.ones((B,1), dtype = torch.float).to(c.device)
         p_list = []
         for t in range(d):
             inp = torch.cat([z_t, c, b, m], dim = 1)
@@ -593,7 +593,7 @@ class AutoReg(Module):
             p_list.append(p_t)
             z_t = torch.unsqueeze(z[:,t], dim = 1)
         params = torch.stack(p_list, dim = 1)
-        log_like1 = mixture_likelihoods(params, z, self.n_components)
+        log_like1 = mixture_likelihoods(params, z, self.n_components).to(c.device)
         query = m * (1 - b)
         mask = torch.sort(query, dim = 1, descending = True, stable=True)
         log_likel = torch.sum(log_like1 * mask, dim = 1)
@@ -603,7 +603,7 @@ class AutoReg(Module):
         B = c.shape[0]
         d = self.n_concepts
         
-        state = torch.zeros(self.prior_layers, B, self.prior_units)
+        state = torch.zeros(self.prior_layers, B, self.prior_units).to(c.device)
         z_t = -torch.ones((B,1), dtype = torch.float).to(c.device)
         z_list = []
         for t in range(d):
@@ -613,7 +613,7 @@ class AutoReg(Module):
             h_t = torch.squeeze(h_t, 1)
             h_t = torch.cat([h_t, c, b, m], dim = 1)
             p_t = self.rnn_out(h_t)
-            z_t = mixture_sample_dim(p_t, self.n_components)
+            z_t = mixture_sample_dim(p_t, self.n_components).to(c.device)
             z_list.append(z_t)
         z = torch.concat(z_list, dim=1)
         return z
@@ -622,7 +622,7 @@ class AutoReg(Module):
         B = c.shape[0]
         d = self.n_concepts
         
-        state = torch.zeros(self.prior_layers, B, self.prior_units)
+        state = torch.zeros(self.prior_layers, B, self.prior_units).to(c.device)
         z_t = -torch.ones((B,1), dtype = torch.float).to(c.device)
         z_list = []
         for t in range(d):
@@ -632,7 +632,7 @@ class AutoReg(Module):
             h_t = torch.squeeze(h_t, 1)
             h_t = torch.cat([h_t, c, b, m], dim = 1)
             p_t = self.rnn_out(h_t)
-            z_t = mixture_mean_dim(p_t, self.n_components)
+            z_t = mixture_mean_dim(p_t, self.n_components).to(c.device)
             z_list.append(z_t)
         z = torch.concat(z_list, dim=1)
         return z
