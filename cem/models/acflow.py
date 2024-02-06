@@ -586,7 +586,11 @@ class AutoReg(Module):
         for t in range(d):
             inp = torch.cat([z_t, c, b, m], dim = 1)
             inp = inp.unsqueeze(1)
-            h_t, state = self.rnn_cell(inp, state)
+            try:
+                h_t, state = self.rnn_cell(inp, state)
+            except:
+                import pdb
+                pdb.set_trace()
             h_t = torch.squeeze(h_t, 1)
             h_t = torch.cat([h_t, c, b, m], dim = 1)
             p_t = self.rnn_out(h_t)
