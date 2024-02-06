@@ -461,7 +461,7 @@ class LULinear(BaseTransform):
     def forward(self, x, c, b, m):
         weight, bias = self.get_params(c, b, m)
         A, L, U = self.get_LU(weight, b, m)    
-        ldet = torch.sum(torch.log(torch.abs(torch.diag(U, offset = 0, dim1=-2, dim2=-1))), dim=1)
+        ldet = torch.sum(torch.log(torch.abs(torch.diagonal(U, offset = 0, dim1=-2, dim2=-1))), dim=1)
         z = torch.einsum('ai,aik->ak', x, A) + bias    
 
         return z, ldet
@@ -469,7 +469,7 @@ class LULinear(BaseTransform):
     def inverse(self, z, c, b, m):
         weight, bias = self.get_params(c, b, m)
         A, L, U = self.get_LU(weight, b, m)
-        ldet = -1 * torch.sum(torch.log(torch.abs(torch.diag(U, offset = 0, dim1=-2, dim2=-1))), dim=1)
+        ldet = -1 * torch.sum(torch.log(torch.abs(torch.diagonal(U, offset = 0, dim1=-2, dim2=-1))), dim=1)
         Ut = torch.permute(U, (0, 2, 1))
         Lt = torch.permute(L, (0, 2, 1))
         zt = torch.unsqueeze(z - bias, dim = -1)
