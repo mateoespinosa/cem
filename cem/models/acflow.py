@@ -41,7 +41,7 @@ class ACFlow(pl.LightningModule):
                 y = y.to(x.device)
                 forward = True
             elif(task == "sample"):
-                y = torch.randint(0, self.n_concepts, [B*N])
+                y = torch.randint(0, self.n_tasks, [B*N])
                 y = y.to(x.device)
                 forward = False
         if(y.shape != (B*N,)):
@@ -72,8 +72,6 @@ class ACFlow(pl.LightningModule):
         sam = self.flow_forward(x, b, m, None, task = "sample")
 
         # sample p(x_u | x_o, y)
-        import pdb
-        pdb.set_trace()
         cond_sam = self.flow_forward(x, b, m, y, forward = False)
         # sample p(x_u | x_o, y) based on predicted y
         pred = torch.argmax(logpo, dim=1)
