@@ -6,6 +6,7 @@ import torch.nn.functional as F
 from torch.nn import Module
 from torchmetrics import Accuracy
 import numpy as np
+import tensorflow as tf
 
 class ACFlow(pl.LightningModule):
 
@@ -437,9 +438,14 @@ class LULinear(BaseTransform):
         order = torch.tile(order, dims = (1,1,d))
         t = torch.diag_embed(query)
         t = torch.gather(t, 1, order)
-        t = torch.diagonal(t, dim1 = -2, dim2 = -1)
         import pdb
         pdb.set_trace()
+        query_tf = tf.tensor(query.clone().cpu().numpy())
+        order_tf = tf.tensor(order.clone().cpu().numpy())
+        t_tf = tf.gather(tf.linalg.diag(query_tf), order_tf, batch_dims = 1)
+        t_tf = torch.tensor(tf.identity(t_tf).cpu().numpy())
+        is_same = torch.all(torch.eq(t_tf, t))
+
         weight = torch.matmul(torch.matmul(t, weight), torch.permute(t, (0,2,1)))
         bias = torch.squeeze(torch.matmul(t, torch.unsqueeze(bias, dim = 1)), dim = -1)
         
