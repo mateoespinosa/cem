@@ -223,7 +223,11 @@ class Flow(Module):
 
     def cond_inverse(self, x, y, b, m):
         _, x_o = self.preprocess(x, b, m)
-        c = torch.concat([F.one_hot(y, self.n_tasks), x_o], dim=1)
+        try:
+            c = torch.concat([F.one_hot(y, self.n_tasks), x_o], dim=1)
+        except:
+            import pdb
+            pdb.set_trace()
         z_u = self.prior.sample(c, b, m)
         x_u, _ = self.transform.inverse(z_u, c, b, m)
         x_sam = self.postprocess(x_u, x, b, m)
