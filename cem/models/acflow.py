@@ -566,6 +566,7 @@ class AutoReg(Module):
         self.rnn_cell = torch.nn.GRU(
             input_size = self.n_concepts * 3 + self.n_tasks + 1, 
             hidden_size = self.prior_units,
+            num_layers = self.prior_layers,
             batch_first = True
         )
 
