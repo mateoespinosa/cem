@@ -244,6 +244,8 @@ class Flow(Module):
         x_u = x * m * (1 - b)
         query = m * (1 - b)
         ind = torch.argsort(query, dim=1, descending=True, stable=True)
+        import pdb
+        pdb.set_trace()
         x_u = torch.gather(x_u, 1, ind.expand_as(x_u))
 
         return x_u, x_o
@@ -434,17 +436,10 @@ class LULinear(BaseTransform):
         # reorder
         query = m * (1-b)
         order = torch.argsort(query, descending = True, stable=True)
-        order_tf = tf.convert_to_tensor(order.clone().cpu().numpy())
         order = torch.unsqueeze(order, dim = -1)
         order = torch.tile(order, dims = (1,1,d))
         t = torch.diag_embed(query)
         t = torch.gather(t, 1, order)
-        import pdb
-        pdb.set_trace()
-        query_tf = tf.convert_to_tensor(query.clone().cpu().numpy())
-        t_tf = tf.gather(tf.linalg.diag(query_tf), order_tf, batch_dims = 1)
-        t_tf = torch.tensor(tf.identity(t_tf).numpy())
-        is_same = torch.all(torch.eq(t_tf, t))
 
         weight = torch.matmul(torch.matmul(t, weight), torch.permute(t, (0,2,1)))
         bias = torch.squeeze(torch.matmul(t, torch.unsqueeze(bias, dim = 1)), dim = -1)
