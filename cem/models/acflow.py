@@ -434,6 +434,7 @@ class LULinear(BaseTransform):
         # reorder
         query = m * (1-b)
         order = torch.argsort(query, descending = True, stable=True)
+        order_tf = tf.convert_to_tensor(order.clone().cpu().numpy())
         order = torch.unsqueeze(order, dim = -1)
         order = torch.tile(order, dims = (1,1,d))
         t = torch.diag_embed(query)
@@ -441,9 +442,8 @@ class LULinear(BaseTransform):
         import pdb
         pdb.set_trace()
         query_tf = tf.convert_to_tensor(query.clone().cpu().numpy())
-        order_tf = tf.convert_to_tensor(order.clone().cpu().numpy())
         t_tf = tf.gather(tf.linalg.diag(query_tf), order_tf, batch_dims = 1)
-        t_tf = torch.tensor(tf.identity(t_tf).cpu().numpy())
+        t_tf = torch.tensor(tf.identity(t_tf).numpy())
         is_same = torch.all(torch.eq(t_tf, t))
 
         weight = torch.matmul(torch.matmul(t, weight), torch.permute(t, (0,2,1)))
