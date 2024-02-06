@@ -73,10 +73,9 @@ class ACFlow(pl.LightningModule):
 
         # sample p(x_u | x_o, y)
         cond_sam = self.flow_forward(x, b, m, y, forward = False)
-
-        # sample p(x_u | x_o, y) based on predicted y
         import pdb
         pdb.set_trace()
+        # sample p(x_u | x_o, y) based on predicted y
         pred = torch.argmax(logpo, dim=1)
         pred_sam = self.flow_forward(x, b, m, pred, forward = False)
 
