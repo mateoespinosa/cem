@@ -244,9 +244,7 @@ class Flow(Module):
         x_u = x * m * (1 - b)
         query = m * (1 - b)
         ind = torch.argsort(query, dim=1, descending=True, stable=True)
-        import pdb
-        pdb.set_trace()
-        x_u = torch.gather(x_u, 1, ind.expand_as(x_u))
+        x_u = torch.gather(x_u, 1, ind)
 
         return x_u, x_o
     
@@ -254,9 +252,7 @@ class Flow(Module):
         query = m * (1 - b)
         ind = torch.argsort(query, dim=1, descending=True, stable=True)
         ind = torch.argsort(ind, dim=1, stable=True)
-        import pdb
-        pdb.set_trace()
-        x_u = torch.gather(x_u, 1, ind.expand_as(x_u))
+        x_u = torch.gather(x_u, 1, ind)
         sam = x_u * query + x * (1 - query)
 
         return sam
