@@ -336,9 +336,7 @@ class Coupling2(BaseTransform):
     def get_params(self, c, b, m):
         h = torch.concat([c, b, m], dim=1)
         params = self.net(h)
-        import pdb
-        pdb.set_trace()
-        shift, scale = torch.split(params, int(len(params) / 2), dim=1)
+        shift, scale = torch.split(params, self.n_concepts, dim=1)
         
         query = m * (1-b)   
         _, order = torch.sort(query, descending = True, stable=True)
