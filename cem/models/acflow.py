@@ -451,10 +451,9 @@ class LULinear(BaseTransform):
         A = torch.matmul(L, U)
 
         # add a diagnal part
-        import pdb
-        pdb.set_trace()
         query = m * (1 - b)
-        diag = torch.diag_embed(torch.sort(1 - query, dim = 1, descending = False))
+        sorted_tensor, _ = torch.sort(1 - query, dim = 1, descending = False)
+        diag = torch.diag_embed(sorted_tensor)
         U += diag
 
         return A, L, U
