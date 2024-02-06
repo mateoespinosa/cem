@@ -595,8 +595,6 @@ class AutoReg(Module):
         params = torch.stack(p_list, dim = 1)
         log_like1 = mixture_likelihoods(params, z, self.n_components).to(c.device)
         query = m * (1 - b)
-        import pdb
-        pdb.set_trace()
         mask, _ = torch.sort(query, dim = 1, descending = True, stable=True)
         log_likel = torch.sum(log_like1 * mask, dim = 1)
         return log_likel
