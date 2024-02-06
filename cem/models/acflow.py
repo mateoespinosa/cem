@@ -580,7 +580,7 @@ class AutoReg(Module):
         B = z.shape[0]
         d = self.n_concepts
         state = torch.zeros(self.prior_layers, B, self.prior_units)
-        z_t = -torch.ones((B,1), dtype = torch.float)
+        z_t = -torch.ones((B,1), dtype = torch.float).to(z.device)
         p_list = []
         for t in range(d):
             inp = torch.cat([z_t, c, b, m], dim = 1)
@@ -603,7 +603,7 @@ class AutoReg(Module):
         d = self.n_concepts
         
         state = torch.zeros(self.prior_layers, B, self.prior_units)
-        z_t = -torch.ones((B,1), dtype = torch.float)
+        z_t = -torch.ones((B,1), dtype = torch.float).to(c.device)
         z_list = []
         for t in range(d):
             inp = torch.cat([z_t, c, b, m], dim = 1)
@@ -622,7 +622,7 @@ class AutoReg(Module):
         d = self.n_concepts
         
         state = torch.zeros(self.prior_layers, B, self.prior_units)
-        z_t = -torch.ones((B,1), dtype = torch.float)
+        z_t = -torch.ones((B,1), dtype = torch.float).to(c.device)
         z_list = []
         for t in range(d):
             inp = torch.cat([z_t, c, b, m], dim = 1)
