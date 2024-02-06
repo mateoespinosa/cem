@@ -440,6 +440,8 @@ class LULinear(BaseTransform):
         t = torch.gather(t, 1, order)
 
         weight = torch.matmul(torch.matmul(t, weight), torch.permute(t, (0,2,1)))
+        import pdb
+        pdb.set_trace()
         bias = torch.squeeze(torch.matmul(t, torch.unsqueeze(bias, dim = 1)), dim = -1)
         
         return weight, bias
