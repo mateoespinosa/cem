@@ -397,7 +397,7 @@ class LULinear(BaseTransform):
 
         np_w = np.eye(n_concepts).astype("float32")
         self.w = torch.nn.Parameter(torch.tensor(np_w))
-        self.b = torch.nn.Parameter(torch.tensor(np.zeros(n_concepts)))
+        self.b = torch.nn.Parameter(torch.tensor(np.zeros(n_concepts).astype("float32")))
         
         wnn = []
         bnn = []
@@ -442,7 +442,7 @@ class LULinear(BaseTransform):
         weight = torch.matmul(torch.matmul(t, weight), torch.permute(t, (0,2,1)))
         import pdb
         pdb.set_trace()
-        bias = torch.squeeze(torch.matmul(t, torch.unsqueeze(bias, dim = 1)), dim = -1)
+        bias = torch.squeeze(torch.matmul(t, torch.unsqueeze(bias), dim = 1), dim = -1)
         
         return weight, bias
 
