@@ -586,11 +586,7 @@ class AutoReg(Module):
         for t in range(d):
             inp = torch.cat([z_t, c, b, m], dim = 1)
             inp = inp.unsqueeze(1)
-            try:
-                h_t, state = self.rnn_cell(inp, state)
-            except:
-                import pdb
-                pdb.set_trace()
+            h_t, state = self.rnn_cell(inp, state)
             h_t = torch.squeeze(h_t, 1)
             h_t = torch.cat([h_t, c, b, m], dim = 1)
             p_t = self.rnn_out(h_t)
@@ -599,7 +595,9 @@ class AutoReg(Module):
         params = torch.stack(p_list, dim = 1)
         log_like1 = mixture_likelihoods(params, z, self.n_components).to(c.device)
         query = m * (1 - b)
-        mask = torch.sort(query, dim = 1, descending = True, stable=True)
+        import pdb
+        pdb.set_trace()
+        mask, _ = torch.sort(query, dim = 1, descending = True, stable=True)
         log_likel = torch.sum(log_like1 * mask, dim = 1)
         return log_likel
         
