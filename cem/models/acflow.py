@@ -476,8 +476,6 @@ class LULinear(BaseTransform):
         Ut = torch.permute(U, (0, 2, 1))
         Lt = torch.permute(L, (0, 2, 1))
         zt = torch.unsqueeze(z - bias, dim = -1)
-        import pdb
-        pdb.set_trace()
         sol = torch.linalg.solve_triangular(Ut, zt, upper=False)
         x = torch.linalg.solve_triangular(Lt, sol, upper=True)
         x = torch.squeeze(x, dim=-1)
