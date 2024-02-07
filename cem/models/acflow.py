@@ -373,14 +373,14 @@ class Coupling2(BaseTransform):
 class LeakyReLU(BaseTransform):
     def __init__(self):
         super().__init__()
-        log_alpha = torch.nn.Parameter(torch.tensor(5.0))
-        self.alpha = torch.sigmoid(log_alpha)
+        self.log_alpha = torch.nn.Parameter(torch.tensor(5.0))
 
     def forward(self, x, c, b, m):
         query = m * (1-b) # [B, d]
         sorted_query, _ = torch.sort(query, dim=-1, descending = True, stable=True)
         num_negative = torch.sum((x < 0.).float() * sorted_query, dim=1)
-        ldet = num_negative * torch.log(self.alpha)
+        alpha = torch.sigmoid(self.log_alpha)
+        ldet = num_negative * torch.log(alpha)
         z = torch.maximum(x, self.alpha * x)
 
         return z, ldet
@@ -389,8 +389,9 @@ class LeakyReLU(BaseTransform):
         query = m * (1-b) # [B, d]
         sorted_query, _ = torch.sort(query, dim=-1, descending = True, stable=True)
         num_negative = torch.sum((z < 0.).float() * sorted_query, dim=1)
-        ldet = -1. * num_negative * torch.log(self.alpha)
-        x = torch.minimum(z, z / self.alpha)
+        alpha = torch.sigmoid(self.log_alpha)
+        ldet = -1. * num_negative * torch.log(alpha)
+        x = torch.minimum(z, z / alpha)
         return x, ldet
 
 class LULinear(BaseTransform):
@@ -510,7 +511,7 @@ class TransLayer(BaseTransform):
         return x, logdet
 
     def inverse(self, z, c, b, m):
-        logdet = 0.
+        logdet = torch.zeros(x.shape[0], dtype = torch.float).to(x.device)
         for transformation in reversed(self.transformations):
             z, ldet = transformation.inverse(z, c, b, m)
             logdet = logdet + ldet
