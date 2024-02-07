@@ -511,7 +511,7 @@ class TransLayer(BaseTransform):
         return x, logdet
 
     def inverse(self, z, c, b, m):
-        logdet = torch.zeros(x.shape[0], dtype = torch.float).to(x.device)
+        logdet = torch.zeros(z.shape[0], dtype = torch.float).to(z.device)
         for transformation in reversed(self.transformations):
             z, ldet = transformation.inverse(z, c, b, m)
             logdet = logdet + ldet
