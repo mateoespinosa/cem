@@ -64,6 +64,9 @@ class ACFlow(pl.LightningModule):
             return sample
 
     def forward(self, x, b, m, y):
+        if x.requires_grad:
+            import pdb
+            pdb.set_trace()
         # log p(x_u | x_o, y)
         logpu = self.flow_forward(x, b, m, None, task = "classify")
         # log p(x_o | y)
@@ -451,9 +454,6 @@ class LULinear(BaseTransform):
         d = self.n_concepts
         U = torch.triu(W)
         L = torch.eye(d, device=W.device) + W - U
-        if U.requires_grad:
-            import pdb
-            pdb.set_trace()
         A = torch.matmul(L, U)
 
         # add a diagnal part
