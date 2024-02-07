@@ -684,12 +684,12 @@ def mixture_sample_dim(params_dim, n_components, base_distribution='gaussian'):
     inds = torch.cat([torch.unsqueeze(torch.arange(B).to(js.device), dim = -1), js], dim = 1)
     # Sample from base distribution.
     if base_distribution == 'gaussian':
-        zs = torch.normal(mean = torch.zeros((B, 1)))
+        zs = torch.normal(mean = torch.zeros((B, 1))).to(sigmas.device)
     elif base_distribution == 'laplace':
-        zs = torch.log(torch.rand(size = (B, 1))) - \
-            torch.log(torch.rand(size = (B, 1)))
+        zs = torch.log(torch.rand(size = (B, 1)).to(sigmas.device)) - \
+            torch.log(torch.rand(size = (B, 1)).to(sigmas.device))
     elif base_distribution == 'logistic':
-        x = torch.rand(size = (B, 1))
+        x = torch.rand(size = (B, 1)).to(sigmas.device)
         zs = torch.log(x) - torch.log(1.0 - x)
     else:
         raise NotImplementedError()
