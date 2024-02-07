@@ -1,8 +1,8 @@
-trials: 5
+trials: 1
 results_dir: results/mnist_add_new
 dataset: mnist_add
 num_workers: 8
-batch_size: 128
+batch_size: 256
 num_operands: 12
 selected_digits:
   - [0,1,2]
@@ -19,7 +19,7 @@ selected_digits:
   - [0,1,2,3,4,5,6,7,8,9]
 threshold_labels: 30
 noise_level: 0.0
-max_epochs: 300
+# max_epochs: 300
 train_dataset_size: 10000
 sampling_percent: 0.625
 skip_repr_evaluation: True
@@ -31,7 +31,7 @@ use_task_class_weights: True
 check_val_every_n_epoch: 2
 
 shared_params:
-    max_epochs: 500
+    max_epochs: 5
     lambda_mse: 0.0
     lambda_xent: 1.0
     lambda_nll: 1.0
