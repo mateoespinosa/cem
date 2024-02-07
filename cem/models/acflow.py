@@ -451,6 +451,8 @@ class LULinear(BaseTransform):
         d = self.n_concepts
         U = torch.triu(W)
         L = torch.eye(d, device=W.device) + W - U
+        import pdb
+        pdb.set_trace()
         A = torch.matmul(L, U)
 
         # add a diagnal part
