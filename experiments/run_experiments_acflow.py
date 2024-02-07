@@ -195,8 +195,7 @@ def main(
             accelerator=accelerator,
             devices=devices,
             max_epochs=experiment_config['shared_params'].get('max_epochs', 500),
-            logger=False,
-            detect_anomaly = True
+            logger=False
         )
 
         model = ACFlow(
