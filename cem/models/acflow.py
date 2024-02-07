@@ -681,7 +681,8 @@ def mixture_sample_dim(params_dim, n_components, base_distribution='gaussian'):
     # sample multinomial
     logits = torch.exp(logits)
     js = torch.multinomial(logits, 1)  # int64
-    
+    import pdb
+    pdb.set_trace()
     inds = torch.cat([
         torch.unsqueeze(torch.arange(B), dim = -1), 
         torch.tile(torch.unsqueeze(torch.tensor([js]), dim = -1),(B,1))], dim = 1)
