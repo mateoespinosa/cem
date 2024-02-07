@@ -460,14 +460,11 @@ class LULinear(BaseTransform):
         query = m * (1 - b)
         sorted_tensor, _ = torch.sort(1 - query, dim = 1, descending = False)
         diag = torch.diag_embed(sorted_tensor)
-        U += diag
+        U = U + diag
 
         return A, L, U
 
     def forward(self, x, c, b, m):
-        if x.requires_grad:
-            import pdb
-            pdb.set_trace()
         weight, bias = self.get_params(c, b, m)
         A, L, U = self.get_LU(weight, b, m)    
         ldet = torch.sum(torch.log(torch.abs(torch.diagonal(U, offset = 0, dim1=-2, dim2=-1))), dim=1)
