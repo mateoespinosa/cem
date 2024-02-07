@@ -196,6 +196,7 @@ def main(
             devices=devices,
             max_epochs=experiment_config['shared_params'].get('max_epochs', 500),
             logger=False,
+            detect_anomaly = True
         )
 
         model = ACFlow(
@@ -221,8 +222,6 @@ def main(
         logging.debug(
             f"Starting model training..."
         )
-
-        torch.autograd.set_detect_anomaly(True)
 
         trainer.fit(model, train_dl, val_dl)
         model.freeze()
