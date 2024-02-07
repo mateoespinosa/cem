@@ -681,7 +681,7 @@ def mixture_sample_dim(params_dim, n_components, base_distribution='gaussian'):
     # sample multinomial
     logits = torch.exp(logits)
     js = torch.multinomial(logits, 1)  # int64
-    inds = torch.cat([torch.unsqueeze(torch.arange(B), dim = -1), js], dim = 1)
+    inds = torch.cat([torch.unsqueeze(torch.arange(B).to(js.device), dim = -1), js], dim = 1)
     # Sample from base distribution.
     if base_distribution == 'gaussian':
         zs = torch.normal(mean = torch.zeros((B, 1)))
