@@ -82,16 +82,17 @@ class ACFlow(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         
         x, b, m, y = batch['x'], batch['b'], batch['m'], batch['y']
-        class_weights = np.array(batch.get('class_weights', [1. for _ in range(self.n_concepts)]), dtype=np.float32)
-        class_weights /= np.sum(class_weights)
-        class_weights = np.log(class_weights)
+        class_weights = torch.tensor(np.array(batch.get('class_weights', [1. for _ in range(self.n_tasks)]), dtype=np.float32)).to(x.device)
+        class_weights /= torch.sum(class_weights)
+        class_weights = torch.log(class_weights)
+        class_weights = torch.tile(torch.unsqueeze(class_weights, dim = 0), [x.shape[0], 1])
 
         logpu, logpo, _, _, _ = self(x,b,m,y)
 
         logits = logpu + logpo
         xent = self.xent_loss(logits, y)
 
-        loglikel = torch.logsumexp(logpu + logpo + class_weights) - torch.logsumexp(logpo + class_weights)
+        loglikel = torch.logsumexp(logpu + logpo + class_weights, dim = 1) - torch.logsumexp(logpo + class_weights, dim = 1)
         nll = torch.mean(-loglikel)
         
         loss = xent * self.lambda_xent + self.lambda_nll * nll
