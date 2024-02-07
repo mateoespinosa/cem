@@ -381,7 +381,7 @@ class LeakyReLU(BaseTransform):
         num_negative = torch.sum((x < 0.).float() * sorted_query, dim=1)
         alpha = torch.sigmoid(self.log_alpha)
         ldet = num_negative * torch.log(alpha)
-        z = torch.maximum(x, self.alpha * x)
+        z = torch.maximum(x, alpha * x)
 
         return z, ldet
 
