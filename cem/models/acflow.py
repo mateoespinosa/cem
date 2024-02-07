@@ -64,9 +64,9 @@ class ACFlow(pl.LightningModule):
             return sample
 
     def forward(self, x, b, m, y):
-        if x.requires_grad:
-            import pdb
-            pdb.set_trace()
+        # if x.requires_grad:
+        #     import pdb
+        #     pdb.set_trace()
         # log p(x_u | x_o, y)
         logpu = self.flow_forward(x, b, m, None, task = "classify")
         # log p(x_o | y)
