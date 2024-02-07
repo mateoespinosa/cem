@@ -94,7 +94,7 @@ class ACFlow(pl.LightningModule):
         loglikel = torch.logsumexp(logpu + logpo + class_weights) - torch.logsumexp(logpo + class_weights)
         nll = torch.mean(-loglikel)
         
-        loss = xent * self.lambda_xent + self.hps.lambda_nll * nll
+        loss = xent * self.lambda_xent + self.lambda_nll * nll
 
         prob = torch.nn.softmax(logits + class_weights)
         pred = torch.argmax(logits, dim=1)
@@ -114,11 +114,11 @@ class ACFlow(pl.LightningModule):
 
         logits = logpu + logpo
         xent = self.xent_loss(logits, y)
-        
+
         loglikel = torch.logsumexp(logpu + logpo + class_weights, dim = 1) - torch.logsumexp(logpo + class_weights, dim = 1)
         nll = torch.mean(-loglikel)
         
-        loss = xent * self.lambda_xent + self.hps.lambda_nll * nll
+        loss = xent * self.lambda_xent + self.lambda_nll * nll
 
         prob = torch.nn.softmax(logits + class_weights)
         pred = torch.argmax(logits, dim=1)
