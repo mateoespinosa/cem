@@ -96,7 +96,6 @@ class ACFlow(pl.LightningModule):
         
         loss = xent * self.lambda_xent + self.lambda_nll * nll
 
-        prob = torch.nn.softmax(logits + class_weights)
         pred = torch.argmax(logits, dim=1)
         acc = self.accuracy(pred, y)
 
@@ -120,7 +119,6 @@ class ACFlow(pl.LightningModule):
         
         loss = xent * self.lambda_xent + self.lambda_nll * nll
 
-        prob = torch.nn.softmax(logits + class_weights)
         pred = torch.argmax(logits, dim=1)
         acc = self.accuracy(pred, y)
 
@@ -707,6 +705,6 @@ def mixture_sample_dim(params_dim, n_components, base_distribution='gaussian'):
 
 def mixture_mean_dim(params_dim, n_components, base_distribution='gaussian'):
     logits, means, lsigmas = torch.split(params_dim, n_components, dim=1)
-    weights = torch.nn.softmax(logits, dim=-1)
+    weights = torch.nn.Softmax(logits, dim=-1)
 
     return torch.sum(weights * means, dim=1, keepdims=True)
