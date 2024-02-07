@@ -53,6 +53,8 @@ class ACFlow(pl.LightningModule):
             else:
                 raise ValueError(f"y should have shape ({B}) or ({B},{N}). Instead y is of shape {y.shape}")
         # log p(x_u | x_o, y)
+        import pdb
+        pdb.set_trace()
         if forward:
             logp = self.flow.cond_forward(x, y, b, m)
             # logits
@@ -103,8 +105,7 @@ class ACFlow(pl.LightningModule):
         return {"loss": loss if isinstance(loss, float) else loss.detach(), "accuracy": acc.detach(), "nll": nll.detach()}
 
     def validation_step(self, batch, batch_idx):
-        import pdb
-        pdb.set_trace()
+
         x, b, m, y = batch['x'], batch['b'], batch['m'], batch['y']
         class_weights = torch.tensor(np.array(batch.get('class_weights', [1. for _ in range(self.n_tasks)]), dtype=np.float32)).to(x.device)
         class_weights /= torch.sum(class_weights)
