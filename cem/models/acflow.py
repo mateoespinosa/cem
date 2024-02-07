@@ -465,8 +465,9 @@ class LULinear(BaseTransform):
         return A, L, U
 
     def forward(self, x, c, b, m):
-        import pdb
-        pdb.set_trace()
+        if x.requires_grad:
+            import pdb
+            pdb.set_trace()
         weight, bias = self.get_params(c, b, m)
         A, L, U = self.get_LU(weight, b, m)    
         ldet = torch.sum(torch.log(torch.abs(torch.diagonal(U, offset = 0, dim1=-2, dim2=-1))), dim=1)
