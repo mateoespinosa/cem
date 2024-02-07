@@ -478,8 +478,8 @@ class LULinear(BaseTransform):
         zt = torch.unsqueeze(z - bias, dim = -1)
         import pdb
         pdb.set_trace()
-        sol, _ = torch.linalg.solve_triangular(Ut, zt, upper=False)
-        x, _ = torch.linalg.solve_triangular(Lt, sol, upper=True)
+        sol = torch.linalg.solve_triangular(Ut, zt, upper=False)
+        x = torch.linalg.solve_triangular(Lt, sol, upper=True)
         x = torch.squeeze(x, dim=-1)
 
         return x, ldet
