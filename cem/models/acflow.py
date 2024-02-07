@@ -376,7 +376,7 @@ class LeakyReLU(BaseTransform):
     def forward(self, x, c, b, m):
         query = m * (1-b) # [B, d]
         sorted_query, _ = torch.sort(query, dim=-1, descending = True, stable=True)
-        num_negative = torch.sum((x < 0.).float() * sorted_query, axis=1)
+        num_negative = torch.sum((x < 0.).float() * sorted_query, dim=1)
         ldet = num_negative * torch.log(self.alpha)
         z = torch.maximum(x, self.alpha * x)
 
@@ -500,10 +500,11 @@ class TransLayer(BaseTransform):
                 self.transformations.append(LULinear(n_concepts, n_tasks, linear_rank, linear_hids))
 
     def forward(self, x, c, b, m):
-        logdet = 0.
+        logdet = torch.zeros(x.shape[0], dtype = torch.float).to(x.device)
         for transformation in self.transformations:
             x, ldet = transformation(x, c, b, m)
             logdet = logdet + ldet
+            assert logdet.shape == ldet.shape
 
         return x, logdet
 
@@ -512,6 +513,7 @@ class TransLayer(BaseTransform):
         for transformation in reversed(self.transformations):
             z, ldet = transformation.inverse(z, c, b, m)
             logdet = logdet + ldet
+            assert logdet.shape == ldet.shape
 
         return z, logdet
     
@@ -531,18 +533,20 @@ class Transform(BaseTransform):
             self.transformations.append(m)
 
     def forward(self, x, c, b, m):
-        logdet = 0.
+        logdet = torch.zeros(x.shape[0], dtype = torch.float).to(x.device)
         for transformation in self.transformations:
             x, ldet = transformation(x, c, b, m)
             logdet = logdet + ldet
+            assert logdet.shape == ldet.shape
 
         return x, logdet
 
     def inverse(self, z, c, b, m):
-        logdet = 0.
+        logdet = torch.zeros(z.shape[0], dtype = torch.float).to(x.device)
         for transformation in reversed(self.transformations):
             z, ldet = transformation.inverse(z, c, b, m)
             logdet = logdet + ldet
+            assert logdet.shape == ldet.shape
 
         return z, logdet
     
