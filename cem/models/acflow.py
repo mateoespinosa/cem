@@ -679,8 +679,7 @@ def mixture_sample_dim(params_dim, n_components, base_distribution='gaussian'):
     logits, means, lsigmas = torch.split(params_dim, n_components, dim=1)
     sigmas = torch.exp(lsigmas)
     # sample multinomial
-    import pdb
-    pdb.set_trace()
+    logits = torch.exp(logits)
     js = torch.multinomial(logits, 1)  # int64
     
     inds = torch.cat([
