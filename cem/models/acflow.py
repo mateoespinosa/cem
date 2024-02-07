@@ -105,17 +105,14 @@ class ACFlow(pl.LightningModule):
     def validation_step(self, batch, batch_idx):
         
         x, b, m, y = batch['x'], batch['b'], batch['m'], batch['y']
-        class_weights = np.array(batch.get('class_weights', [1. for _ in range(self.n_concepts)]), dtype=np.float32)
-        class_weights /= np.sum(class_weights)
-        class_weights = np.log(class_weights)
+        class_weights = torch.tensor(np.array(batch.get('class_weights', [1. for _ in range(self.n_concepts)]), dtype=np.float32)).to(x.device)
+        class_weights /= torch.sum(class_weights)
+        class_weights = torch.log(class_weights)
 
         logpu, logpo, _, _, _ = self(x,b,m,y)
 
         logits = logpu + logpo
         xent = self.xent_loss(logits, y)
-
-        import pdb
-        pdb.set_trace()
 
         loglikel = torch.logsumexp(logpu + logpo + class_weights) - torch.logsumexp(logpo + class_weights)
         nll = torch.mean(-loglikel)
