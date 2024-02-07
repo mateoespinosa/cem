@@ -103,7 +103,8 @@ class ACFlow(pl.LightningModule):
         return {"loss": loss if isinstance(loss, float) else loss.detach(), "accuracy": acc.detach(), "nll": nll.detach()}
 
     def validation_step(self, batch, batch_idx):
-        
+        import pdb
+        pdb.set_trace()
         x, b, m, y = batch['x'], batch['b'], batch['m'], batch['y']
         class_weights = torch.tensor(np.array(batch.get('class_weights', [1. for _ in range(self.n_tasks)]), dtype=np.float32)).to(x.device)
         class_weights /= torch.sum(class_weights)
