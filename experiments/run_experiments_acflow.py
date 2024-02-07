@@ -222,6 +222,8 @@ def main(
             f"Starting model training..."
         )
 
+        torch.autograd.set_detect_anomaly(True)
+
         trainer.fit(model, train_dl, val_dl)
         model.freeze()
 
