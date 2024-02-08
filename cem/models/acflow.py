@@ -547,13 +547,13 @@ class Transform(BaseTransform):
         self.layer_cfg = layer_cfg
         self.linear_rank = linear_rank
         self.linear_hids = linear_hids
+        self.float_type = float_type
 
         self.transformations = torch.nn.ModuleList([])
         for name in transformations:
             m = self.create_transformation(name)
             self.transformations.append(m)
 
-        self.float_type = float_type
 
     def forward(self, x, c, b, m):
         logdet = torch.zeros(x.shape[0], dtype = torch.float64 if self.float_type == "float64" else torch.float32).to(x.device)
