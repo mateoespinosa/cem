@@ -551,6 +551,8 @@ class Transform(BaseTransform):
 
     def forward(self, x, c, b, m):
         logdet = torch.zeros(x.shape[0], dtype = torch.float).to(x.device)
+        import pdb
+        pdb.set_trace()
         for transformation in self.transformations:
             x, ldet = transformation(x, c, b, m)
             logdet = logdet + ldet
