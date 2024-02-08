@@ -103,7 +103,12 @@ class ACFlow(pl.LightningModule):
         pred = torch.argmax(logits, dim=1)
         acc = self.accuracy(pred, y)
 
-        return {"loss": loss, "accuracy": acc.detach(), "nll": nll.detach()}
+        result = {"loss": loss.detach(), "accuracy": acc.detach(), "nll": nll.detach()}
+
+        for name, val in result.items():
+            self.log(name, val, prog_bar=("accuracy" in name))
+
+        return {"loss": loss, "accuracy": acc, "nll": nll}
 
     def validation_step(self, batch, batch_idx):
 
@@ -126,7 +131,12 @@ class ACFlow(pl.LightningModule):
         pred = torch.argmax(logits, dim=1)
         acc = self.accuracy(pred, y)
 
-        return {"loss": loss, "accuracy": acc.detach(), "nll": nll.detach()}
+        result = {"loss": loss.detach(), "accuracy": acc.detach(), "nll": nll.detach()}
+
+        for name, val in result.items():
+            self.log(name, val, prog_bar=("accuracy" in name))
+
+        return {"loss": loss, "accuracy": acc, "nll": nll}
 
     def test_step(self, batch, batch_idx):
         
@@ -146,7 +156,12 @@ class ACFlow(pl.LightningModule):
         pred = torch.argmax(logits, dim=1)
         acc = self.accuracy(pred, y)
 
-        return {"accuracy": acc.detach(), "nll": nll.detach()}
+        result = {"accuracy": acc.detach(), "nll": nll.detach()}
+
+        for name, val in result.items():
+            self.log(name, val, prog_bar=("accuracy" in name))
+
+        return result
 
     def configure_optimizers(self):
         if self.optimizer_name.lower() == "adam":
