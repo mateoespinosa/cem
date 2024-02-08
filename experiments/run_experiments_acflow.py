@@ -49,7 +49,7 @@ class TransformedDataset(Dataset):
     def transform(self, batch):
         _, y, (x, _, _) = self._unpack_batch(batch)
         d = x.shape[-1]
-        b = np.zeros([d], dtype=np.float32)
+        b = np.zeros([d], dtype=np.float64)
         no = np.random.choice(d+1)
         o = np.random.choice(d, [no], replace=False)
         b[o] = 1.

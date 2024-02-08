@@ -10,12 +10,12 @@ import tensorflow as tf
 
 class ACFlow(pl.LightningModule):
 
-    def __init__(self, n_concepts, n_tasks, layer_cfg, affine_hids,  linear_rank, linear_hids, transformations, optimizer, learning_rate, weight_decay, momentum,  prior_units, prior_layers, prior_hids, n_components, lambda_xent = 1, lambda_nll = 1):
+    def __init__(self, n_concepts, n_tasks, layer_cfg, affine_hids,  linear_rank, linear_hids, transformations, optimizer, learning_rate, weight_decay, momentum,  prior_units, prior_layers, prior_hids, n_components, lambda_xent = 1, lambda_nll = 1, float_type = "float64"):
         super().__init__()
         self.n_concepts = n_concepts
         n_tasks = n_tasks if n_tasks > 1 else 2 
         self.n_tasks = n_tasks
-        self.flow = Flow(n_concepts, n_tasks, layer_cfg, affine_hids, linear_rank, linear_hids, transformations,  prior_units, prior_layers, prior_hids, n_components)
+        self.flow = Flow(n_concepts, n_tasks, layer_cfg, affine_hids, linear_rank, linear_hids, transformations,  prior_units, prior_layers, prior_hids, n_components, float_type)
         self.lambda_xent = lambda_xent
         self.lambda_nll = lambda_nll
         self.xent_loss = torch.nn.CrossEntropyLoss() if n_tasks > 1 else torch.nn.BCEWithLogitsLoss()
@@ -24,6 +24,7 @@ class ACFlow(pl.LightningModule):
         self.learning_rate = learning_rate
         self.weight_decay = weight_decay
         self.momentum = momentum
+        self.float_type = float_type
 
     def flow_forward(self, x, b, m, y = None, forward = True, task = "classify"):
         B = x.shape[0]
@@ -85,7 +86,7 @@ class ACFlow(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         
         x, b, m, y = batch['x'], batch['b'], batch['m'], batch['y']
-        class_weights = torch.tensor(np.array(batch.get('class_weights', [1. for _ in range(self.n_tasks)]), dtype=np.float32)).to(x.device)
+        class_weights = torch.tensor(np.array(batch.get('class_weights', [1. for _ in range(self.n_tasks)])).astype(self.float_type)).to(x.device)
         class_weights /= torch.sum(class_weights)
         class_weights = torch.log(class_weights)
         class_weights = torch.tile(torch.unsqueeze(class_weights, dim = 0), [x.shape[0], 1])
@@ -113,7 +114,7 @@ class ACFlow(pl.LightningModule):
     def validation_step(self, batch, batch_idx):
 
         x, b, m, y = batch['x'], batch['b'], batch['m'], batch['y']
-        class_weights = torch.tensor(np.array(batch.get('class_weights', [1. for _ in range(self.n_tasks)]), dtype=np.float32)).to(x.device)
+        class_weights = torch.tensor(np.array(batch.get('class_weights', [1. for _ in range(self.n_tasks)])).astype(self.float_type)).to(x.device)
         class_weights /= torch.sum(class_weights)
         class_weights = torch.log(class_weights)
         class_weights = torch.tile(torch.unsqueeze(class_weights, dim = 0), [x.shape[0], 1])
@@ -141,7 +142,7 @@ class ACFlow(pl.LightningModule):
     def test_step(self, batch, batch_idx):
         
         x, b, m, y = batch['x'], batch['b'], batch['m'], batch['y']
-        class_weights = torch.tensor(np.array(batch.get('class_weights', [1. for _ in range(self.n_tasks)]), dtype=np.float32)).to(x.device)
+        class_weights = torch.tensor(np.array(batch.get('class_weights', [1. for _ in range(self.n_tasks)])).astype(self.float_type)).to(x.device)
         class_weights /= torch.sum(class_weights)
         class_weights = torch.log(class_weights)
         class_weights = torch.tile(torch.unsqueeze(class_weights, dim = 0), [x.shape[0], 1])
@@ -189,21 +190,23 @@ class ACFlow(pl.LightningModule):
         }
 
 class Flow(Module):
-    def __init__(self, n_concepts, n_tasks, layer_cfg, affine_hids, linear_rank, linear_hids, transformations, prior_units, prior_layers, prior_hids, n_components):
+    def __init__(self, n_concepts, n_tasks, layer_cfg, affine_hids, linear_rank, linear_hids, transformations, prior_units, prior_layers, prior_hids, n_components, float_type = "float64"):
         super().__init__()
         self.n_concepts = n_concepts
         self.n_tasks = n_tasks
         self.layer_cfg = layer_cfg
         self.affine_hids = affine_hids
-        self.transform = Transform(n_concepts, n_tasks, affine_hids, layer_cfg, linear_rank, linear_hids, transformations)
+        self.transform = Transform(n_concepts, n_tasks, affine_hids, layer_cfg, linear_rank, linear_hids, transformations, float_type)
         self.prior = AutoReg(
             n_concepts = n_concepts, 
             n_tasks = n_tasks, 
             prior_units = prior_units, 
             prior_layers = prior_layers, 
             prior_hids = prior_hids, 
-            n_components = n_components
+            n_components = n_components,
+            float_type = float_type
         )
+        self.float_type = float_type
 
     def forward(self, x, b, m):
         x_u, x_o = self.preprocess(x, b, m)
@@ -393,7 +396,7 @@ class LeakyReLU(BaseTransform):
     def forward(self, x, c, b, m):
         query = m * (1-b) # [B, d]
         sorted_query, _ = torch.sort(query, dim=-1, descending = True, stable=True)
-        num_negative = torch.sum((x < 0.).float() * sorted_query, dim=1)
+        num_negative = torch.sum((x < 0.).doublue() * sorted_query, dim=1)
         alpha = torch.sigmoid(self.log_alpha)
         ldet = num_negative * torch.log(alpha)
         z = torch.maximum(x, alpha * x)
@@ -403,23 +406,23 @@ class LeakyReLU(BaseTransform):
     def inverse(self, z, c, b, m):
         query = m * (1-b) # [B, d]
         sorted_query, _ = torch.sort(query, dim=-1, descending = True, stable=True)
-        num_negative = torch.sum((z < 0.).float() * sorted_query, dim=1)
+        num_negative = torch.sum((z < 0.).double() * sorted_query, dim=1)
         alpha = torch.sigmoid(self.log_alpha)
         ldet = -1. * num_negative * torch.log(alpha)
         x = torch.minimum(z, z / alpha)
         return x, ldet
 
 class LULinear(BaseTransform):
-    def __init__(self, n_concepts, n_tasks, linear_rank, linear_hids):
+    def __init__(self, n_concepts, n_tasks, linear_rank, linear_hids, float_type):
         super().__init__()
         self.n_concepts = n_concepts
         self.n_tasks = n_tasks
         self.linear_rank = n_concepts if linear_rank <= 0 else linear_rank
         self.linear_hids = linear_hids
 
-        np_w = np.eye(n_concepts).astype("float32")
+        np_w = np.eye(n_concepts).astype(float_type)
         self.w = torch.nn.Parameter(torch.tensor(np_w))
-        self.b = torch.nn.Parameter(torch.tensor(np.zeros(n_concepts).astype("float32")))
+        self.b = torch.nn.Parameter(torch.tensor(np.zeros(n_concepts).astype(float_type)))
         
         wnn = []
         bnn = []
@@ -503,7 +506,7 @@ class LULinear(BaseTransform):
 
     
 class TransLayer(BaseTransform):
-    def __init__(self, n_concepts, n_tasks, affine_hids, layer_cfg, linear_rank, linear_hids):
+    def __init__(self, n_concepts, n_tasks, affine_hids, layer_cfg, linear_rank, linear_hids, float_type = "torch64"):
         super().__init__()
         self.transformations = torch.nn.ModuleList([])
         for name in layer_cfg:
@@ -515,9 +518,10 @@ class TransLayer(BaseTransform):
                 self.transformations.append(LeakyReLU())
             elif name == "ML":
                 self.transformations.append(LULinear(n_concepts, n_tasks, linear_rank, linear_hids))
+        self.float_type = float_type
 
     def forward(self, x, c, b, m):
-        logdet = torch.zeros(x.shape[0], dtype = torch.float).to(x.device)
+        logdet = torch.zeros(x.shape[0], dtype = torch.float64 if self.float_type == "float64" else torch.float32).to(x.device)
         for transformation in self.transformations:
             x, ldet = transformation(x, c, b, m)
             logdet = logdet + ldet
@@ -526,7 +530,7 @@ class TransLayer(BaseTransform):
         return x, logdet
 
     def inverse(self, z, c, b, m):
-        logdet = torch.zeros(z.shape[0], dtype = torch.float).to(z.device)
+        logdet = torch.zeros(z.shape[0],  dtype = torch.float64 if self.float_type == "float64" else torch.float32).to(z.device)
         for transformation in reversed(self.transformations):
             z, ldet = transformation.inverse(z, c, b, m)
             logdet = logdet + ldet
@@ -535,7 +539,7 @@ class TransLayer(BaseTransform):
         return z, logdet
     
 class Transform(BaseTransform):
-    def __init__(self, n_concepts, n_tasks, affine_hids, layer_cfg, linear_rank, linear_hids, transformations):
+    def __init__(self, n_concepts, n_tasks, affine_hids, layer_cfg, linear_rank, linear_hids, transformations, float_type = "float64"):
         super().__init__()
         self.n_concepts = n_concepts
         self.n_tasks = n_tasks
@@ -549,8 +553,10 @@ class Transform(BaseTransform):
             m = self.create_transformation(name)
             self.transformations.append(m)
 
+        self.float_type = float_type
+
     def forward(self, x, c, b, m):
-        logdet = torch.zeros(x.shape[0], dtype = torch.float).to(x.device)
+        logdet = torch.zeros(x.shape[0], dtype = torch.float64 if self.float_type == "float64" else torch.float32).to(x.device)
 
         for transformation in self.transformations:
             x, ldet = transformation(x, c, b, m)
@@ -563,7 +569,7 @@ class Transform(BaseTransform):
         return x, logdet
 
     def inverse(self, z, c, b, m):
-        logdet = torch.zeros(z.shape[0], dtype = torch.float).to(z.device)
+        logdet = torch.zeros(z.shape[0], dtype = torch.float64 if self.float_type == "float64" else torch.float32).to(z.device)
         for transformation in reversed(self.transformations):
             z, ldet = transformation.inverse(z, c, b, m)
             logdet = logdet + ldet
@@ -585,7 +591,7 @@ class Transform(BaseTransform):
             
 
 class AutoReg(Module):
-    def __init__(self, n_concepts, n_tasks, prior_units, prior_layers, prior_hids, n_components):
+    def __init__(self, n_concepts, n_tasks, prior_units, prior_layers, prior_hids, n_components, float_type):
         super().__init__()
         self.n_concepts = n_concepts
         self.n_tasks = n_tasks
@@ -606,12 +612,14 @@ class AutoReg(Module):
             rnn_out.append(torch.nn.Tanh())
         rnn_out.append(torch.nn.Linear(self.prior_hids[-1], self.n_components * 3))
         self.rnn_out = torch.nn.Sequential(*rnn_out)
+
+        self.float_type = float_type
         
     def logp(self, z, c, b, m):
         B = z.shape[0]
         d = self.n_concepts
         state = torch.zeros(self.prior_layers, B, self.prior_units).to(c.device)
-        z_t = -torch.ones((B,1), dtype = torch.float).to(c.device)
+        z_t = -torch.ones((B,1), dtype = torch.float64 if self.float_type == "float64" else torch.float32).to(c.device)
         p_list = []
         for t in range(d):
             inp = torch.cat([z_t, c, b, m], dim = 1)
@@ -634,7 +642,7 @@ class AutoReg(Module):
         d = self.n_concepts
         
         state = torch.zeros(self.prior_layers, B, self.prior_units).to(c.device)
-        z_t = -torch.ones((B,1), dtype = torch.float).to(c.device)
+        z_t = -torch.ones((B,1), dtype = torch.float64 if self.float_type == "float64" else torch.float32).to(c.device)
         z_list = []
         for t in range(d):
             inp = torch.cat([z_t, c, b, m], dim = 1)
@@ -653,7 +661,7 @@ class AutoReg(Module):
         d = self.n_concepts
         
         state = torch.zeros(self.prior_layers, B, self.prior_units).to(c.device)
-        z_t = -torch.ones((B,1), dtype = torch.float).to(c.device)
+        z_t = -torch.ones((B,1), dtype = torch.float64 if self.float_type == "float64" else torch.float32).to(c.device)
         z_list = []
         for t in range(d):
             inp = torch.cat([z_t, c, b, m], dim = 1)
