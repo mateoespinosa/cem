@@ -413,7 +413,7 @@ class LeakyReLU(BaseTransform):
         return x, ldet
 
 class LULinear(BaseTransform):
-    def __init__(self, n_concepts, n_tasks, linear_rank, linear_hids, float_type):
+    def __init__(self, n_concepts, n_tasks, linear_rank, linear_hids, float_type = "torchfloat64"):
         super().__init__()
         self.n_concepts = n_concepts
         self.n_tasks = n_tasks
@@ -517,7 +517,7 @@ class TransLayer(BaseTransform):
             elif name == "LR":
                 self.transformations.append(LeakyReLU())
             elif name == "ML":
-                self.transformations.append(LULinear(n_concepts, n_tasks, linear_rank, linear_hids))
+                self.transformations.append(LULinear(n_concepts, n_tasks, linear_rank, linear_hids, float_type))
         self.float_type = float_type
 
     def forward(self, x, c, b, m):
@@ -585,9 +585,9 @@ class Transform(BaseTransform):
         elif name == "LR":
             return LeakyReLU(self.n_concepts, self.n_tasks, self.affine_hids)
         elif name == "ML":
-            return LULinear(self.n_concepts, self.n_tasks, self.affine_hids)
+            return LULinear(self.n_concepts, self.n_tasks, self.affine_hids, self.float_type)
         elif name == "TL":
-            return TransLayer(self.n_concepts, self.n_tasks, self.affine_hids, self.layer_cfg, self.linear_rank, self.linear_hids)
+            return TransLayer(self.n_concepts, self.n_tasks, self.affine_hids, self.layer_cfg, self.linear_rank, self.linear_hids, self.float_type)
             
 
 class AutoReg(Module):
