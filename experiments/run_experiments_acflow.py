@@ -232,8 +232,14 @@ def main(
 
         [test_results] = trainer.test(model, test_dl)
 
-        acc = test_results['test_acc']
-        nll = test_results['test_nll']
+        try:
+            acc = test_results['test_accuracy']
+            nll = test_results['test_nll']
+        except:
+            logging.debug(
+                f"Test results:"
+                f"\n\t{test_results}"
+            )
         logging.debug(
             f"\tTest Accuracy is {acc}\n"
             f"\tNLL is {nll}\n"
