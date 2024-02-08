@@ -150,6 +150,9 @@ class ACFlow(pl.LightningModule):
 
         logits = logpu + logpo
 
+        import pdb
+        pdb.set_trace()
+
         loglikel = torch.logsumexp(logpu + logpo + class_weights, dim = 1) - torch.logsumexp(logpo + class_weights, dim = 1)
         nll = torch.mean(-loglikel)
         
