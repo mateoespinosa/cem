@@ -199,7 +199,7 @@ def main(
             enable_checkpointing = False
         )
 
-        for transformations in ["AF", "CP2", "LR", "ML", "TL"]:
+        for transformations in [[], ["AF"], ["CP2"], ["LR"], ["ML"], ["TL"]]:
 
             model = ACFlow(
                 n_concepts = n_concepts, 
@@ -208,7 +208,7 @@ def main(
                 affine_hids = experiment_config['shared_params']['affine_hids'], 
                 linear_rank = experiment_config['shared_params']['linear_rank'],
                 linear_hids = experiment_config['shared_params']['linear_hids'], 
-                transformations = [transformations], 
+                transformations = transformations, 
                 optimizer = experiment_config['shared_params']['optimizer'], 
                 learning_rate = experiment_config['shared_params']['learning_rate'], 
                 weight_decay = experiment_config['shared_params']['decay_rate'], 
