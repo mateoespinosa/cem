@@ -36,7 +36,7 @@ shared_params:
     lambda_xent: 1.0
     lambda_nll: 1.0
     transform: [AF, TL, TL, TL, TL, AF]
-    layer_cfg: [ML, LR, CP2]
+    layer_cfg: [LR, CP2]
     rnncp_units: 256
     rnncp_layers: 2
     linear_hids: [256,256]
