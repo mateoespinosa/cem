@@ -629,14 +629,11 @@ class AutoReg(Module):
             p_list.append(p_t)
             z_t = torch.unsqueeze(z[:,t], dim = 1)
         params = torch.stack(p_list, dim = 1)
-        log_like1 = mixture_likelihoods(params, z, self.n_components).to(c.device)
+        log_like1_prev = mixture_likelihoods(params, z, self.n_components).to(c.device)
         query = m * (1 - b)
         mask, _ = torch.sort(query, dim = 1, descending = True, stable=True)
-        log_likel = torch.sum(log_like1 * mask, dim = 1)
+        log_likel = torch.sum(log_like1_prev * mask, dim = 1)
 
-        if(torch.any(torch.gt(log_likel, 0.))):
-            import pdb
-            pdb.set_trace()
         return log_likel
         
     def sample(self, c, b, m):
@@ -702,6 +699,10 @@ def mixture_likelihoods(params, targets, n_components, base_distribution='gaussi
         raise NotImplementedError
     log_exp_terms = log_kernel + log_norm_consts + logits
     log_likelihoods = torch.logsumexp(log_exp_terms, dim = -1) - torch.logsumexp(logits, dim = -1)
+    
+    if(torch.any(torch.gt(log_likelihoods, 0.))):
+        import pdb
+        pdb.set_trace()
     
     return log_likelihoods
 
