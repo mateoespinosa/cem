@@ -199,51 +199,50 @@ def main(
             enable_checkpointing = False
         )
 
-        model = ACFlow(
-            n_concepts = n_concepts, 
-            n_tasks = n_tasks,
-            layer_cfg = experiment_config['shared_params']['layer_cfg'], 
-            affine_hids = experiment_config['shared_params']['affine_hids'], 
-            linear_rank = experiment_config['shared_params']['linear_rank'],
-            linear_hids = experiment_config['shared_params']['linear_hids'], 
-            transformations = experiment_config['shared_params']['transform'], 
-            optimizer = experiment_config['shared_params']['optimizer'], 
-            learning_rate = experiment_config['shared_params']['learning_rate'], 
-            weight_decay = experiment_config['shared_params']['decay_rate'], 
-            momentum = experiment_config['shared_params'].get('momentum', 0.9), 
-            prior_units = experiment_config['shared_params']['prior_units'], 
-            prior_layers = experiment_config['shared_params']['prior_layers'], 
-            prior_hids = experiment_config['shared_params']['prior_hids'], 
-            n_components = experiment_config['shared_params']['n_components'], 
-            lambda_xent = 1, 
-            lambda_nll = 1
-        )
+        for transformations in ["AF", "CP2", "LR", "ML", "TL"]:
 
-        logging.debug(
-            f"Starting model training..."
-        )
-
-        trainer.fit(model, train_dl, val_dl)
-        model.freeze()
-
-        logging.debug(
-            f"Starting model training..."
-        )
-
-        [test_results] = trainer.test(model, test_dl)
-
-        try:
-            acc = test_results['accuracy']
-            nll = test_results['nll']
-        except:
-            logging.debug(
-                f"Test results:"
-                f"\n\t{test_results}"
+            model = ACFlow(
+                n_concepts = n_concepts, 
+                n_tasks = n_tasks,
+                layer_cfg = experiment_config['shared_params']['layer_cfg'], 
+                affine_hids = experiment_config['shared_params']['affine_hids'], 
+                linear_rank = experiment_config['shared_params']['linear_rank'],
+                linear_hids = experiment_config['shared_params']['linear_hids'], 
+                transformations = [transformations], 
+                optimizer = experiment_config['shared_params']['optimizer'], 
+                learning_rate = experiment_config['shared_params']['learning_rate'], 
+                weight_decay = experiment_config['shared_params']['decay_rate'], 
+                momentum = experiment_config['shared_params'].get('momentum', 0.9), 
+                prior_units = experiment_config['shared_params']['prior_units'], 
+                prior_layers = experiment_config['shared_params']['prior_layers'], 
+                prior_hids = experiment_config['shared_params']['prior_hids'], 
+                n_components = experiment_config['shared_params']['n_components'], 
+                lambda_xent = 1, 
+                lambda_nll = 1
             )
-        logging.debug(
-            f"\tTest Accuracy is {acc}\n"
-            f"\tNLL is {nll}\n"
-        )
+
+            logging.debug(
+                f"Starting model training..."
+                f"Transformations: {transformations}"
+            )
+
+            trainer.fit(model, train_dl, val_dl)
+            model.freeze()
+
+            [test_results] = trainer.test(model, test_dl)
+
+            try:
+                acc = test_results['accuracy']
+                nll = test_results['nll']
+            except:
+                logging.debug(
+                    f"Test results:"
+                    f"\n\t{test_results}"
+                )
+            logging.debug(
+                f"\tTest Accuracy is {acc}\n"
+                f"\tNLL is {nll}\n"
+            )
 
     return results
 
