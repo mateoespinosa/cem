@@ -684,8 +684,6 @@ def mixture_likelihoods(params, targets, n_components, base_distribution='gaussi
     Return:
         log_likelihood: [B,d]
     '''
-    import pdb
-    pdb.set_trace()
     targets = torch.unsqueeze(targets, dim = -1)
     logits, means, lsigmas = torch.split(params, n_components, dim=2)
     sigmas = torch.exp(lsigmas)
