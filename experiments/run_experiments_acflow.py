@@ -233,8 +233,8 @@ def main(
         [test_results] = trainer.test(model, test_dl)
 
         try:
-            acc = test_results['test_accuracy']
-            nll = test_results['test_nll']
+            acc = test_results['accuracy']
+            nll = test_results['nll']
         except:
             logging.debug(
                 f"Test results:"

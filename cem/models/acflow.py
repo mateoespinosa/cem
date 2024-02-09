@@ -10,7 +10,7 @@ import tensorflow as tf
 
 class ACFlow(pl.LightningModule):
 
-    def __init__(self, n_concepts, n_tasks, layer_cfg, affine_hids,  linear_rank, linear_hids, transformations, optimizer, learning_rate, weight_decay, momentum,  prior_units, prior_layers, prior_hids, n_components, lambda_xent = 1, lambda_nll = 1, float_type = "float64"):
+    def __init__(self, n_concepts, n_tasks, layer_cfg, affine_hids,  linear_rank, linear_hids, transformations, optimizer, learning_rate, weight_decay, momentum,  prior_units, prior_layers, prior_hids, n_components, lambda_xent = 1, lambda_nll = 1, float_type = "float32"):
         super().__init__()
         self.n_concepts = n_concepts
         n_tasks = n_tasks if n_tasks > 1 else 2 
