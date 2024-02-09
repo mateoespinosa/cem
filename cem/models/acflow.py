@@ -389,14 +389,15 @@ class Coupling2(BaseTransform):
         return x, ldet
     
 class LeakyReLU(BaseTransform):
-    def __init__(self):
+    def __init__(self, float_type):
         super().__init__()
-        self.log_alpha = torch.nn.Parameter(torch.tensor(5.0))
+        self.log_alpha = torch.nn.Parameter(torch.tensor(5.0)).to(torch.float64 if float_type == "float64" else torch.float32)
+        self.float_type = float_type
 
     def forward(self, x, c, b, m):
         query = m * (1-b) # [B, d]
         sorted_query, _ = torch.sort(query, dim=-1, descending = True, stable=True)
-        num_negative = torch.sum((x < 0.).doublue() * sorted_query, dim=1)
+        num_negative = torch.sum((x < 0.).to(torch.float64 if self.float_type == "float64" else torch.float32) * sorted_query, dim=1)
         alpha = torch.sigmoid(self.log_alpha)
         ldet = num_negative * torch.log(alpha)
         z = torch.maximum(x, alpha * x)
