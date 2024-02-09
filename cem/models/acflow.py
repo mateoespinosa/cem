@@ -564,9 +564,6 @@ class Transform(BaseTransform):
             logdet = logdet + ldet
             assert logdet.shape == ldet.shape
 
-        import pdb
-        pdb.set_trace()
-
         return x, logdet
 
     def inverse(self, z, c, b, m):
