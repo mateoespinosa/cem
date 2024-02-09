@@ -633,6 +633,10 @@ class AutoReg(Module):
         query = m * (1 - b)
         mask, _ = torch.sort(query, dim = 1, descending = True, stable=True)
         log_likel = torch.sum(log_like1 * mask, dim = 1)
+
+        if(torch.any(torch.gt(log_likel, 0.))):
+            import pdb
+            pdb.set_trace()
         return log_likel
         
     def sample(self, c, b, m):
