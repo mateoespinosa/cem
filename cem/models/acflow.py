@@ -516,7 +516,7 @@ class TransLayer(BaseTransform):
             elif name == "CP2":
                 self.transformations.append(Coupling2(n_concepts, n_tasks, affine_hids))
             elif name == "LR":
-                self.transformations.append(LeakyReLU())
+                self.transformations.append(LeakyReLU(float_type))
             elif name == "ML":
                 self.transformations.append(LULinear(n_concepts, n_tasks, linear_rank, linear_hids, float_type))
         self.float_type = float_type
@@ -584,7 +584,7 @@ class Transform(BaseTransform):
         elif name == "CP2":
             return Coupling2(self.n_concepts, self.n_tasks, self.affine_hids)
         elif name == "LR":
-            return LeakyReLU(self.n_concepts, self.n_tasks, self.affine_hids)
+            return LeakyReLU(self.float_type)
         elif name == "ML":
             return LULinear(self.n_concepts, self.n_tasks, self.affine_hids, self.float_type)
         elif name == "TL":
