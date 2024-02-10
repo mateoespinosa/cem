@@ -7,10 +7,10 @@ from torchvision.models import resnet50
 
 from cem.models.cbm import ConceptBottleneckModel, compute_accuracy
 from cem.models.cem import ConceptEmbeddingModel
-from cem.models.vaeac import VAEAC
+from cem.models.acflow import ACFlow
 import cem.train.utils as utils
 
-class ActiveFeatureAcquisitionConceptBottleneckModel(ConceptBottleneckModel):
+class ACFlowConceptBottleneckModel(ConceptBottleneckModel):
     def __init__(
         self,
         n_concepts,
@@ -148,7 +148,22 @@ class ActiveFeatureAcquisitionConceptBottleneckModel(ConceptBottleneckModel):
             if i != len(units) - 1:
                 layers.append(torch.nn.LeakyReLU())
 
-        self.concept_rank_model = torch.nn.Sequential(*layers)
+        self.acflow_model = ACFlow(
+            n_concepts = n_concepts,
+            n_tasks = n_tasks,
+            layer_cfg = flow_model_config['layer_cfg'],
+            affine_hids = flow_model_config['affine_hids'],
+            linear_rank = flow_model_config['linear_rank'],
+            linear_hids = flow_model_config['linear_hids'],
+            transformations = flow_model_config['transformations'],
+            prior_units = flow_model_config['prior_units'],
+            prior_layers = flow_model_config['prior_layers'],
+            prior_hids = flow_model_config['prior_hids'],
+            n_components = flow_model_config['n_components']
+        )
+
+        self.flow_model_loss_ratio = flow_model_loss_ratio
+        self.intervention_model_loss_ratio
 
         self.intervention_discount = intervention_discount
         self.intervention_task_discount = intervention_task_discount
@@ -1140,7 +1155,7 @@ class IntAwareConceptEmbeddingModel(
         horizon=1,
         train=False,
     ):
-        return IntAwareConceptBottleneckModel._prior_int_distribution(
+        return ACFlowConceptBottleneckModel._prior_int_distribution(
             self=self,
             prob=prob,
             pos_embeddings=pos_embeddings,

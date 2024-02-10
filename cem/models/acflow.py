@@ -10,7 +10,7 @@ import tensorflow as tf
 
 class ACFlow(pl.LightningModule):
 
-    def __init__(self, n_concepts, n_tasks, layer_cfg, affine_hids,  linear_rank, linear_hids, transformations, optimizer, learning_rate, weight_decay, momentum,  prior_units, prior_layers, prior_hids, n_components, lambda_xent = 1, lambda_nll = 1, float_type = "float32"):
+    def __init__(self, n_concepts, n_tasks, layer_cfg, affine_hids,  linear_rank, linear_hids, transformations, prior_units, prior_layers, prior_hids, n_components, optimizer = None, learning_rate = None, weight_decay = None, momentum = None, lambda_xent = 1, lambda_nll = 1, float_type = "float32"):
         super().__init__()
         self.n_concepts = n_concepts
         n_tasks = n_tasks if n_tasks > 1 else 2 
@@ -76,7 +76,10 @@ class ACFlow(pl.LightningModule):
         sam = self.flow_forward(x, b, m, None, task = "sample")
 
         # sample p(x_u | x_o, y)
-        cond_sam = self.flow_forward(x, b, m, y, forward = False)
+        if y is not None:
+            cond_sam = self.flow_forward(x, b, m, y, forward = False)
+        else:
+            cond_sam = None
         # sample p(x_u | x_o, y) based on predicted y
         pred = torch.argmax(logpo, dim=1)
         pred_sam = self.flow_forward(x, b, m, pred, forward = False)
@@ -684,6 +687,7 @@ def mixture_likelihoods(params, targets, n_components, base_distribution='gaussi
     '''
     targets = torch.unsqueeze(targets, dim = -1)
     logits, means, lsigmas = torch.split(params, n_components, dim=2)
+    logits = torch.nn.Softmax()
     sigmas = torch.exp(lsigmas)
     if base_distribution == 'gaussian':
         log_norm_consts = -lsigmas - 0.5 * np.log(2.0 * np.pi)
@@ -699,10 +703,6 @@ def mixture_likelihoods(params, targets, n_components, base_distribution='gaussi
         raise NotImplementedError
     log_exp_terms = log_kernel + log_norm_consts + logits
     log_likelihoods = torch.logsumexp(log_exp_terms, dim = -1) - torch.logsumexp(logits, dim = -1)
-    
-    if(torch.any(torch.gt(log_likelihoods, 0.))):
-        import pdb
-        pdb.set_trace()
     
     return log_likelihoods
 
