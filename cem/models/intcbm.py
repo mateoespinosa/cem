@@ -246,8 +246,11 @@ class IntAwareConceptBottleneckModel(ConceptBottleneckModel):
             competencies = torch.ones(prob.shape).to(pos_embeddings.device)
         # Shape is [B, n_concepts, emb_size]
         if not train:
-            import pdb
-            pdb.set_trace()
+            logging.debug(
+                f"c: {c}"
+                f"prob: {prob}"
+                f"prev_interventions: {prev_interventions}"
+            )
         prob = prev_interventions * c + (1 - prev_interventions) * prob
         embeddings = (
             torch.unsqueeze(prob, dim=-1) * pos_embeddings +
