@@ -19,7 +19,7 @@ selected_digits:
   - [0,1,2,3,4,5,6,7,8,9]
 threshold_labels: 30
 noise_level: 0.0
-max_epochs: 300
+max_epochs: 10
 train_dataset_size: 10000
 sampling_percent: 0.625
 sampling_groups: True
@@ -61,16 +61,6 @@ shared_params:
     sigmoidal_prob: False
     training_intervention_prob: 0.25
 runs:
-    - architecture: 'ConceptBottleneckModel'
-      extra_name: "Sigmoid"
-      sigmoidal_embedding: False
-      training_intervention_prob: 0.25
-      concat_prob: False
-      embedding_activation: "leakyrelu"
-      bool: False
-      extra_dims: 0
-      sigmoidal_extra_capacity: False
-      sigmoidal_prob: True
 
     - architecture: "IntAwareConceptEmbeddingModel"
       extra_name: "Retry_intervention_weight_{intervention_weight}_horizon_rate_{horizon_rate}_intervention_discount_{intervention_discount}_task_discount_{intervention_task_discount}"
