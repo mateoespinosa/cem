@@ -2,6 +2,7 @@ import numpy as np
 import pytorch_lightning as pl
 import sklearn.metrics
 import torch
+import logging
 
 from torchvision.models import resnet50
 
