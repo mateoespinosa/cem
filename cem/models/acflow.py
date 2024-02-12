@@ -785,10 +785,10 @@ class ACFlowTransformDataset(Dataset):
 
     def transform_batch(x, y):
         B = x.shape[0]
+        d = x.shape[-1]
         b = np.zeros([B, d], dtype=np.float32)
         m = np.zeros([B, d], dtype=np.float32)
-        for i in B:
-            d = x.shape[-1]
+        for i in B:            
             no = np.random.choice(d+1)
             o = np.random.choice(d, [no], replace=False)
             b[i][o] = 1.
