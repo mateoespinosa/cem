@@ -298,7 +298,7 @@ class ACFlowConceptBottleneckModel(ConceptBottleneckModel):
 
         unintervened_groups = torch.nonzero(prev_interventions == 0)
 
-        num_groups = torch.sum(available_groups[0]).detach()
+        num_groups = int(torch.sum(available_groups[0]).detach())
 
         logpus_sparse = np.zeros(prev_interventions.shape)
         logpos_sparse = np.zeros(prev_interventions.shape)
