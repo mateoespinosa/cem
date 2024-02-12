@@ -243,9 +243,6 @@ class Flow(Module):
     def cond_forward(self, x, y, b, m):
         x_u, x_o = self.preprocess(x, b, m)
         c = torch.concat([F.one_hot(y, self.n_tasks), x_o], dim=1)
-        logging.debug(
-            f"x_u: {x_u.type()}, x_o: {x_o.type()}, b: {b.type()}, m: {m.type()}"
-        )
         z_u, logdet = self.transform.forward(x_u, c, b, m)
         prior_ll = self.prior.logp(z_u, c, b, m)
         log_likel = prior_ll + logdet
@@ -316,6 +313,10 @@ class Affine(BaseTransform):
         self.net = torch.nn.Sequential(*layers)
 
     def get_params(self, c, b, m):
+        
+        logging.debug(
+            f"c: {c.type()}, b: {b.type()}, m: {m.type()}, net: {self.net}"
+        )
         h = torch.concat([c, b, m], dim=1)
         params = self.net(h)
         shift, scale = torch.split(params, self.n_concepts, dim=1)
