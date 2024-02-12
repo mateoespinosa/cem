@@ -1112,8 +1112,7 @@ class ACFlowConceptEmbeddingModel(
         max_horizon_val = len(concept_map) if use_concept_groups else n_concepts
         self.include_probs = include_probs
         units = [
-            n_concepts +
-            n_concepts +
+            (len(self.concept_map) if self.use_concept_groups else n_concepts) * 2
             n_concepts * emb_size + # Bottleneck
             n_concepts + # Prev interventions
             (n_concepts if include_probs else 0) + # Predicted probs
