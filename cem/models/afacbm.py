@@ -298,14 +298,12 @@ class ACFlowConceptBottleneckModel(ConceptBottleneckModel):
 
         unintervened_groups = torch.nonzero(prev_interventions == 0)
 
+        logging.debug(f"Unintervened groups shape and type: {unintervened_groups.shape} & {unintervened_groups.type()}") 
+
         num_groups = int(torch.sum(available_groups[0]).detach())
 
-        logpus_sparse = np.zeros(prev_interventions.shape)
-        logpos_sparse = np.zeros(prev_interventions.shape)
-
-        logging.debug(
-            f"num groups: {num_groups}"
-        )
+        logpus_sparse = np.zeros(prev_interventions.shape, dtype = np.float32)
+        logpos_sparse = np.zeros(prev_interventions.shape, dtype = np.float32)
 
         for i in range(num_groups):
             mask = np.zeros(prev_interventions.shape)
@@ -418,12 +416,6 @@ class ACFlowConceptBottleneckModel(ConceptBottleneckModel):
 
             for _ in range(flow_model_rollouts):
                 x_flow, b_flow, m_flow, y_flow = ACFlowTransformDataset.transform_batch(c, y)
-                logging.debug(
-                    f"x_flow shape: {x_flow.shape}"
-                    f"b_flow shape: {b_flow.shape}"
-                    f"m_flow shape: {m_flow.shape}"
-                    f"y_flow shape: {y_flow.shape}"
-                )
                 logpu, logpo, _, _, _ = self.acflow_model(x_flow, b_flow, m_flow, y_flow)
                 logits = logpu + logpo
                 loglikel = torch.logsumexp(logpu + logpo, dim = 1) - torch.logsumexp(logpo, dim = 1)
