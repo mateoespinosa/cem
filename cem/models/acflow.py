@@ -687,7 +687,6 @@ def mixture_likelihoods(params, targets, n_components, base_distribution='gaussi
     '''
     targets = torch.unsqueeze(targets, dim = -1)
     logits, means, lsigmas = torch.split(params, n_components, dim=2)
-    logits = torch.nn.Softmax()
     sigmas = torch.exp(lsigmas)
     if base_distribution == 'gaussian':
         log_norm_consts = -lsigmas - 0.5 * np.log(2.0 * np.pi)
