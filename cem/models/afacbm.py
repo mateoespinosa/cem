@@ -310,7 +310,6 @@ class ACFlowConceptBottleneckModel(ConceptBottleneckModel):
 
         for i in range(num_groups):
             concepts = c.clone()
-            missing_c = missing.clone()
             for b in range(used_groups.shape[0]):
                 for concept in self.concept_group_map[unintervened_groups[b][i]]:
                     missing[b][concept] = 1.
