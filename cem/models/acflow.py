@@ -218,9 +218,6 @@ class Flow(Module):
 
     def forward(self, x, b, m):
         x_u, x_o = self.preprocess(x, b, m)
-        logging.debug(
-            f"x_u: {x_u.type}, x_o: {x_o.type}, b: {b.type}, m: {m.type}"
-        )
         z_u, logdet = self.transform.forward(x_u, x_o, b, m)
         prior_ll = self.prior.logp(z_u, x_o, b, m)
         log_likel = prior_ll + logdet
@@ -246,6 +243,9 @@ class Flow(Module):
     def cond_forward(self, x, y, b, m):
         x_u, x_o = self.preprocess(x, b, m)
         c = torch.concat([F.one_hot(y, self.n_tasks), x_o], dim=1)
+        logging.debug(
+            f"x_u: {x_u.type}, x_o: {x_o.type}, b: {b.type}, m: {m.type}"
+        )
         z_u, logdet = self.transform.forward(x_u, c, b, m)
         prior_ll = self.prior.logp(z_u, c, b, m)
         log_likel = prior_ll + logdet
