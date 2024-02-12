@@ -304,6 +304,8 @@ class ACFlowConceptBottleneckModel(ConceptBottleneckModel):
 
         num_groups = int(torch.sum(available_groups[0]).detach())
 
+        logging.debug(f"Available groups: {num_groups}")
+
         logpus_sparse = np.zeros(prev_interventions.shape, dtype = np.float32)
         logpos_sparse = np.zeros(prev_interventions.shape, dtype = np.float32)
 
