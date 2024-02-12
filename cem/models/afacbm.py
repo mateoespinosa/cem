@@ -297,18 +297,11 @@ class ACFlowConceptBottleneckModel(ConceptBottleneckModel):
         
         num_groups = int(torch.sum(available_groups[0]).detach())
 
-        nonzero_indices = [torch.nonzero(available_groups[i], as_tuple = False).squeeze() for i in range(available_groups.shape[0])]
-        nonzero_indices = torch.stack(nonzero_indices, dim = 0) 
-        import pdb
-        pdb.set_trace()
-        logging.debug(f"Available groups tensor: {available_groups}\n")
-        logging.debug(f"Available groups tensor: {available_groups.shape}")
-        logging.debug(f"Available groups: {num_groups}")    
+        unintervened_groups = [torch.nonzero(available_groups[i], as_tuple = False).squeeze() for i in range(available_groups.shape[0])]
+        unintervened_groups = torch.stack(unintervened_groups, dim = 0) 
 
-        unintervened_groups = torch.nonzero(available_groups)
-        unintervened_groups.reshape((available_groups.shape[0], num_groups))
-        logging.debug(f"Unintervened groups shape and type: {unintervened_groups.shape} & {unintervened_groups.type()}") 
-
+        assert unintervened_groups.shape[-1] == num_groups
+        
         logpus_sparse = np.zeros(used_groups.shape, dtype = np.float32)
         logpos_sparse = np.zeros(used_groups.shape, dtype = np.float32)
 
