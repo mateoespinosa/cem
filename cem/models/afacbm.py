@@ -133,8 +133,7 @@ class ACFlowConceptBottleneckModel(ConceptBottleneckModel):
             len(concept_map) if self.use_concept_groups else n_concepts
         self.include_probs = include_probs
         units = [
-            n_concepts + # probabilities
-            n_concepts + # probabilities
+            (n_concepts if self.use_concept_groups else len(self.concept_map)) * 2 +
             n_concepts + # Bottleneck
             n_concepts + # Prev interventions
             (n_concepts if self.include_probs else 0) + # Predicted Probs
@@ -295,35 +294,32 @@ class ACFlowConceptBottleneckModel(ConceptBottleneckModel):
             available_groups = (1 - prev_interventions).to(embeddings.device)
             max_horizon = self.n_concepts
         used_groups = 1 - available_groups
-
-        logging.debug(f"prev_interventions shape and type: {prev_interventions.shape} & {prev_interventions.type()}") 
-
-        unintervened_groups = torch.nonzero(prev_interventions == 0)
-
-        logging.debug(f"Unintervened groups shape and type: {unintervened_groups.shape} & {unintervened_groups.type()}") 
-
+        
         num_groups = int(torch.sum(available_groups[0]).detach())
-
         logging.debug(f"Available groups: {num_groups}")
 
-        logpus_sparse = np.zeros(prev_interventions.shape, dtype = np.float32)
-        logpos_sparse = np.zeros(prev_interventions.shape, dtype = np.float32)
+        unintervened_groups = torch.nonzero(available_groups)
+        unintervened_groups.reshape((available_groups.shape[0], num_groups))
+        logging.debug(f"Unintervened groups shape and type: {unintervened_groups.shape} & {unintervened_groups.type()}") 
+
+        logpus_sparse = np.zeros(used_groups.shape, dtype = np.float32)
+        logpos_sparse = np.zeros(used_groups.shape, dtype = np.float32)
 
         for i in range(num_groups):
-            mask = np.zeros(prev_interventions.shape)
-            missing = prev_interventions.clone().float()
+            mask = np.zeros(used_groups.shape)
+            missing = used_groups.clone().float()
             concepts = c.clone()
-            for b in range(prev_interventions.shape[0]):
+            for b in range(used_groups.shape[0]):
                 mask[b][unintervened_groups[b][i]] = 1
                 missing[b][unintervened_groups[b][i]] = 1.
-            mask = torch.tensor(mask).to(prev_interventions.device).float()
+            mask = torch.tensor(mask).to(used_groups.device).float()
             logpu, logpo, _, _, _ = self.acflow_model(x = concepts, b = mask, m = missing, y = None)
-            for b in range(prev_interventions.shape[0]):
+            for b in range(used_groups.shape[0]):
                 logpus_sparse[b][unintervened_groups[b][i]] = logpu[b]
                 logpos_sparse[b][unintervened_groups[b][i]] = logpo[b]
 
-        logpus_sparse = torch.tensor(logpus_sparse).to(prev_interventions.device)
-        logpos_sparse = torch.tensor(logpos_sparse).to(prev_interventions.device)
+        logpus_sparse = torch.tensor(logpus_sparse).to(used_groups.device)
+        logpos_sparse = torch.tensor(logpos_sparse).to(used_groups.device)
 
         cat_inputs = [
             logpus_sparse,
