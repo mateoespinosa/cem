@@ -315,7 +315,7 @@ class ACFlowConceptBottleneckModel(ConceptBottleneckModel):
                 mask[b][unintervened_groups[b][i]] = 1
                 missing[b][unintervened_groups[b][i]] = 1
             mask = torch.tensor(mask).to(prev_interventions.device)
-            logpu, logpo, _, _, _ = self.acflow_model(concepts, mask, missing)
+            logpu, logpo, _, _, _ = self.acflow_model(x = concepts, b = mask, m = missing, y = None)
             for b in range(prev_interventions.shape[0]):
                 logpus_sparse[b][unintervened_groups[b][i]] = logpu[b]
                 logpos_sparse[b][unintervened_groups[b][i]] = logpo[b]
