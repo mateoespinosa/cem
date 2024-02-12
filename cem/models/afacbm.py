@@ -296,6 +296,9 @@ class ACFlowConceptBottleneckModel(ConceptBottleneckModel):
         used_groups = 1 - available_groups
         
         num_groups = int(torch.sum(available_groups[0]).detach())
+
+        nonzero_indices = [torch.nonzero(available_groups[i], as_tuple = False).squeeze() for i in range(available_groups.shape[0])]
+        nonzero_indices = torch.stack(nonzero_indices, dim = 0) 
         import pdb
         pdb.set_trace()
         logging.debug(f"Available groups tensor: {available_groups}\n")
