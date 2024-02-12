@@ -784,17 +784,19 @@ class ACFlowTransformDataset(Dataset):
         return {'x': x, 'b': b, 'm': m, 'y': y}
 
     def transform_batch(x, y):
-        d = x.shape[-1]
-        b = np.zeros([d], dtype=np.float32)
-        no = np.random.choice(d+1)
-        o = np.random.choice(d, [no], replace=False)
-        b[o] = 1.
-        m = b.copy()
-        w = list(np.where(b == 0)[0])
-        w.append(-1)
-        w = np.random.choice(w)
-        if w >= 0:
-            m[w] = 1.
+        B = x.shape[0]
+        b = np.zeros([B, d], dtype=np.float32)
+        m = np.zeros([B, d], dtype=np.float32)
+        for i in B:
+            d = x.shape[-1]
+            no = np.random.choice(d+1)
+            o = np.random.choice(d, [no], replace=False)
+            b[i][o] = 1.
+            w = list(np.where(b[i] == 0)[0])
+            w.append(-1)
+            w = np.random.choice(w)
+            if w >= 0:
+                m[i][w] = 1.
         b = torch.tensor(b)
         m = torch.tensor(m)
         y = y.clone().to(torch.int64)
