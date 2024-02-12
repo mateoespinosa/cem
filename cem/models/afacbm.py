@@ -296,6 +296,8 @@ class ACFlowConceptBottleneckModel(ConceptBottleneckModel):
             max_horizon = self.n_concepts
         used_groups = 1 - available_groups
 
+        logging.debug(f"prev_interventions shape and type: {prev_interventions.shape} & {prev_interventions.type()}") 
+
         unintervened_groups = torch.nonzero(prev_interventions == 0)
 
         logging.debug(f"Unintervened groups shape and type: {unintervened_groups.shape} & {unintervened_groups.type()}") 
