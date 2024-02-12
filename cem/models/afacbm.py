@@ -416,7 +416,7 @@ class ACFlowConceptBottleneckModel(ConceptBottleneckModel):
                 )
                 logpu, logpo, _, _, _ = self.acflow_model(x_flow, b_flow, m_flow, y_flow)
                 logits = logpu + logpo
-                loglikel = torch.logsumexp(logpu + logpo) - torch.logsumexp(logpo)
+                loglikel = torch.logsumexp(logpu + logpo, dim = 1) - torch.logsumexp(logpo, dim = 1)
                 nll = torch.mean(-loglikel)
                 flow_model_loss += (1 - self.flow_model_nll_ratio) * self.flow_model_xent_loss(logits, target_int_labels) + self.flow_model_nll_ratio * nll
             
