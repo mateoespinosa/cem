@@ -1133,7 +1133,8 @@ class ACFlowConceptEmbeddingModel(
             layers.append(torch.nn.Linear(units[i-1], units[i]))
             if i != len(units) - 1:
                 layers.append(torch.nn.LeakyReLU())
-
+        # DEBUG
+        self.units = units
         self.concept_rank_model = torch.nn.Sequential(*layers)
 
         self.acflow_model = ACFlow(
