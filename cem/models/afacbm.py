@@ -314,6 +314,8 @@ class ACFlowConceptBottleneckModel(ConceptBottleneckModel):
                 for concept in self.concept_map[int(unintervened_groups[b][i])]:
                     missing[b][concept] = 1.
             logpu, logpo, _, _, _ = self.acflow_model(x = concepts, b = mask, m = missing, y = None)
+            import pdb
+            pdb.set_trace()
             for b in range(used_groups.shape[0]):
                 logpus_sparse[b][int(unintervened_groups[b][i])] = logpu[b]
                 logpos_sparse[b][int(unintervened_groups[b][i])] = logpo[b]
