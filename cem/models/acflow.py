@@ -797,8 +797,8 @@ class ACFlowTransformDataset(Dataset):
             w = np.random.choice(w)
             if w >= 0:
                 m[i][w] = 1.
-        b = torch.tensor(b)
-        m = torch.tensor(m)
+        b = torch.tensor(b).to(x.device)
+        m = torch.tensor(m).to(x.device)
         y = y.clone().to(torch.int64)
         return x, b, m, y
 
