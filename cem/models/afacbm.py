@@ -308,10 +308,8 @@ class ACFlowConceptBottleneckModel(ConceptBottleneckModel):
         mask = prev_interventions.clone()
         missing = prev_interventions.clone()
 
-        import pdb
-        pdb.set_trace()
-
         for i in range(num_groups):
+            concepts = c.clone()
             for b in range(used_groups.shape[0]):
                 for concept in self.concept_map[unintervened_groups[b][i]]:
                     missing[b][concept] = 1.
@@ -320,7 +318,7 @@ class ACFlowConceptBottleneckModel(ConceptBottleneckModel):
                 logpus_sparse[b][unintervened_groups[b][i]] = logpu[b]
                 logpos_sparse[b][unintervened_groups[b][i]] = logpo[b]
             for concept in self.concept_map[unintervened_groups[b][i]]:
-                missing[b][concept] = 0.x
+                missing[b][concept] = 0.
 
         logpus_sparse = torch.tensor(logpus_sparse).to(used_groups.device)
         logpos_sparse = torch.tensor(logpos_sparse).to(used_groups.device)
