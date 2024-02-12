@@ -194,7 +194,10 @@ class ACFlowConceptBottleneckModel(ConceptBottleneckModel):
         self.intervention_weight = intervention_weight
         self.average_trajectory = average_trajectory
         self.loss_interventions = torch.nn.CrossEntropyLoss()
-        self.flow_model_xent_loss = torch.nn.CrossEntropyLoss()
+        self.flow_model_xent_loss = torch.nn.CrossEntropyLoss(weight=task_class_weights)
+            if n_tasks > 1 else torch.nn.BCEWithLogitsLoss(
+                pos_weight=task_class_weights
+            )
         self.max_horizon = max_horizon
         self.emb_size = 1
         self.include_task_trajectory_loss = include_task_trajectory_loss
@@ -426,7 +429,7 @@ class ACFlowConceptBottleneckModel(ConceptBottleneckModel):
                     f"y shape: {y.shape}"
                     f"y type: {y.type}"
                 )
-                flow_model_loss += (1 - self.flow_model_nll_ratio) * self.flow_model_xent_loss(logits, y) + self.flow_model_nll_ratio * nll
+                flow_model_loss += (1 - self.flow_model_nll_ratio) * self.flow_model_xent_loss(logits, y_flow) + self.flow_model_nll_ratio * nll
             
 
             flow_model_loss = flow_model_loss / flow_model_rollouts
