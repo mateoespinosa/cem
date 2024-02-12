@@ -303,6 +303,10 @@ class ACFlowConceptBottleneckModel(ConceptBottleneckModel):
         logpus_sparse = np.zeros(prev_interventions.shape)
         logpos_sparse = np.zeros(prev_interventions.shape)
 
+        logging.debug(
+            f"num groups: {num_groups}"
+        )
+
         for i in range(num_groups):
             mask = np.zeros(prev_interventions.shape)
             missing = prev_interventions.clone()
