@@ -18,60 +18,15 @@ from torch.utils.data import Dataset, RandomSampler
 
 import cem.data.celeba_loader as celeba_data_module
 import cem.data.mnist_add as mnist_data_module
-from cem.models.acflow import ACFlow
+from cem.models.acflow import ACFlow, ACFlowTransformDataset
 
 ################################################################################
 ## MAIN FUNCTION
 ################################################################################
 
 # Helper class to apply transformations to a dataset
-class TransformedDataset(Dataset):
-    def __init__(self, dataset, n_tasks):
-        self.dataset = dataset
-        self.n_tasks = n_tasks
-
-    def _unpack_batch(self, batch):
-        x = batch[0]
-        if isinstance(batch[1], list):
-            y, c = batch[1]
-        else:
-            y, c = batch[1], batch[2]
-        if len(batch) > 3:
-            competencies = batch[3]
-        else:
-            competencies = None
-        if len(batch) > 4:
-            prev_interventions = batch[4]
-        else:
-            prev_interventions = None
-        return x, y, (c, competencies, prev_interventions)
-    
-    def transform(self, batch):
-        _, y, (x, _, _) = self._unpack_batch(batch)
-        d = x.shape[-1]
-        b = np.zeros([d], dtype=np.float32)
-        no = np.random.choice(d+1)
-        o = np.random.choice(d, [no], replace=False)
-        b[o] = 1.
-        m = b.copy()
-        w = list(np.where(b == 0)[0])
-        w.append(-1)
-        w = np.random.choice(w)
-        if w >= 0:
-            m[w] = 1.
-        b = torch.tensor(b)
-        m = torch.tensor(m)
-        y = y.to(torch.int64)
-        return {'x': x, 'b': b, 'm': m, 'y': y}
-
-    def __getitem__(self, index):
-        return self.transform(self.dataset[index])
-
-    def __len__(self):
-        return len(self.dataset)
-
 def transform_dataloader(dataloader, n_tasks):
-    dataset = TransformedDataset(dataloader.dataset, n_tasks)
+    dataset = ACFlowTransformDataset(dataloader.dataset, n_tasks)
     return torch.utils.data.DataLoader(dataset, batch_size = dataloader.batch_size, shuffle = isinstance(dataloader.sampler, RandomSampler), num_workers = dataloader.num_workers)
 
 

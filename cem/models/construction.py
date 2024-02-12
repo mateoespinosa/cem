@@ -9,6 +9,7 @@ from torchvision.models import resnet18, resnet34, resnet50, densenet121
 import cem.models.cem as models_cem
 import cem.models.cbm as models_cbm
 import cem.models.intcbm as models_intcbm
+import cem.models.afacbm as models_afacbm
 import cem.train.utils as utils
 
 
@@ -148,6 +149,150 @@ def construct_model(
             ),
             "c2y_model": c2y_model,
             "c2y_layers": config.get("c2y_layers", []),
+
+            "intervention_discount": config.get("intervention_discount", 0.9),
+            "intervention_weight": config.get("intervention_weight", 5),
+            "horizon_rate": config.get("horizon_rate", 1.005),
+            "average_trajectory": config.get("average_trajectory", True),
+            "concept_map": config.get("concept_map", None),
+            "tau": config.get("tau", 1),
+            "max_horizon": config.get("max_horizon", 5),
+            "include_task_trajectory_loss": config.get(
+                "include_task_trajectory_loss",
+                False,
+            ),
+            "horizon_binary_representation": config.get(
+                "horizon_binary_representation",
+                False,
+            ),
+            "include_only_last_trajectory_loss": config.get(
+                "include_only_last_trajectory_loss",
+                False,
+            ),
+            "intervention_task_loss_weight": config.get(
+                "intervention_task_loss_weight",
+                1,
+            ),
+            "initial_horizon": config.get("initial_horizon", 1),
+            "use_concept_groups": config.get("use_concept_groups", False),
+            "horizon_uniform_distr": config.get("horizon_uniform_distr", True),
+            "beta_a": config.get("beta_a", 1),
+            "beta_b": config.get("beta_b", 3),
+            "intervention_task_discount": config.get(
+                "intervention_task_discount",
+                config.get("intervention_discount", 0.9),
+            ),
+            "use_horizon": config.get("use_horizon", True),
+            "rollout_init_steps": config.get('rollout_init_steps', 0),
+            "use_full_mask_distr": config.get("use_full_mask_distr", False),
+            "int_model_layers": config.get("int_model_layers", None),
+            "int_model_use_bn": config.get("int_model_use_bn", False),
+            "initialize_discount": config.get("initialize_discount", False),
+            "include_probs": config.get("include_probs", False),
+            "propagate_target_gradients": config.get(
+                "propagate_target_gradients",
+                False,
+            ),
+            "num_rollouts": config.get("num_rollouts", 1),
+            "max_num_rollouts": config.get("max_num_rollouts", None),
+            "rollout_aneal_rate": config.get("rollout_aneal_rate", 1),
+            "backprop_masks": config.get("backprop_masks", True),
+            "hard_intervention": config.get("hard_intervention", True),
+            "legacy_mode": config.get("legacy_mode", False),
+            "include_certainty": config.get("include_certainty", True),
+        }
+    elif config["architecture"] in ["ACFlowConceptBottleneckModel", "ACFCBM"]:
+        model_cls = models_afacbm.ACFlowConceptBottleneckModel
+        extra_params = {
+            "bool": config["bool"],
+            "extra_dims": config["extra_dims"],
+            "sigmoidal_extra_capacity": config.get(
+                "sigmoidal_extra_capacity",
+                True,
+            ),
+            "sigmoidal_prob": config.get("sigmoidal_prob", True),
+            "intervention_policy": intervention_policy,
+            "bottleneck_nonlinear": config.get("bottleneck_nonlinear", None),
+            "active_intervention_values": active_intervention_values,
+            "inactive_intervention_values": inactive_intervention_values,
+            "x2c_model": x2c_model,
+            "c2y_model": c2y_model,
+            "c2y_layers": config.get("c2y_layers", []),
+            "flow_model_config": config.get("flow_model_config", {}),
+            "flow_model_nll_ratio": config.get("flow_model_nll_ratio", 0.5),
+            "flow_model_weight": config.get("flow_model_weight", 1),
+            "flow_model_rollouts": config.get("flow_model_rollouts", 1),
+            "intervention_discount": config.get("intervention_discount", 0.9),
+            "intervention_weight": config.get("intervention_weight", 5),
+            "horizon_rate": config.get("horizon_rate", 1.005),
+            "average_trajectory": config.get("average_trajectory", True),
+            "concept_map": config.get("concept_map", None),
+            "tau": config.get("tau", 1),
+            "max_horizon": config.get("max_horizon", 5),
+            "include_task_trajectory_loss": config.get(
+                "include_task_trajectory_loss",
+                False,
+            ),
+            "horizon_binary_representation": config.get(
+                "horizon_binary_representation",
+                False,
+            ),
+            "include_only_last_trajectory_loss": config.get(
+                "include_only_last_trajectory_loss",
+                False,
+            ),
+            "intervention_task_loss_weight": config.get(
+                "intervention_task_loss_weight",
+                1,
+            ),
+            "initial_horizon": config.get("initial_horizon", 1),
+            "use_concept_groups": config.get("use_concept_groups", False),
+            "horizon_uniform_distr": config.get("horizon_uniform_distr", True),
+            "beta_a": config.get("beta_a", 1),
+            "beta_b": config.get("beta_b", 3),
+            "intervention_task_discount": config.get(
+                "intervention_task_discount",
+                config.get("intervention_discount", 0.9),
+            ),
+            "use_horizon": config.get("use_horizon", True),
+            "rollout_init_steps": config.get('rollout_init_steps', 0),
+            "use_full_mask_distr": config.get("use_full_mask_distr", False),
+            "int_model_layers": config.get("int_model_layers", None),
+            "int_model_use_bn": config.get("int_model_use_bn", False),
+            "initialize_discount": config.get("initialize_discount", False),
+            "include_probs": config.get("include_probs", False),
+            "propagate_target_gradients": config.get(
+                "propagate_target_gradients",
+                False,
+            ),
+            "num_rollouts": config.get("num_rollouts", 1),
+            "max_num_rollouts": config.get("max_num_rollouts", None),
+            "rollout_aneal_rate": config.get("rollout_aneal_rate", 1),
+            "backprop_masks": config.get("backprop_masks", True),
+            "hard_intervention": config.get("hard_intervention", True),
+            "legacy_mode": config.get("legacy_mode", False),
+            "include_certainty": config.get("include_certainty", True),
+        }
+    elif config["architecture"] in ["ACFlowConceptEmbeddingModel", "ACFCEM"]:
+        model_cls = models_afacbm.ACFlowConceptEmbeddingModel
+        extra_params = {
+            "emb_size": config["emb_size"],
+            "intervention_policy": intervention_policy,
+            "training_intervention_prob": config.get(
+                'training_intervention_prob',
+                0.25,
+            ),
+            "embedding_activation": config.get(
+                "embedding_activation",
+                "leakyrelu",
+            ),
+            "c2y_model": c2y_model,
+            "c2y_layers": config.get("c2y_layers", []),
+            
+            "flow_model_config": config.get("flow_model_config", {}),
+            "flow_model_nll_ratio": config.get("flow_model_nll_ratio", 0.5),
+            "flow_model_weight": config.get("flow_model_weight", 1),
+            "flow_model_rollouts": config.get("flow_model_rollouts", 1),
 
             "intervention_discount": config.get("intervention_discount", 0.9),
             "intervention_weight": config.get("intervention_weight", 5),

@@ -7,7 +7,7 @@ from torchvision.models import resnet50
 
 from cem.models.cbm import ConceptBottleneckModel, compute_accuracy
 from cem.models.cem import ConceptEmbeddingModel
-from cem.models.acflow import ACFlow
+from cem.models.acflow import ACFlow, ACFlowTransformDataset
 import cem.train.utils as utils
 
 class ACFlowConceptBottleneckModel(ConceptBottleneckModel):
@@ -29,6 +29,10 @@ class ACFlowConceptBottleneckModel(ConceptBottleneckModel):
         c_extractor_arch=utils.wrap_pretrained_model(resnet50),
         c2y_model=None,
         c2y_layers=None,
+        flow_model_config = {},
+        flow_model_nll_ratio = 0.5,
+        flow_model_weight = 2,
+        flow_model_rollouts = 1,
 
         optimizer="adam",
         momentum=0.9,
@@ -93,7 +97,7 @@ class ACFlowConceptBottleneckModel(ConceptBottleneckModel):
         self.concept_map = concept_map
         if len(concept_map) == n_concepts:
             use_concept_groups = False
-        super(IntAwareConceptBottleneckModel, self).__init__(
+        super(ACFlowConceptBottleneckModel, self).__init__(
             n_concepts=n_concepts,
             n_tasks=n_tasks,
             concept_loss_weight=concept_loss_weight,
@@ -128,6 +132,8 @@ class ACFlowConceptBottleneckModel(ConceptBottleneckModel):
             len(concept_map) if self.use_concept_groups else n_concepts
         self.include_probs = include_probs
         units = [
+            n_concepts + # probabilities
+            n_concepts + # probabilities
             n_concepts + # Bottleneck
             n_concepts + # Prev interventions
             (n_concepts if self.include_probs else 0) + # Predicted Probs
@@ -147,7 +153,6 @@ class ACFlowConceptBottleneckModel(ConceptBottleneckModel):
             layers.append(torch.nn.Linear(units[i-1], units[i]))
             if i != len(units) - 1:
                 layers.append(torch.nn.LeakyReLU())
-
         self.acflow_model = ACFlow(
             n_concepts = n_concepts,
             n_tasks = n_tasks,
@@ -162,8 +167,9 @@ class ACFlowConceptBottleneckModel(ConceptBottleneckModel):
             n_components = flow_model_config['n_components']
         )
 
-        self.flow_model_loss_ratio = flow_model_loss_ratio
-        self.intervention_model_loss_ratio
+        self.flow_model_nll_ratio = flow_model_nll_ratio
+        self.flow_model_weight = flow_model_weight
+        self.flow_model_rollouts = flow_model_rollouts
 
         self.intervention_discount = intervention_discount
         self.intervention_task_discount = intervention_task_discount
@@ -187,6 +193,7 @@ class ACFlowConceptBottleneckModel(ConceptBottleneckModel):
         self.intervention_weight = intervention_weight
         self.average_trajectory = average_trajectory
         self.loss_interventions = torch.nn.CrossEntropyLoss()
+        self.flow_model_xent_loss = torch.nn.CrossEntropyLoss()
         self.max_horizon = max_horizon
         self.emb_size = 1
         self.include_task_trajectory_loss = include_task_trajectory_loss
@@ -285,7 +292,29 @@ class ACFlowConceptBottleneckModel(ConceptBottleneckModel):
             available_groups = (1 - prev_interventions).to(embeddings.device)
             max_horizon = self.n_concepts
         used_groups = 1 - available_groups
+
+        unintervened_groups = torch.nonzero(prev_interventions == 0)
+
+        assert unintervened_groups.shape[1] == available_groups
+
+        logpus_sparse = np.zeros(prev_interventions.shape).to(prev_interventions.device)
+        logpos_sparse = np.zeros(prev_interventions.shape).to(prev_interventions.device)
+
+        for i in range(available_groups):
+            mask = np.zeros(prev_interventions.shape).to(prev_interventions.device)
+            missing = prev_interventions.clone()
+            concepts = c.clone()
+            for b in range(prev_interventions.shape[0]):
+                mask[b][unintervened_groups[b][i]] = 1
+                missing[b][unintervened_groups[b][i]] = 1
+            logpu, logpo, _, _, _ = self.acflow_model(concepts, mask, missing)
+            for b in range(prev_interventions.shape[0]):
+                logpus_sparse[b][unintervened_groups[b][i]] = logpu[b]
+                logpos_sparse[b][unintervened_groups[b][i]] = logpo[b]
+
         cat_inputs = [
+            logpus_sparse,
+            logpos_sparse,
             torch.reshape(embeddings, [-1, self.emb_size * self.n_concepts]),
             prev_interventions,
 #                 competencies,
@@ -362,6 +391,32 @@ class ACFlowConceptBottleneckModel(ConceptBottleneckModel):
         else:
             task_loss = 0.0
             task_loss_scalar = 0.0
+
+        flow_model_loss = 0.0
+        flow_model_loss_scalar = 0.0
+        # Do some rollouts for flow model
+        if self.flow_model_weight != 0:
+            if self.rollout_aneal_rate != 1:
+                flow_model_rollouts = int(round(
+                    self.flow_model_rollouts * (
+                        self.current_aneal_rate.detach().cpu().numpy()[0]
+                    )
+                ))
+            else:
+                flow_model_rollouts = self.flow_model_rollouts
+
+            for _ in range(flow_model_rollouts):
+                x_flow, b_flow, m_flow, y_flow = ACFlowTransformDataset.transform_batch(c, y)
+
+                logpu, logpo, _, _, _ = self.acflow_model(x_flow, b_flow, m_flow, y_flow)
+                logits = logpu + logpo
+                loglikel = torch.logsumexp(logpu + logpo) - torch.logsumexp(logpo)
+                nll = torch.mean(-loglikel)
+                flow_model_loss += (1 - self.flow_model_nll_ratio) * self.flow_model_xent_loss(logits, target_int_labels) + self.flow_model_nll_ratio * nll
+            
+
+            flow_model_loss = flow_model_loss / flow_model_rollouts
+            flow_model_loss_scalar = flow_model_loss.detach() * self.flow_model_weight
 
         intervention_task_loss = 0.0
 
@@ -503,13 +558,13 @@ class ACFlowConceptBottleneckModel(ConceptBottleneckModel):
                     for i in range(current_horizon):
                         trajectory_weight += discount
                         discount *= self.intervention_discount
-
                         task_discount *= self.intervention_task_discount
                         if (
                             (not self.include_only_last_trajectory_loss) or
                             (i == current_horizon - 1)
                         ):
                             task_trajectory_weight += task_discount
+                        
                     discount = curr_discount
                     task_discount = curr_task_discount
                 else:
@@ -532,7 +587,6 @@ class ACFlowConceptBottleneckModel(ConceptBottleneckModel):
                     first_task_discount = 1
                 task_trajectory_weight = 1
                 trajectory_weight = 1
-
 
             if self.include_task_trajectory_loss and (
                 self.task_loss_weight == 0
@@ -849,6 +903,7 @@ class ACFlowConceptBottleneckModel(ConceptBottleneckModel):
         loss = (
             self.concept_loss_weight * concept_loss +
             self.intervention_weight * intervention_loss +
+            self.flow_model_weight * flow_model_loss +
             self.task_loss_weight * task_loss +
             self.intervention_task_loss_weight * intervention_task_loss
         )
@@ -882,6 +937,7 @@ class ACFlowConceptBottleneckModel(ConceptBottleneckModel):
             "task_loss": task_loss_scalar,
             "intervention_task_loss": intervention_task_loss_scalar,
             "intervention_loss": intervention_loss_scalar,
+            "flow_model_loss": flow_model_loss_scalar,
             "loss": loss.detach() if not isinstance(loss, float) else loss,
             "avg_c_y_acc": (c_accuracy + y_accuracy) / 2,
             "horizon_limit": self.horizon_limit.detach().cpu().numpy()[0],
@@ -913,9 +969,9 @@ class ACFlowConceptBottleneckModel(ConceptBottleneckModel):
                 result[f'y_top_{top_k_val}_accuracy'] = y_top_k_accuracy
         return loss, result
 
-class IntAwareConceptEmbeddingModel(
+class ACFlowConceptEmbeddingModel(
     ConceptEmbeddingModel,
-    IntAwareConceptBottleneckModel,
+    ACFlowConceptBottleneckModel,
 ):
     def __init__(
         self,
@@ -931,6 +987,11 @@ class IntAwareConceptEmbeddingModel(
         c2y_layers=None,
         c_extractor_arch=utils.wrap_pretrained_model(resnet50),
         output_latent=False,
+
+        flow_model_config = {},
+        flow_model_nll_ratio = 0.5,
+        flow_model_weight = 2,
+        flow_model_rollouts = 1,
 
         optimizer="adam",
         momentum=0.9,
@@ -1035,6 +1096,8 @@ class IntAwareConceptEmbeddingModel(
         max_horizon_val = len(concept_map) if use_concept_groups else n_concepts
         self.include_probs = include_probs
         units = [
+            n_concepts +
+            n_concepts +
             n_concepts * emb_size + # Bottleneck
             n_concepts + # Prev interventions
             (n_concepts if include_probs else 0) + # Predicted probs
@@ -1054,7 +1117,24 @@ class IntAwareConceptEmbeddingModel(
             layers.append(torch.nn.Linear(units[i-1], units[i]))
             if i != len(units) - 1:
                 layers.append(torch.nn.LeakyReLU())
-        self.concept_rank_model = torch.nn.Sequential(*layers)
+
+        self.acflow_model = ACFlow(
+            n_concepts = n_concepts,
+            n_tasks = n_tasks,
+            layer_cfg = flow_model_config['layer_cfg'],
+            affine_hids = flow_model_config['affine_hids'],
+            linear_rank = flow_model_config['linear_rank'],
+            linear_hids = flow_model_config['linear_hids'],
+            transformations = flow_model_config['transformations'],
+            prior_units = flow_model_config['prior_units'],
+            prior_layers = flow_model_config['prior_layers'],
+            prior_hids = flow_model_config['prior_hids'],
+            n_components = flow_model_config['n_components']
+        )
+
+        self.flow_model_nll_ratio = flow_model_nll_ratio
+        self.flow_model_weight = flow_model_weight
+        self.flow_model_rollouts = flow_model_rollouts
 
         self.intervention_discount = intervention_discount
         self.intervention_task_discount = intervention_task_discount
@@ -1078,6 +1158,7 @@ class IntAwareConceptEmbeddingModel(
         self.intervention_weight = intervention_weight
         self.average_trajectory = average_trajectory
         self.loss_interventions = torch.nn.CrossEntropyLoss()
+        self.flow_model_xent_loss = torch.nn.CrossEntropyLoss()
         self.max_horizon = max_horizon
         self.include_task_trajectory_loss = include_task_trajectory_loss
         self.horizon_binary_representation = horizon_binary_representation

@@ -1023,6 +1023,8 @@ def get_int_policy(
                     "ConceptEmbeddingModel",
                     "IntAwareConceptEmbeddingModel",
                     "IntCEM",
+                    "ACFlowConceptEmbeddingModel",
+                    "ACFCEM",
                 ]
                 else 1
             )
