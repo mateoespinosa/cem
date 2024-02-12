@@ -327,8 +327,6 @@ class ACFlowConceptBottleneckModel(ConceptBottleneckModel):
 
         logpus_sparse = torch.tensor(logpus_sparse).to(used_groups.device)
         logpos_sparse = torch.tensor(logpos_sparse).to(used_groups.device)
-        import pdb
-        pdb.set_trace()
         cat_inputs = [
             logpus_sparse,
             logpos_sparse,
