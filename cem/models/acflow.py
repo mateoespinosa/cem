@@ -1,5 +1,6 @@
 import math
 import torch
+import logging
 
 import pytorch_lightning as pl
 import torch.nn.functional as F
@@ -217,8 +218,9 @@ class Flow(Module):
 
     def forward(self, x, b, m):
         x_u, x_o = self.preprocess(x, b, m)
-        import pdb
-        pdb.set_trace()
+        logging.debug(
+            f"x_u: {x_u.type}, x_o: {x_o.type}, b: {b.type}, m: {m.type}"
+        )
         z_u, logdet = self.transform.forward(x_u, x_o, b, m)
         prior_ll = self.prior.logp(z_u, x_o, b, m)
         log_likel = prior_ll + logdet
