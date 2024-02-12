@@ -154,6 +154,9 @@ class ACFlowConceptBottleneckModel(ConceptBottleneckModel):
             if i != len(units) - 1:
                 layers.append(torch.nn.LeakyReLU())
         self.concept_rank_model = torch.nn.Sequential(*layers)
+        logging.debug(
+            f"Concept rank model: {self.concept_rank_model} with units {units}"
+        )
         self.acflow_model = ACFlow(
             n_concepts = n_concepts,
             n_tasks = n_tasks,
@@ -324,7 +327,8 @@ class ACFlowConceptBottleneckModel(ConceptBottleneckModel):
 
         logpus_sparse = torch.tensor(logpus_sparse).to(used_groups.device)
         logpos_sparse = torch.tensor(logpos_sparse).to(used_groups.device)
-
+        import pdb
+        pdb.set_trace()
         cat_inputs = [
             logpus_sparse,
             logpos_sparse,
