@@ -60,7 +60,7 @@ shared_params:
     sigmoidal_prob: False
     training_intervention_prob: 0.25
     flow_model_config:
-      transform: [AF, TL, TL, TL, TL, AF]
+      transformations: [AF, TL, TL, TL, TL, AF]
       layer_cfg: [LR, CP2]
       rnncp_units: 256
       rnncp_layers: 2
