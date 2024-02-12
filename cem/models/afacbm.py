@@ -2,6 +2,7 @@ import numpy as np
 import pytorch_lightning as pl
 import sklearn.metrics
 import torch
+import logging
 
 from torchvision.models import resnet50
 
@@ -407,7 +408,12 @@ class ACFlowConceptBottleneckModel(ConceptBottleneckModel):
 
             for _ in range(flow_model_rollouts):
                 x_flow, b_flow, m_flow, y_flow = ACFlowTransformDataset.transform_batch(c, y)
-
+                logging.debug(
+                    f"x_flow shape: {x_flow.shape}"
+                    f"b_flow shape: {b_flow.shape}"
+                    f"m_flow shape: {m_flow.shape}"
+                    f"y_flow shape: {y_flow.shape}"
+                )
                 logpu, logpo, _, _, _ = self.acflow_model(x_flow, b_flow, m_flow, y_flow)
                 logits = logpu + logpo
                 loglikel = torch.logsumexp(logpu + logpo) - torch.logsumexp(logpo)
