@@ -788,7 +788,7 @@ class ACFlowTransformDataset(Dataset):
         d = x.shape[-1]
         b = np.zeros([B, d], dtype=np.float32)
         m = np.zeros([B, d], dtype=np.float32)
-        for i in B:            
+        for i in range(B):            
             no = np.random.choice(d+1)
             o = np.random.choice(d, [no], replace=False)
             b[i][o] = 1.
