@@ -313,10 +313,6 @@ class Affine(BaseTransform):
         self.net = torch.nn.Sequential(*layers)
 
     def get_params(self, c, b, m):
-        
-        logging.debug(
-            f"c: {c.type()}, b: {b.type()}, m: {m.type()}, net: {self.net}"
-        )
         h = torch.concat([c, b, m], dim=1)
         params = self.net(h)
         shift, scale = torch.split(params, self.n_concepts, dim=1)
