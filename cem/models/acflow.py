@@ -410,7 +410,7 @@ class LeakyReLU(BaseTransform):
     def inverse(self, z, c, b, m):
         query = m * (1-b) # [B, d]
         sorted_query, _ = torch.sort(query, dim=-1, descending = True, stable=True)
-        num_negative = torch.sum((z < 0.).double() * sorted_query, dim=1)
+        num_negative = torch.sum((z < 0).to(torch.float64 if self.float_type == "float64" else torch.float32) * sorted_query, dim=1)
         alpha = torch.sigmoid(self.log_alpha)
         ldet = -1. * num_negative * torch.log(alpha)
         x = torch.minimum(z, z / alpha)
