@@ -3,6 +3,7 @@ import pytorch_lightning as pl
 import sklearn.metrics
 import torch
 import logging
+import time
 
 from torchvision.models import resnet50
 
@@ -307,12 +308,18 @@ class ACFlowConceptBottleneckModel(ConceptBottleneckModel):
             unintervened_groups = torch.stack(unintervened_groups, dim = 0) 
         except:
             max_length = max([t.size(0) for t in unintervened_groups])
+            min_length = max([t.size(0) for t in unintervened_groups])
+            logging.warning(
+                f"Unintervened groups have different lengths: {min_length} vs {max_length} at horizon {self.horizon_index} / {self.current_horizon}"
+            )
             padded_list = [t if t.numel() == max_length else torch.cat([t, \
                 t[torch.multinomial(torch.ones_like(t, dtype = torch.float) / t.numel(), num_samples=max_length - t.numel(), replacement=True)]]) \
             for t in unintervened_groups]
 
             unintervened_groups = torch.stack(padded_list)
             num_groups = max_length
+
+        flow_model_start_time = time.time()
         
         logpus_sparse = np.zeros(used_groups.shape, dtype = np.float32)
         logpos_sparse = np.zeros(used_groups.shape, dtype = np.float32)
@@ -335,6 +342,11 @@ class ACFlowConceptBottleneckModel(ConceptBottleneckModel):
 
         logpus_sparse = torch.tensor(logpus_sparse).to(used_groups.device)
         logpos_sparse = torch.tensor(logpos_sparse).to(used_groups.device)
+
+        end_time = time.time() - flow_model_start_time
+        logging.debug(
+            f"ACFlow model took {end_time:.5f} seconds for batch size of {used_groups.shape[0]}"
+        )
         cat_inputs = [
             logpus_sparse,
             logpos_sparse,
