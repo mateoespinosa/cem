@@ -353,17 +353,22 @@ class ACFlowConceptBottleneckModel(ConceptBottleneckModel):
             for b in range(used_groups.shape[0]):
                 logpus_sparse_test[b][unintervened_groups[b][i]] = torch.logsumexp(logpu[b], dim = 0)
                 logpos_sparse_test[b][unintervened_groups[b][i]] = torch.logsumexp(logpo[b], dim = 0)
-
-            if(torch.all(torch.eq(logpus_sparse, logpus_sparse_test)) and torch.all(torch.eq(logpos_sparse, logpos_sparse_test))):
-                raise Exception("CORRECT IMPLEMENTATION OF BATCHED OPERATION FOR LOGPUSSPARSE")
-            else:
-                raise Exception("INCORRECT IMPLEMENTATION ") 
             for b in range(used_groups.shape[0]):
                 for concept in concept_map_vals[int(unintervened_groups[b][i])]:
                     missing[b][concept] = 0.
+                    
 
         logpus_sparse = torch.tensor(logpus_sparse).to(used_groups.device)
         logpos_sparse = torch.tensor(logpos_sparse).to(used_groups.device)
+        logpus_sparse_test = torch.tensor(logpus_sparse_test).to(used_groups.device)
+        logpos_sparse_test = torch.tensor(logpos_sparse_test).to(used_groups.device)
+
+        
+        if(torch.all(torch.eq(logpus_sparse, logpus_sparse_test)) and torch.all(torch.eq(logpos_sparse, logpos_sparse_test))):
+            raise Exception("CORRECT IMPLEMENTATION OF BATCHED OPERATION FOR LOGPUSSPARSE")
+        else:
+            raise Exception("INCORRECT IMPLEMENTATION ") 
+
 
         construction_end_time = time.time() - construction_start_time
         logging.debug(
