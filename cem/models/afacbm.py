@@ -324,12 +324,14 @@ class ACFlowConceptBottleneckModel(ConceptBottleneckModel):
         logpus_sparse = np.zeros(used_groups.shape, dtype = np.float32)
         logpos_sparse = np.zeros(used_groups.shape, dtype = np.float32)
         
+        logpus_sparse_test = np.zeros(used_groups.shape, dtype = np.float32)
+        logpos_sparse_test = np.zeros(used_groups.shape, dtype = np.float32)
+        
         mask = prev_interventions.clone()
         missing = prev_interventions.clone()
         concepts = c.clone()
         concept_map_vals = list(self.concept_map.values())
-        import pdb
-        pdb.set_trace()
+
         for i in range(num_groups):
             for b in range(used_groups.shape[0]):
                 for concept in concept_map_vals[int(unintervened_groups[b][i])]:
@@ -340,9 +342,22 @@ class ACFlowConceptBottleneckModel(ConceptBottleneckModel):
             logging.debug(
                 f"ACFlow model forward took {acflow_end_time:.5f} seconds for batch size of {used_groups.shape[0]}"
             )
+            pu = torch.logsumexp(logpu, dim = -1)
+            po = torch.logsumexp(logpu, dim = -1)
+            batches = torch.arange(used_groups.shape[0])
+            indices = unintervened_groups[batches, i]
+            logpus_sparse[batches, indices] = pu[batches]            
+            logpos_sparse[batches, indices] = po[batches]
+
+
             for b in range(used_groups.shape[0]):
-                logpus_sparse[b][unintervened_groups[b][i]] = torch.logsumexp(logpu[b], dim = 0)
-                logpos_sparse[b][unintervened_groups[b][i]] = torch.logsumexp(logpo[b], dim = 0)
+                logpus_sparse_test[b][unintervened_groups[b][i]] = torch.logsumexp(logpu[b], dim = 0)
+                logpos_sparse_test[b][unintervened_groups[b][i]] = torch.logsumexp(logpo[b], dim = 0)
+
+            if(torch.all(torch.eq(logpus_sparse, logpus_sparse_test)) and torch.all(torch.eq(logpos_sparse, logpos_sparse_test))):
+                raise Exception("CORRECT IMPLEMENTATION OF BATCHED OPERATION FOR LOGPUSSPARSE")
+            else:
+                raise Exception("INCORRECT IMPLEMENTATION ") 
             for b in range(used_groups.shape[0]):
                 for concept in concept_map_vals[int(unintervened_groups[b][i])]:
                     missing[b][concept] = 0.
