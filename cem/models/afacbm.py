@@ -302,7 +302,7 @@ class ACFlowConceptBottleneckModel(ConceptBottleneckModel):
         
         num_groups = int(torch.sum(available_groups[0]).detach())
 
-        unintervened_groups = [torch.nonzero(available_groups[i], as_tuple = False).squeeze(dim = (1,2)) for i in range(available_groups.shape[0])]
+        unintervened_groups = [torch.nonzero(available_groups[i], as_tuple = False).squeeze(dim = 1) for i in range(available_groups.shape[0])]
 
         try:
             unintervened_groups = torch.stack(unintervened_groups, dim = 0) 
