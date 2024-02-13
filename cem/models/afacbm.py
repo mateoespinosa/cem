@@ -307,8 +307,10 @@ class ACFlowConceptBottleneckModel(ConceptBottleneckModel):
             unintervened_groups = torch.stack(unintervened_groups, dim = 0) 
         except:
             max_length = min([t.size(0) for t in unintervened_groups])
-            # Pad tensors with -1 and stack them into a 2D tensor
-            padded_list = [t if t.numel() == max_length else torch.cat(t, torch.multinomial(t, max_length - t.numel(), replacement = True)) for t in unintervened_groups]
+            padded_list = [t if t.numel() == max_length else torch.cat(t, \
+                b[torch.multinomial(torch.ones_like(t, dtype = torch.float()) / t.numel(), num_samples=max_length - t.numel(), replacement=True)]) \
+            for t in unintervened_groups]
+
             unintervened_groups = torch.stack(padded_list)
             num_groups = max_length
         
