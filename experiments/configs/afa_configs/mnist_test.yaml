@@ -1,4 +1,4 @@
-trials: 5
+trials: 1
 results_dir: results/mnist_add_new
 dataset: mnist_add
 num_workers: 8
