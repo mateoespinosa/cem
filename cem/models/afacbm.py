@@ -427,6 +427,10 @@ class ACFlowConceptBottleneckModel(ConceptBottleneckModel):
         pos_embeddings = outputs[-2]
         neg_embeddings = outputs[-1]
 
+        if (not train):
+            import pdb
+            pdb.set_trace()
+
         if self.task_loss_weight != 0:
             task_loss = self.loss_task(
                 y_logits if y_logits.shape[-1] > 1 else y_logits.reshape(-1),
