@@ -323,10 +323,7 @@ class ACFlowConceptBottleneckModel(ConceptBottleneckModel):
         
         logpus_sparse = torch.zeros(used_groups.shape, dtype = torch.float32, device = used_groups.device)
         logpos_sparse = torch.zeros(used_groups.shape, dtype = torch.float32, device =  used_groups.device)
-        
-        logpus_sparse_test = np.zeros(used_groups.shape, dtype = np.float32)
-        logpos_sparse_test = np.zeros(used_groups.shape, dtype = np.float32)
-        
+
         mask = prev_interventions.clone()
         missing = prev_interventions.clone()
         concepts = c.clone()
@@ -350,31 +347,8 @@ class ACFlowConceptBottleneckModel(ConceptBottleneckModel):
             logpos_sparse[batches, indices] = po[batches]
 
             for b in range(used_groups.shape[0]):
-                logpus_sparse_test[b][unintervened_groups[b][i]] = torch.logsumexp(logpu[b], dim = 0)
-                logpos_sparse_test[b][unintervened_groups[b][i]] = torch.logsumexp(logpo[b], dim = 0)
-            for b in range(used_groups.shape[0]):
                 for concept in concept_map_vals[int(unintervened_groups[b][i])]:
                     missing[b][concept] = 0.
-
-            x = torch.tensor(logpus_sparse_test).to(used_groups.device)
-            y = torch.tensor(logpos_sparse_test).to(used_groups.device)
-
-            
-            if(not (torch.allclose(logpus_sparse, x) and torch.allclose(logpos_sparse, y))):
-                import pdb
-                pdb.set_trace()
-
-        logpus_sparse = torch.tensor(logpus_sparse).to(used_groups.device)
-        logpos_sparse = torch.tensor(logpos_sparse).to(used_groups.device)
-        logpus_sparse_test = torch.tensor(logpus_sparse_test).to(used_groups.device)
-        logpos_sparse_test = torch.tensor(logpos_sparse_test).to(used_groups.device)
-
-        
-        if(torch.allclose(logpus_sparse, logpus_sparse_test) and torch.allclose(logpos_sparse, logpos_sparse_test)):
-            raise Exception("CORRECT IMPLEMENTATION OF BATCHED OPERATION FOR LOGPUSSPARSE")
-        else:
-            raise Exception("INCORRECT IMPLEMENTATION ") 
-
 
         construction_end_time = time.time() - construction_start_time
         logging.debug(
