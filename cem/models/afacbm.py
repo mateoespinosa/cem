@@ -322,7 +322,7 @@ class ACFlowConceptBottleneckModel(ConceptBottleneckModel):
         construction_start_time = time.time()
         
         logpus_sparse = torch.zeros(used_groups.shape, dtype = torch.float32, device = used_groups.device)
-        logpos_sparse = torch.zeros(used_groups.shape, dtype = torch.float32, device = used_groups.device)
+        logpos_sparse = torch.zeros(used_groups.shape, dtype = torch.float32, device =  used_groups.device)
         
         logpus_sparse_test = np.zeros(used_groups.shape, dtype = np.float32)
         logpos_sparse_test = np.zeros(used_groups.shape, dtype = np.float32)
@@ -348,7 +348,8 @@ class ACFlowConceptBottleneckModel(ConceptBottleneckModel):
             indices = unintervened_groups[batches, i]
             logpus_sparse[batches, indices] = pu[batches]            
             logpos_sparse[batches, indices] = po[batches]
-
+            import pdb
+            pdb.set_trace()
 
             for b in range(used_groups.shape[0]):
                 logpus_sparse_test[b][unintervened_groups[b][i]] = torch.logsumexp(logpu[b], dim = 0)
