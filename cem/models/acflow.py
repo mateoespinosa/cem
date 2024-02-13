@@ -799,7 +799,7 @@ class ACFlowTransformDataset(Dataset):
                 m[i][w] = 1.
         b = torch.tensor(b).to(x.device)
         m = torch.tensor(m).to(x.device)
-        y = y.clone().to(torch.int64)
+        y = y.to(torch.int64)
         return x, b, m, y
 
     def __getitem__(self, index):

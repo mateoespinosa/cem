@@ -155,9 +155,6 @@ class ACFlowConceptBottleneckModel(ConceptBottleneckModel):
             if i != len(units) - 1:
                 layers.append(torch.nn.LeakyReLU())
         self.concept_rank_model = torch.nn.Sequential(*layers)
-        logging.debug(
-            f"Concept rank model: {self.concept_rank_model} with units {units}"
-        )
         self.acflow_model = ACFlow(
             n_concepts = n_concepts,
             n_tasks = n_tasks,
@@ -319,10 +316,7 @@ class ACFlowConceptBottleneckModel(ConceptBottleneckModel):
 
             unintervened_groups = torch.stack(padded_list)
             num_groups = max_length
-            need_padding = True
-
-        construction_start_time = time.time()
-        
+                    
         logpus_sparse = torch.zeros(used_groups.shape, dtype = torch.float32, device = used_groups.device)
         logpos_sparse = torch.zeros(used_groups.shape, dtype = torch.float32, device = used_groups.device)
 
@@ -330,19 +324,11 @@ class ACFlowConceptBottleneckModel(ConceptBottleneckModel):
         missing = prev_interventions.clone()
         concepts = c.clone()
         concept_map_vals = list(self.concept_map.values())
-        logging.debug(
-            f"used_groups shape: {used_groups.shape}\n"
-        )
         for i in range(num_groups):
             for b in range(used_groups.shape[0]):
                 for concept in concept_map_vals[int(unintervened_groups[b][i])]:
                     missing[b][concept] = 1.
-            acflow_start_time = time.time()
             logpu, logpo, _, _, _ = self.acflow_model(x = concepts, b = mask, m = missing, y = None)
-            acflow_end_time = time.time() - acflow_start_time
-            logging.debug(
-                f"ACFlow model forward took {acflow_end_time:.5f} seconds for batch size of {used_groups.shape[0]}"
-            )
             pu = torch.logsumexp(logpu, dim = -1)
             po = torch.logsumexp(logpo, dim = -1)
             batches = torch.arange(used_groups.shape[0])
@@ -370,11 +356,6 @@ class ACFlowConceptBottleneckModel(ConceptBottleneckModel):
         #         f"unintervened_groups padding required: {need_padding}\n"
         #     )
         #     raise e
-
-        construction_end_time = time.time() - construction_start_time
-        logging.debug(
-            f"Overall construction of input using ACFlow took {construction_end_time:.5f} seconds for batch size of {used_groups.shape[0]}"
-        )
         cat_inputs = [
             logpus_sparse,
             logpos_sparse,
