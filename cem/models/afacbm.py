@@ -328,27 +328,30 @@ class ACFlowConceptBottleneckModel(ConceptBottleneckModel):
         missing = prev_interventions.clone()
         concepts = c.clone()
         concept_map_vals = list(self.concept_map.values())
+        try:
+            for i in range(num_groups):
+                for b in range(used_groups.shape[0]):
+                    for concept in concept_map_vals[int(unintervened_groups[b][i])]:
+                        missing[b][concept] = 1.
+                acflow_start_time = time.time()
+                logpu, logpo, _, _, _ = self.acflow_model(x = concepts, b = mask, m = missing, y = None)
+                acflow_end_time = time.time() - acflow_start_time
+                logging.debug(
+                    f"ACFlow model forward took {acflow_end_time:.5f} seconds for batch size of {used_groups.shape[0]}"
+                )
+                pu = torch.logsumexp(logpu, dim = -1)
+                po = torch.logsumexp(logpo, dim = -1)
+                batches = torch.arange(used_groups.shape[0]).to(used_groups.device)
+                indices = unintervened_groups[batches, i]
+                logpus_sparse[batches, indices] = pu[batches]            
+                logpos_sparse[batches, indices] = po[batches]
 
-        for i in range(num_groups):
-            for b in range(used_groups.shape[0]):
-                for concept in concept_map_vals[int(unintervened_groups[b][i])]:
-                    missing[b][concept] = 1.
-            acflow_start_time = time.time()
-            logpu, logpo, _, _, _ = self.acflow_model(x = concepts, b = mask, m = missing, y = None)
-            acflow_end_time = time.time() - acflow_start_time
-            logging.debug(
-                f"ACFlow model forward took {acflow_end_time:.5f} seconds for batch size of {used_groups.shape[0]}"
-            )
-            pu = torch.logsumexp(logpu, dim = -1)
-            po = torch.logsumexp(logpo, dim = -1)
-            batches = torch.arange(used_groups.shape[0]).to(used_groups.device)
-            indices = unintervened_groups[batches, i]
-            logpus_sparse[batches, indices] = pu[batches]            
-            logpos_sparse[batches, indices] = po[batches]
-
-            for b in range(used_groups.shape[0]):
-                for concept in concept_map_vals[int(unintervened_groups[b][i])]:
-                    missing[b][concept] = 0.
+                for b in range(used_groups.shape[0]):
+                    for concept in concept_map_vals[int(unintervened_groups[b][i])]:
+                        missing[b][concept] = 0.
+        except:
+            import pdb
+            pdb.set_trace()
 
         construction_end_time = time.time() - construction_start_time
         logging.debug(
