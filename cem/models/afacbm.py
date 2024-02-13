@@ -354,7 +354,7 @@ class ACFlowConceptBottleneckModel(ConceptBottleneckModel):
                         missing[b][concept] = 0.
         except Exception as e:
             logging.warning(
-                f"ACFlow model forward failed at horizon {self.horizon_index} / {self.current_horizon}\n, iteration {i} / {num_groups}\n"
+                f"ACFlow model forward failed at horizon {self.horizon_index or 0} / {self.current_horizon or 0}\n, iteration {i} / {num_groups}\n"
                 f"unintervened_groups shape and type: {unintervened_groups.shape} {unintervened_groups.dtype}\n"
                 f"concepts shape and type: {concepts.shape} {concepts.dtype}\n"
                 f"mask shape and type: {mask.shape} {mask.dtype}\n"
