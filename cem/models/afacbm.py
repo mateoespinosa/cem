@@ -363,7 +363,7 @@ class ACFlowConceptBottleneckModel(ConceptBottleneckModel):
             raise e
         
         logpus_sparse = logpus_sparse.to(embeddings.device)
-        logpus_sparse = logpus_sparse.to(embeddings.device)
+        logpos_sparse = logpos_sparse.to(embeddings.device)
 
         construction_end_time = time.time() - construction_start_time
         logging.debug(
