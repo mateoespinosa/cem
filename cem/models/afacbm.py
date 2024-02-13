@@ -343,7 +343,7 @@ class ACFlowConceptBottleneckModel(ConceptBottleneckModel):
                 f"ACFlow model forward took {acflow_end_time:.5f} seconds for batch size of {used_groups.shape[0]}"
             )
             pu = torch.logsumexp(logpu, dim = -1)
-            po = torch.logsumexp(logpu, dim = -1)
+            po = torch.logsumexp(logpo, dim = -1)
             batches = torch.arange(used_groups.shape[0]).to(used_groups.device)
             indices = unintervened_groups[batches, i]
             logpus_sparse[batches, indices] = pu[batches]            
@@ -360,13 +360,9 @@ class ACFlowConceptBottleneckModel(ConceptBottleneckModel):
             y = torch.tensor(logpos_sparse_test).to(used_groups.device)
 
             
-            if(not (torch.all(torch.eq(logpus_sparse, x)) and torch.all(torch.eq(logpos_sparse, y)))):
+            if(not (torch.allclose(logpus_sparse, x) and torch.allclose(logpos_sparse, y))):
                 import pdb
                 pdb.set_trace()
-
-            
-        import pdb
-        pdb.set_trace()        
 
         logpus_sparse = torch.tensor(logpus_sparse).to(used_groups.device)
         logpos_sparse = torch.tensor(logpos_sparse).to(used_groups.device)
@@ -374,7 +370,7 @@ class ACFlowConceptBottleneckModel(ConceptBottleneckModel):
         logpos_sparse_test = torch.tensor(logpos_sparse_test).to(used_groups.device)
 
         
-        if(torch.all(torch.eq(logpus_sparse, logpus_sparse_test)) and torch.all(torch.eq(logpos_sparse, logpos_sparse_test))):
+        if(torch.allclose(logpus_sparse, logpus_sparse_test) and torch.allclose(logpos_sparse, logpos_sparse_test)):
             raise Exception("CORRECT IMPLEMENTATION OF BATCHED OPERATION FOR LOGPUSSPARSE")
         else:
             raise Exception("INCORRECT IMPLEMENTATION ") 
