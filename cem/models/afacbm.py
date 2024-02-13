@@ -306,6 +306,7 @@ class ACFlowConceptBottleneckModel(ConceptBottleneckModel):
 
         try:
             unintervened_groups = torch.stack(unintervened_groups, dim = 0) 
+            need_padding = False
         except:
             max_length = max([t.size(0) for t in unintervened_groups])
             min_length = max([t.size(0) for t in unintervened_groups])
@@ -318,6 +319,7 @@ class ACFlowConceptBottleneckModel(ConceptBottleneckModel):
 
             unintervened_groups = torch.stack(padded_list)
             num_groups = max_length
+            need_padding = True
 
         construction_start_time = time.time()
         
@@ -358,12 +360,15 @@ class ACFlowConceptBottleneckModel(ConceptBottleneckModel):
                     f"ACFlow model forward failed at horizon {self.horizon_index or 0} / {self.current_horizon or 0}\n, iteration {i} / {num_groups}\n"
                 )
             except:
-                pass
+                logging.warning(
+                    f"ACFlow model forward failed at iteration {i} / {num_groups}\n"
+                )
             logging.warning(
+                f"available_groups: {available_groups}\n"
+                f"available_groups shape and type: {available_groups.shape} {available_groups.dtype}\n"
+                f"unintervened_groups: {unintervened_groups}\n"
                 f"unintervened_groups shape and type: {unintervened_groups.shape} {unintervened_groups.dtype}\n"
-                f"concepts shape and type: {concepts.shape} {concepts.dtype}\n"
-                f"mask shape and type: {mask.shape} {mask.dtype}\n"
-                f"missing shape and type: {missing.shape} {missing.dtype}\n"
+                f"unintervened_groups padding required: {need_padding}\n"
             )
             raise e
 
