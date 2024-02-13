@@ -5,7 +5,7 @@ num_workers: 8
 batch_size: 256
 
 # DATASET VARIABLES
-root_dir: /home/xty20/cem/cem/data/CUB2000
+root_dir: /home/xty20/cem/cem/data/CUB200
 sampling_percent: 1
 test_subsampling: 0.5
 
