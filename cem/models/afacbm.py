@@ -302,7 +302,7 @@ class ACFlowConceptBottleneckModel(ConceptBottleneckModel):
         
         num_groups = int(torch.sum(available_groups[0]).detach())
 
-        unintervened_groups = [torch.nonzero(available_groups[i], as_tuple = False).squeeze() for i in range(available_groups.shape[0])]
+        unintervened_groups = [torch.nonzero(available_groups[i], as_tuple = False).squeeze(dim = (1,2)) for i in range(available_groups.shape[0])]
 
         try:
             unintervened_groups = torch.stack(unintervened_groups, dim = 0) 
@@ -333,44 +333,43 @@ class ACFlowConceptBottleneckModel(ConceptBottleneckModel):
         logging.debug(
             f"used_groups shape: {used_groups.shape}\n"
         )
-        try:
-            for i in range(num_groups):
-                for b in range(used_groups.shape[0]):
-                    for concept in concept_map_vals[int(unintervened_groups[b][i])]:
-                        missing[b][concept] = 1.
-                acflow_start_time = time.time()
-                logpu, logpo, _, _, _ = self.acflow_model(x = concepts, b = mask, m = missing, y = None)
-                acflow_end_time = time.time() - acflow_start_time
-                logging.debug(
-                    f"ACFlow model forward took {acflow_end_time:.5f} seconds for batch size of {used_groups.shape[0]}"
-                )
-                pu = torch.logsumexp(logpu, dim = -1)
-                po = torch.logsumexp(logpo, dim = -1)
-                batches = torch.arange(used_groups.shape[0])
-                indices = unintervened_groups[batches, i].cpu()
-                logpus_sparse[batches, indices] = pu[batches]            
-                logpos_sparse[batches, indices] = po[batches]
-
-                for b in range(used_groups.shape[0]):
-                    for concept in concept_map_vals[int(unintervened_groups[b][i])]:
-                        missing[b][concept] = 0.
-        except Exception as e:
-            try:
-                logging.warning(
-                    f"ACFlow model forward failed at horizon {self.horizon_index or 0} / {self.current_horizon or 0}\n, iteration {i} / {num_groups}\n"
-                )
-            except:
-                logging.warning(
-                    f"ACFlow model forward failed at iteration {i} / {num_groups}\n"
-                )
-            logging.warning(
-                f"available_groups: {available_groups}\n"
-                f"available_groups shape and type: {available_groups.shape} {available_groups.dtype}\n"
-                f"unintervened_groups: {unintervened_groups}\n"
-                f"unintervened_groups shape and type: {unintervened_groups.shape} {unintervened_groups.dtype}\n"
-                f"unintervened_groups padding required: {need_padding}\n"
+        for i in range(num_groups):
+            for b in range(used_groups.shape[0]):
+                for concept in concept_map_vals[int(unintervened_groups[b][i])]:
+                    missing[b][concept] = 1.
+            acflow_start_time = time.time()
+            logpu, logpo, _, _, _ = self.acflow_model(x = concepts, b = mask, m = missing, y = None)
+            acflow_end_time = time.time() - acflow_start_time
+            logging.debug(
+                f"ACFlow model forward took {acflow_end_time:.5f} seconds for batch size of {used_groups.shape[0]}"
             )
-            raise e
+            pu = torch.logsumexp(logpu, dim = -1)
+            po = torch.logsumexp(logpo, dim = -1)
+            batches = torch.arange(used_groups.shape[0])
+            indices = unintervened_groups[batches, i].cpu()
+            logpus_sparse[batches, indices] = pu[batches]            
+            logpos_sparse[batches, indices] = po[batches]
+
+            for b in range(used_groups.shape[0]):
+                for concept in concept_map_vals[int(unintervened_groups[b][i])]:
+                    missing[b][concept] = 0.
+        # except Exception as e:
+        #     try:
+        #         logging.warning(
+        #             f"ACFlow model forward failed at horizon {self.horizon_index or 0} / {self.current_horizon or 0}\n, iteration {i} / {num_groups}\n"
+        #         )
+        #     except:
+        #         logging.warning(
+        #             f"ACFlow model forward failed at iteration {i} / {num_groups}\n"
+        #         )
+        #     logging.warning(
+        #         f"available_groups: {available_groups}\n"
+        #         f"available_groups shape and type: {available_groups.shape} {available_groups.dtype}\n"
+        #         f"unintervened_groups: {unintervened_groups}\n"
+        #         f"unintervened_groups shape and type: {unintervened_groups.shape} {unintervened_groups.dtype}\n"
+        #         f"unintervened_groups padding required: {need_padding}\n"
+        #     )
+        #     raise e
 
         construction_end_time = time.time() - construction_start_time
         logging.debug(
