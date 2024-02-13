@@ -302,13 +302,15 @@ class ACFlowConceptBottleneckModel(ConceptBottleneckModel):
         num_groups = int(torch.sum(available_groups[0]).detach())
 
         unintervened_groups = [torch.nonzero(available_groups[i], as_tuple = False).squeeze() for i in range(available_groups.shape[0])]
+
         try:
             unintervened_groups = torch.stack(unintervened_groups, dim = 0) 
         except:
-            import pdb
-            pdb.set_trace()
-        
-        assert unintervened_groups.shape[-1] == num_groups
+            max_length = min([t.size(0) for t in unintervened_groups])
+            # Pad tensors with -1 and stack them into a 2D tensor
+            padded_list = [t if t.numel() == max_length else torch.cat(t, torch.multinomial(t, max_length - t.numel(), replacement = True)) for t in unintervened_groups]
+            unintervened_groups = torch.stack(padded_list)
+            num_groups = max_length
         
         logpus_sparse = np.zeros(used_groups.shape, dtype = np.float32)
         logpos_sparse = np.zeros(used_groups.shape, dtype = np.float32)
@@ -642,11 +644,13 @@ class ACFlowConceptBottleneckModel(ConceptBottleneckModel):
             if self.max_num_rollouts is not None:
                 num_rollouts = min(num_rollouts, self.max_num_rollouts)
 
-            for _ in range(num_rollouts):
-                for i in range(current_horizon):
+            for i in range(num_rollouts):
+                self.current_horizon = current_horizon
+                for j in range(current_horizon):
                     # And generate a probability distribution over previously
                     # unseen concepts to indicate which one we should intervene
                     # on next!
+                    self.horizon_index = j
                     concept_group_scores = self._prior_int_distribution(
                         prob=c_sem,
                         pos_embeddings=pos_embeddings,
