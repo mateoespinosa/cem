@@ -349,9 +349,15 @@ class ACFlowConceptBottleneckModel(ConceptBottleneckModel):
                 for b in range(used_groups.shape[0]):
                     for concept in concept_map_vals[int(unintervened_groups[b][i])]:
                         missing[b][concept] = 0.
-        except:
-            import pdb
-            pdb.set_trace()
+        except Exception as e:
+            logging.warning(
+                f"ACFlow model forward failed at horizon {self.horizon_index} / {self.current_horizon}\n, iteration {i} / {num_groups}\n"
+                f"unintervened_groups shape and type: {unintervened_groups.shape} {unintervened_groups.dtype}\n"
+                f"concepts shape and type: {concepts.shape} {concepts.dtype}\n"
+                f"mask shape and type: {mask.shape} {mask.dtype}\n"
+                f"missing shape and type: {missing.shape} {missing.dtype}\n"
+            )
+            raise e
 
         construction_end_time = time.time() - construction_start_time
         logging.debug(
@@ -426,10 +432,6 @@ class ACFlowConceptBottleneckModel(ConceptBottleneckModel):
         latent = outputs[4]
         pos_embeddings = outputs[-2]
         neg_embeddings = outputs[-1]
-
-        if (not train):
-            import pdb
-            pdb.set_trace()
 
         if self.task_loss_weight != 0:
             task_loss = self.loss_task(
