@@ -306,9 +306,9 @@ class ACFlowConceptBottleneckModel(ConceptBottleneckModel):
         try:
             unintervened_groups = torch.stack(unintervened_groups, dim = 0) 
         except:
-            max_length = min([t.size(0) for t in unintervened_groups])
+            max_length = max([t.size(0) for t in unintervened_groups])
             padded_list = [t if t.numel() == max_length else torch.cat(t, \
-                t[torch.multinomial(torch.ones_like(t, dtype = torch.float()) / t.numel(), num_samples=max_length - t.numel(), replacement=True)]) \
+                t[torch.multinomial(torch.ones_like(t, dtype = torch.float) / t.numel(), num_samples=max_length - t.numel(), replacement=True)]) \
             for t in unintervened_groups]
 
             unintervened_groups = torch.stack(padded_list)
