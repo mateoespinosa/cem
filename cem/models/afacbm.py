@@ -350,7 +350,7 @@ class ACFlowConceptBottleneckModel(ConceptBottleneckModel):
 
         construction_end_time = time.time() - construction_start_time
         logging.debug(
-            f"Overall construction of input using ACFlow took {construction_start_time:.5f} seconds for batch size of {used_groups.shape[0]}"
+            f"Overall construction of input using ACFlow took {construction_end_time:.5f} seconds for batch size of {used_groups.shape[0]}"
         )
         cat_inputs = [
             logpus_sparse,
