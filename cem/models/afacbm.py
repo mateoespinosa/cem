@@ -319,7 +319,7 @@ class ACFlowConceptBottleneckModel(ConceptBottleneckModel):
             unintervened_groups = torch.stack(padded_list)
             num_groups = max_length
 
-        flow_model_start_time = time.time()
+        construction_start_time = time.time()
         
         logpus_sparse = np.zeros(used_groups.shape, dtype = np.float32)
         logpos_sparse = np.zeros(used_groups.shape, dtype = np.float32)
@@ -332,7 +332,12 @@ class ACFlowConceptBottleneckModel(ConceptBottleneckModel):
             for b in range(used_groups.shape[0]):
                 for concept in concept_map_vals[int(unintervened_groups[b][i])]:
                     missing[b][concept] = 1.
+            acflow_start_time = time.time()
             logpu, logpo, _, _, _ = self.acflow_model(x = concepts, b = mask, m = missing, y = None)
+            acflow_end_time = time.time() - acflow_start_time
+            logging.debug(
+                f"ACFlow model forward took {acflow_end_time:.5f} seconds for batch size of {used_groups.shape[0]}"
+            )
             for b in range(used_groups.shape[0]):
                 logpus_sparse[b][unintervened_groups[b][i]] = torch.logsumexp(logpu[b], dim = 0)
                 logpos_sparse[b][unintervened_groups[b][i]] = torch.logsumexp(logpo[b], dim = 0)
@@ -343,9 +348,9 @@ class ACFlowConceptBottleneckModel(ConceptBottleneckModel):
         logpus_sparse = torch.tensor(logpus_sparse).to(used_groups.device)
         logpos_sparse = torch.tensor(logpos_sparse).to(used_groups.device)
 
-        end_time = time.time() - flow_model_start_time
+        construction_end_time = time.time() - construction_start_time
         logging.debug(
-            f"ACFlow model took {end_time:.5f} seconds for batch size of {used_groups.shape[0]}"
+            f"Overall construction of input using ACFlow took {construction_start_time:.5f} seconds for batch size of {used_groups.shape[0]}"
         )
         cat_inputs = [
             logpus_sparse,
