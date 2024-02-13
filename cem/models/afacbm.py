@@ -321,8 +321,8 @@ class ACFlowConceptBottleneckModel(ConceptBottleneckModel):
 
         construction_start_time = time.time()
         
-        logpus_sparse = torch.zeros(used_groups.shape, dtype = torch.float32, device = used_groups.device)
-        logpos_sparse = torch.zeros(used_groups.shape, dtype = torch.float32, device =  used_groups.device)
+        logpus_sparse = torch.zeros(used_groups.shape, dtype = torch.float32, device = "cpu")
+        logpos_sparse = torch.zeros(used_groups.shape, dtype = torch.float32, device = "cpu")
 
         mask = prev_interventions.clone()
         missing = prev_interventions.clone()
@@ -339,9 +339,9 @@ class ACFlowConceptBottleneckModel(ConceptBottleneckModel):
                 logging.debug(
                     f"ACFlow model forward took {acflow_end_time:.5f} seconds for batch size of {used_groups.shape[0]}"
                 )
-                pu = torch.logsumexp(logpu, dim = -1)
-                po = torch.logsumexp(logpo, dim = -1)
-                batches = torch.arange(used_groups.shape[0]).to(used_groups.device)
+                pu = torch.logsumexp(logpu.cpu(), dim = -1)
+                po = torch.logsumexp(logpo.cpu(), dim = -1)
+                batches = torch.arange(used_groups.shape[0]).cpu()
                 indices = unintervened_groups[batches, i]
                 logpus_sparse[batches, indices] = pu[batches]            
                 logpos_sparse[batches, indices] = po[batches]
@@ -358,6 +358,9 @@ class ACFlowConceptBottleneckModel(ConceptBottleneckModel):
                 f"missing shape and type: {missing.shape} {missing.dtype}\n"
             )
             raise e
+        
+        logpus_sparse = logpus_sparse.to(embeddings.device)
+        logpus_sparse = logpus_sparse.to(embeddings.device)
 
         construction_end_time = time.time() - construction_start_time
         logging.debug(
