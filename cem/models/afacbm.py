@@ -356,9 +356,17 @@ class ACFlowConceptBottleneckModel(ConceptBottleneckModel):
                 for concept in concept_map_vals[int(unintervened_groups[b][i])]:
                     missing[b][concept] = 0.
 
-            import pdb
-            pdb.set_trace()
-                    
+            x = torch.tensor(logpus_sparse_test).to(used_groups.device)
+            y = torch.tensor(logpos_sparse_test).to(used_groups.device)
+
+            
+            if(not (torch.all(torch.eq(logpus_sparse, x)) and torch.all(torch.eq(logpos_sparse, y)))):
+                import pdb
+                pdb.set_trace()
+
+            
+        import pdb
+        pdb.set_trace()        
 
         logpus_sparse = torch.tensor(logpus_sparse).to(used_groups.device)
         logpos_sparse = torch.tensor(logpos_sparse).to(used_groups.device)
