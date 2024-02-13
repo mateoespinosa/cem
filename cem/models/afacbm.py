@@ -328,6 +328,8 @@ class ACFlowConceptBottleneckModel(ConceptBottleneckModel):
         missing = prev_interventions.clone()
         concepts = c.clone()
         concept_map_vals = list(self.concept_map.values())
+        import pdb
+        pdb.set_trace()
         for i in range(num_groups):
             for b in range(used_groups.shape[0]):
                 for concept in concept_map_vals[int(unintervened_groups[b][i])]:
