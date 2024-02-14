@@ -439,7 +439,7 @@ class ACFlowConceptBottleneckModel(ConceptBottleneckModel):
         flow_model_loss = 0.0
         flow_model_loss_scalar = 0.0
         # Do some rollouts for flow model
-        if self.flow_model_weight != 0:
+        if self.flow_model_weight != 0 and train:
             if self.rollout_aneal_rate != 1:
                 flow_model_rollouts = int(round(
                     self.flow_model_rollouts * (
