@@ -32,7 +32,6 @@ intervention_batch_size: 2048
 intervention_policies:
     - "intcem_policy"
     - "optimal_greedy_no_prior"
-    - "group_optimal_global_no_prior"
 
 # DATASET VARIABLES
 root_dir: /home/xty20/data
