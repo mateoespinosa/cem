@@ -455,7 +455,7 @@ def intervene_in_cbm(
         )
     avg_time = np.mean(avg_times)
     total_time = np.sum(total_times)
-    print(
+    logging.debug(
         f"\tAverage intervention took {avg_time:.5f} seconds and "
         f"construction took {construct_time:.5f} seconds."
         f"\tIn total interventions took {total_time:.5f} seconds"
