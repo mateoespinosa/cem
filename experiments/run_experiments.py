@@ -262,6 +262,7 @@ def main(
                     if os.path.exists(ind_current_results_path):
                         with open(ind_current_results_path, 'rb') as f:
                             ind_old_results = joblib.load(f)
+                    initialization_time = datetime.now()
                     ind_model, ind_test_results, seq_model, seq_test_results = \
                         training.train_independent_and_sequential_model(
                             task_class_weights=task_class_weights,
@@ -292,6 +293,7 @@ def main(
                     full_run_name = (
                         f"{config['architecture']}{config.get('extra_name', '')}"
                     )
+                    training_time = datetime.now()
                     results[f'{split}'].update(
                         intervention_utils.test_interventions(
                             task_class_weights=task_class_weights,
@@ -408,7 +410,10 @@ def main(
                                 os.path.join(result_dir, f'results.joblib') +
                                 " to disk"
                             )
+                    test_interventions_time = datetime.now()
+                    evaluate_representation_metric_time = datetime.now()
                 else:
+                    initialization_time = datetime.now()
                     model, model_results = \
                         training.train_model(
                             task_class_weights=task_class_weights,
@@ -440,6 +445,7 @@ def main(
                         model,
                         model_results,
                     )
+                    training_time = datetime.now()
                     results[f'{split}'].update(
                         intervention_utils.test_interventions(
                             task_class_weights=task_class_weights,
@@ -466,6 +472,7 @@ def main(
                             ),
                         )
                     )
+                    test_interventions_time = datetime.now()
                     results[f'{split}'].update(
                         training.evaluate_representation_metrics(
                             config=run_config,
@@ -527,16 +534,31 @@ def main(
                             os.path.join(result_dir, f'results.joblib') +
                             " to disk"
                         )
+                    evaluate_representation_metric_time = datetime.now()
                 extr_name = run_config['c_extractor_arch']
                 if not isinstance(extr_name, str):
                     extr_name = "lambda"
                 then = datetime.now()
                 diff = then - now
                 diff_minutes = diff.total_seconds() / 60
+                initialization_diff = initialization_time - now
+                initialization_diff_minutes = initialization_diff.total_seconds() / 60
+                training_diff = training_time - initialization_time
+                training_diff_minutes = training_diff.total_seconds() / 60
+                test_interventions_diff = test_interventions_time - training_time
+                test_interventions_diff_minutes = test_interventions_diff.total_seconds() / 60
+                evaluate_representation_metric_diff = evaluate_representation_metric_time - test_interventions_time
+                evaluate_representation_metric_diff_minutes = evaluate_representation_metric_diff.total_seconds() / 60
+
                 logging.debug(
                     f"\tTrial {split + 1} COMPLETED for {full_run_name} ending "
                     f"at {then.strftime('%d/%m/%Y at %H:%M:%S')} "
                     f"({diff_minutes:.4f} minutes):"
+                    f"\tTime Breakdown:"
+                    f"\t\tInitialization: {initialization_diff_minutes:.4f} minutes"
+                    f"\t\tTraining: {training_diff_minutes:.4f} minutes"
+                    f"\t\tTest Interventions: {test_interventions_diff_minutes:.4f} minutes"
+                    f"\t\tEvaluate Representation Metric: {evaluate_representation_metric_diff_minutes:.4f} minutes"
                 )
             print(f"********** Results in between trial {split + 1} **********")
             print_table(

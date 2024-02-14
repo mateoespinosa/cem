@@ -457,7 +457,7 @@ def intervene_in_cbm(
     total_time = np.sum(total_times)
     logging.debug(
         f"\tAverage intervention took {avg_time:.5f} seconds and "
-        f"construction took {construct_time:.5f} seconds."
+        f"construction took {construct_time:.5f} seconds.\n"
         f"\tIn total interventions took {total_time:.5f} seconds"
     )
     if key_name:
