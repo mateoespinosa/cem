@@ -350,6 +350,7 @@ def intervene_in_cbm(
     )
     prev_num_groups_intervened = 0
     avg_times = []
+    total_times = []
     logging.debug(
         f"Intervention groups: {groups}"
     )
@@ -394,11 +395,13 @@ def intervene_in_cbm(
                     test_dl,
                 )
         coeff = (num_groups_intervened - prev_num_groups_intervened)
+        time_diff = time.time() - start_time
         avg_times.append(
-            (time.time() - start_time)/(
+            (time_diff)/(
                 x_test.shape[0] * (coeff if coeff != 0 else 1)
             )
         )
+        total_times.append(time_diff)
         y_pred = np.concatenate(
             list(map(lambda x: x[2].detach().cpu().numpy(), test_batch_results)),
             axis=0,
@@ -451,9 +454,11 @@ def intervene_in_cbm(
             num_workers=test_dl.num_workers,
         )
     avg_time = np.mean(avg_times)
+    total_time = np.sum(total_times)
     print(
         f"\tAverage intervention took {avg_time:.5f} seconds and "
         f"construction took {construct_time:.5f} seconds."
+        f"\tIn total interventions took {total_time:.5f} seconds"
     )
     if key_name:
         result_file = os.path.join(
