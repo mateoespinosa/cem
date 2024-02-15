@@ -2,7 +2,7 @@ trials: 3
 results_dir: results/mnist_add_new
 dataset: mnist_add
 num_workers: 8
-batch_size: 1024
+batch_size: 512
 num_operands: 12
 selected_digits:
   - [0,1,2]
@@ -28,7 +28,7 @@ skip_repr_evaluation: True
 
 # Intervention Parameters
 intervention_freq: 1
-intervention_batch_size: 2048
+intervention_batch_size: 512
 intervention_policies:
     - "intcem_policy"
     - "optimal_greedy_no_prior"
