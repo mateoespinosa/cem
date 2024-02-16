@@ -9,6 +9,7 @@ notebooks/
 results/
 figures/
 checkpoints/
+CUB200/
 
 # C extensions
 *.so

@@ -2,7 +2,7 @@ trials: 5
 results_dir: "results/cub_interventions/"
 dataset: "cub"
 num_workers: 8
-batch_size: 256
+batch_size: 1024
 
 # DATASET VARIABLES
 root_dir: /home/xty20/cem/cem/data/CUB200/

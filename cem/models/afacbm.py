@@ -312,7 +312,7 @@ class ACFlowConceptBottleneckModel(ConceptBottleneckModel):
             need_padding = False
         except:
             max_length = max([t.size(0) for t in unintervened_groups])
-            min_length = max([t.size(0) for t in unintervened_groups])
+            min_length = min([t.size(0) for t in unintervened_groups])
             logging.warning(
                 f"Unintervened groups have different lengths: {min_length} vs {max_length} at horizon {self.horizon_index} / {self.current_horizon}"
             )

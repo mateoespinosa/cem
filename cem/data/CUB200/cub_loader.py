@@ -679,6 +679,47 @@ for i, concept_name in enumerate(list(
     group = concept_name[:concept_name.find("::")]
     CONCEPT_GROUP_MAP[group].append(i)
 
+CONCEPT_FINE_GRAIN_MAPPING = {
+    "has_upper_tail_color": "has_specific_body_colour",
+    "has_under_tail_color": "has_specific_body_colour",
+    "has_nape_color": "has_specific_body_colour",
+    "has_belly_color": "has_specific_body_colour",
+    "has_breast_color": "has_specific_body_colour",
+
+    "has_upperparts_color": "has_general_body_colour",
+    "has_underparts_color": "has_general_body_colour",
+    "has_primary_color": "has_general_body_colour",
+    "has_leg_color": "has_general_body_colour",
+    "has_wing_color": "has_general_body_colour",
+    "has_back_color": "has_general_body_colour",
+
+    "has_throat_color": "has_head_colour",
+    "has_crown_color": "has_head_colour",
+    "has_bill_color": "has_head_colour",
+    "has_eye_color": "has_head_colour",
+    "has_forehead_color": "has_head_colour",
+
+    "has_tail_shape": "has_shape_and_size",
+    "has_bill_shape": "has_shape_and_size",
+    "has_shape": "has_shape_and_size",
+    "has_wing_shape": "has_shape_and_size",
+    "has_bill_length": "has_shape_and_size",
+    "has_size": "has_shape_and_size",
+
+    "has_head_pattern": "has_pattern",
+    "has_breast_pattern": "has_pattern",
+    "has_back_pattern": "has_pattern",
+    "has_tail_pattern": "has_pattern",
+    "has_belly_pattern": "has_pattern",
+    "has_wing_pattern": "has_pattern"
+}
+
+CONCEPT_GROUP_MAP_FINE_GRAIN = defaultdict(list)
+for i, concept_name in enumerate(list(
+    np.array(CONCEPT_SEMANTICS)[SELECTED_CONCEPTS]
+)):
+    group = CONCEPT_FINE_GRAIN_MAPPING[concept_name[:concept_name.find("::")]]
+    CONCEPT_GROUP_MAP_FINE_GRAIN[group].append(i)
 
 ##########################################################
 ## ORIGINAL SAMPLER/CLASSES FROM CBM PAPER
@@ -1026,7 +1067,7 @@ def generate_data(
     sampling_percent = config.get("sampling_percent", 1)
     sampling_groups = config.get("sampling_groups", False)
 
-    concept_group_map = CONCEPT_GROUP_MAP.copy()
+    concept_group_map = CONCEPT_GROUP_MAP_FINE_GRAIN.copy()
     n_concepts = len(SELECTED_CONCEPTS)
     if sampling_percent != 1:
         # Do the subsampling
