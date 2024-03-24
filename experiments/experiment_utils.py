@@ -3,6 +3,7 @@ import itertools
 import logging
 import numpy as np
 import os
+import re
 import torch
 
 from collections import defaultdict
@@ -16,7 +17,7 @@ from prettytable import PrettyTable
 def determine_rerun(
     config,
     rerun,
-    full_run_name,
+    run_name,
     split,
 ):
     if rerun:
@@ -25,9 +26,9 @@ def determine_rerun(
     if "RERUNS" in os.environ:
         reruns += os.environ['RERUNS'].split(",")
     for variant in [
-        full_run_name,
-        full_run_name + f"_split_{split}",
-        full_run_name + f"_fold_{split}",
+        run_name,
+        run_name + f"_split_{split}",
+        run_name + f"_fold_{split}",
     ]:
         if variant in reruns:
             return True
@@ -78,11 +79,114 @@ def get_mnist_extractor_arch(input_shape, num_operands):
         ])
     return c_extractor_arch
 
+def get_metric_from_dict(results, method, metric):
+    vals = []
+    for _, metric_keys in results.items():
+        for candidate_method, metric_map in metric_keys.items():
+            if method != candidate_method:
+                continue
+            for metric_name, val in metric_map.items():
+                if metric_name == metric:
+                    vals.append(val)
+    return vals
+
+def perform_model_selection(
+    results,
+    model_groupings,
+    selection_metric,
+    name_filters=None,
+):
+    name_filters = name_filters or []
+    un_select_method = lambda x: np.any([
+        re.search(reg, x) for reg in name_filters
+    ])
+    new_results = defaultdict(lambda: defaultdict(dict))
+    method_names = set()
+    for _, metric_keys in results.items():
+        for method_name, metric_map in metric_keys.items():
+            # Make sure we do not select a method that has been filtered out
+            if un_select_method(method_name):
+                continue
+            method_names.add(method_name)
+
+    selection_result = {}
+    for group_pattern, group_name in model_groupings:
+        selected_methods = [
+            name for name in method_names
+            if re.search(group_pattern, name)
+        ]
+        selected_values = [
+            (
+                method_name,
+                np.mean(
+                    get_metric_from_dict(
+                        results,
+                        method_name,
+                        selection_metric,
+                    ),
+                ),
+            )
+            for method_name in selected_methods
+        ]
+        if selected_values:
+            selected_values.sort(key=lambda x: -x[1])
+            selected_method = selected_values[0][0]
+            group_name = group_name or selected_method
+            selection_result[group_name] = selected_method
+            for fold, metric_keys in results.items():
+                new_results[fold][group_name] = copy.deepcopy(
+                    results[fold][selected_method]
+                )
+    return new_results, selection_result
+
+
+def perform_averaging(
+    results,
+    model_groupings,
+    name_filters=None,
+):
+    name_filters = name_filters or []
+    un_select_method = lambda x: np.any([
+        re.search(reg, x) for reg in name_filters
+    ])
+    new_results = defaultdict(lambda: defaultdict(dict))
+    method_names = set()
+    metric_names = set()
+    for _, metric_keys in results.items():
+        for method_name, metric_map in metric_keys.items():
+            # Make sure we do not select a method that has been filtered out
+            if un_select_method(method_name):
+                continue
+            method_names.add(method_name)
+            for metric_name, _ in metric_map.items():
+                metric_names.add(metric_name)
+
+    for group_pattern, group_name in model_groupings:
+        selected_methods = [
+            name for name in method_names
+            if re.search(group_pattern, name)
+        ]
+        for fold, metric_keys in results.items():
+            for metric_name in metric_names:
+                avg = None
+                count = 0
+                for method_name in selected_methods:
+                    if not metric_name in results[fold][method_name]:
+                        continue
+                    if avg is None:
+                        avg = results[fold][method_name][metric_name]
+                    else:
+                        avg +=  results[fold][method_name][metric_name]
+                    count += 1
+                if count:
+                    new_results[fold][group_name][metric_name] = avg/count
+    return new_results
+
 def print_table(
     results,
     result_dir,
     split=0,
-    result_table_fields=None,
+    summary_table_metrics=None,
     sort_key="model",
     config=None,
 ):
@@ -124,7 +228,7 @@ def print_table(
         result_table_fields_keys.append("test_cas")
 
     # And intervention summaries if we chose to also include them
-    if len(shared_params.get("intervention_policies", [])) > 0:
+    if len(shared_params.get("intervention_config", []).get("intervention_policies", [])) > 0:
         field_names.extend([
             "25% Int Acc",
             "50% Int Acc",
@@ -132,14 +236,14 @@ def print_table(
             "100% Int Acc",
         ])
         result_table_fields_keys.extend([
-            "test_acc_y_group_random_no_prior_ints_25%",
-            "test_acc_y_group_random_no_prior_ints_50%",
-            "test_acc_y_group_random_no_prior_ints_75%",
-            "test_acc_y_group_random_no_prior_ints_100%",
+            "test_acc_y_random_group_level_True_use_prior_False_ints_25%",
+            "test_acc_y_random_group_level_True_use_prior_False_ints_50%",
+            "test_acc_y_random_group_level_True_use_prior_False_ints_75%",
+            "test_acc_y_random_group_level_True_use_prior_False_ints_100%",
         ])
 
-    if result_table_fields is not None:
-        for field in result_table_fields:
+    if summary_table_metrics is not None:
+        for field in summary_table_metrics:
             if not isinstance(field, (tuple, list)):
                 field = field, field
             field_name, field_pretty_name = field
@@ -152,34 +256,30 @@ def print_table(
     table_rows = {}
     end_results = defaultdict(lambda: defaultdict(list))
     for fold_idx, metric_keys in results.items():
-        for metric_name, vals in metric_keys.items():
-            for desired_metric in result_table_fields_keys:
-                real_name = desired_metric
-                if desired_metric.startswith("test_acc_y_") and (
-                    ("_ints_" in desired_metric) and
-                    (desired_metric[-1] == "%")
-                ):
-                    # Then we are dealing with some interventions we wish
-                    # to log
-                    percent = int(
-                        desired_metric[desired_metric.rfind("_") + 1 : -1]
-                    )
-                    desired_metric = desired_metric[:desired_metric.rfind("_")]
-                else:
-                    percent = None
-
-                if metric_name.startswith(desired_metric + "_") and (
-                    metric_name[
-                        len(desired_metric) + 1 : len(desired_metric) + 2
-                    ].isupper()
-                ):
-                    method_name = metric_name[len(desired_metric) + 1:]
-                    if percent is None:
-                        end_results[real_name][method_name].append(vals)
-                    else:
-                        end_results[real_name][method_name].append(
-                            vals[int((len(vals) - 1) * percent/100)]
+        for method_name, metric_vals in metric_keys.items():
+            for metric_name, vals in metric_vals.items():
+                for desired_metric in result_table_fields_keys:
+                    real_name = desired_metric
+                    if desired_metric.startswith("test_acc_y_") and (
+                        ("_ints_" in desired_metric) and
+                        (desired_metric[-1] == "%")
+                    ):
+                        # Then we are dealing with some interventions we wish
+                        # to log
+                        percent = int(
+                            desired_metric[desired_metric.rfind("_") + 1 : -1]
                         )
+                        desired_metric = desired_metric[:desired_metric.rfind("_")]
+                    else:
+                        percent = None
+
+                    if metric_name == desired_metric:
+                        if percent is None:
+                            end_results[real_name][method_name].append(vals)
+                        else:
+                            end_results[real_name][method_name].append(
+                                vals[int((len(vals) - 1) * percent/100)]
+                            )
 
     for metric_name, runs in end_results.items():
         for method_name, trial_results in runs.items():
@@ -232,24 +332,39 @@ def print_table(
         ) as f:
             f.write(str(results_table))
 
-def filter_results(results, full_run_name, cut=False):
+def filter_results(results, run_name, cut=False):
     output = {}
     for key, val in results.items():
-        if full_run_name not in key:
+        if run_name not in key:
             continue
         if cut:
-            key = key[: -len("_" + full_run_name)]
+            key = key[: -len("_" + run_name)]
         output[key] = val
     return output
 
-def evaluate_expressions(config):
-    for key, val in config.items():
-        if isinstance(val, (str,)) and len(val) >= 4 and (
-            val[0:2] == "{{" and val[-2:] == "}}"
-        ):
-            # Then do a simple substitution here
-            config[key] = val[2:-2].format(**config)
-            config[key] = eval(config[key])
+def evaluate_expressions(config, parent_config=None, soft=False):
+     parent_config = parent_config or config
+     for key, val in config.items():
+         if isinstance(val, (str,)):
+             if len(val) >= 4 and (
+                 val[0:2] == "{{" and val[-2:] == "}}"
+             ):
+                # Then do a simple substitution here
+                try:
+                    config[key] = val[2:-2].format(**parent_config)
+                    config[key] = eval(config[key])
+                except Exception as e:
+                    if soft:
+                        # Then we silently ignore this error
+                        pass
+                    else:
+                        # otherwise we just simply raise it again!
+                        raise e
+             else:
+                 config[key] = val.format(**parent_config)
+         elif isinstance(val, dict):
+             # Then we progress recursively
+             evaluate_expressions(val, parent_config=parent_config)
 
 
 def initialize_result_directory(results_dir):

@@ -1,58 +1,55 @@
 trials: 5
-results_dir: results/dot/
+results_dir: results/trig/
 
-
-# DATASET VARIABLES
-dataset: dot
-dataset_size: 3000
-batch_size: 256
-num_workers: 8
-root_dir: cem/data/
-sampling_percent: 1
-test_subsampling: 1
-
-
-# Intervention Parameters
-intervention_freq: 1
-intervention_batch_size: 1024
-intervention_policies:
-    - "group_random_no_prior"
-
-competence_levels: [1, 0]
-incompetence_intervention_policies:
-    - "group_random_no_prior"
-
-# Metrics to run for the learnt representations. Currently skipping all of them
-# for efficiency purposes but feel free to change this after training and
-# rerunning as it can reuse trained models :)
-skip_repr_evaluation: True
-
-max_epochs: 500
 shared_params:
-    top_k_accuracy: null
-    save_model: True
-    patience: 15
-    emb_size: 128
-    extra_dims: 0
-    concept_loss_weight: 1
-    learning_rate: 0.01
-    scheduler_step: 20
-    weight_decay: 0
-    weight_loss: False
-    c_extractor_arch: None
-    optimizer: adam
-    bool: False
-    early_stopping_monitor: val_loss
-    early_stopping_mode: min
-    early_stopping_delta: 0.0
-    check_val_every_n_epoch: 30
-    linear_c2y: True
-    momentum: 0.9
-    sigmoidal_prob: False
+  # Dataset Configuration
+  dataset_config:
+    dataset: trig
+    dataset_size: 3000
+    batch_size: 256
+    num_workers: 8
+    root_dir: data/
+    sampling_percent: 1
+    test_subsampling: 1
+
+  # Intervention evaluation
+  intervention_config:
+    competence_levels: [1, 0]
+    intervention_freq: 1
+    intervention_batch_size: 1024
+    intervention_policies:
+      - policy: "random"
+        group_level: True
+        use_prior: False
+  # Representation metrics
+  # Change to False if you want representation metrics to be included in the
+  # evaluation (may significantly increase experiment times)
+  skip_repr_evaluation: True
+  top_k_accuracy: null
+  save_model: True
+  patience: 15
+  emb_size: 128
+  extra_dims: 0
+  concept_loss_weight: 1
+  learning_rate: 0.01
+  scheduler_step: 20
+  weight_decay: 0
+  weight_loss: False
+  c_extractor_arch: synth_extractor
+  max_epochs: 500
+  optimizer: adam
+  bool: False
+  early_stopping_monitor: val_loss
+  early_stopping_mode: min
+  early_stopping_delta: 0.0
+  check_val_every_n_epoch: 30
+  linear_c2y: True
+  momentum: 0.9
+  sigmoidal_prob: False
 
 runs:
     - architecture: 'ConceptEmbeddingModel'
-      extra_name: ""
+      run_name: "CEM"
       shared_prob_gen: True
       sigmoidal_prob: True
       sigmoidal_embedding: False
@@ -61,26 +58,26 @@ runs:
       embedding_activation: "leakyrelu"
 
     - architecture: 'ConceptBottleneckModel'
-      extra_name: "Bool"
+      run_name: "CBM_Bool"
       bool: True
       extra_dims: 0
       sigmoidal_prob: True
 
     - architecture: 'ConceptBottleneckModel'
-      extra_name: "Sigmoid"
+      Cextra_name: "CBM_Sigmoid"
       bool: False
       extra_dims: 0
       sigmoidal_prob: True
 
     - architecture: 'ConceptBottleneckModel'
-      extra_name: "Logit"
+      run_name: "CBM_Logit"
       embedding_activation: "leakyrelu"
       bool: False
       extra_dims: 0
       sigmoidal_prob: False
 
     - architecture: 'ConceptBottleneckModel'
-      extra_name: "Hybrid_Sigmoid"
+      run_name: "CBM_Hybrid_Sigmoid"
       bool: False
       extra_dims: "{{({emb_size} - 1) * {n_concepts}}}"
       bottleneck_nonlinear: "leakyrelu"
@@ -88,7 +85,7 @@ runs:
       sigmoidal_prob: True
 
     - architecture: 'ConceptBottleneckModel'
-      extra_name: "Hybrid_Logit"
+      run_name: "CBM_Hybrid_Logit"
       bool: False
       extra_dims: "{{({emb_size} - 1) * {n_concepts}}}"
       bottleneck_nonlinear: "leakyrelu"
@@ -96,7 +93,7 @@ runs:
       sigmoidal_prob: False
 
     - architecture: 'SequentialConceptBottleneckModel'
-      extra_name: ""
+      run_name: "CBM_Seq"
       sigmoidal_embedding: False
       concat_prob: False
       embedding_activation: "leakyrelu"
@@ -106,7 +103,7 @@ runs:
       sigmoidal_prob: True
 
     - architecture: 'IndependentConceptBottleneckModel'
-      extra_name: ""
+      run_name: "CBM_Ind"
       sigmoidal_embedding: False
       concat_prob: False
       embedding_activation: "leakyrelu"
@@ -116,10 +113,10 @@ runs:
       sigmoidal_prob: True
 
     - architecture: 'ConceptBottleneckModel'
-      extra_name: "_BlackBox"
+      run_name: "DNN"
       bool: False
       extra_dims:  "{{({emb_size} - 1) * {n_concepts}}}"
       bottleneck_nonlinear: "leakyrelu"
       sigmoidal_extra_capacity: False
-      sigmoidal_prob: False
+      sigmoidal_prob: True
       concept_loss_weight: 0

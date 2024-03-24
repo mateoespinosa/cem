@@ -163,7 +163,7 @@ class CooP(InterventionPolicy):
                 # And aim to maximize the probability of the ground-truth class
                 # assuming we also correctly intervened on the current concept
                 expected_change = new_prob_distr[
-                    torch.eye(new_prob_distr.shape[-1])[pred_class].type(
+                    torch.eye(new_prob_distr.shape[-1])[pred_class.cpu()].type(
                         torch.bool
                     )
                 ]
@@ -202,7 +202,7 @@ class CooP(InterventionPolicy):
 
                     expected_change += (
                         prob * new_prob_distr[
-                            torch.eye(new_prob_distr.shape[-1])[pred_class].type(
+                            torch.eye(new_prob_distr.shape[-1])[pred_class.cpu()].type(
                                 torch.bool
                             )
                         ]
@@ -296,7 +296,6 @@ class CooP(InterventionPolicy):
                         prior_distribution[:, group_idx]
             prior_distribution = new_prior_distribution
         for concept_idx in range(c.shape[-1]):
-            logging.debug(f"\tFinding score for concept {concept_idx}...")
             # If there is at least one element in the batch that has this
             # concept unintervened, then we will have to evaluate its score for
             # all of them
@@ -434,10 +433,6 @@ class CooP(InterventionPolicy):
         if self.num_groups_intervened == len(self.concept_group_map):
             return np.ones(c.shape, dtype=np.int64), c
         for i in range(self.num_groups_intervened):
-            logging.debug(
-                f"Intervening with {i + 1}/{self.num_groups_intervened} "
-                f"concepts in CooP"
-            )
             mask, latent, y_preds = self._coop_step(
                 x=x,
                 c=c,
@@ -451,275 +446,3 @@ class CooP(InterventionPolicy):
             )
         return mask, c
 
-##########################
-## CooP with Class Entropy as Utility
-##########################
-
-
-class CooPEntropy(CooP):
-    def __init__(
-        self,
-        concept_group_map,
-        cbm,
-        n_tasks,
-        num_groups_intervened=0,
-        concept_entropy_weight=1,
-        importance_weight=1,
-        acquisition_weight=1,
-        acquisition_costs=None,
-        group_based=True,
-        eps=1e-8,
-        max_uncertainty=None,
-        min_uncertainty=None,
-        max_importance=None,
-        min_importance=None,
-        use_uncertainty_proxy=False,
-        include_prior=True,
-        **kwargs
-    ):
-        if min_importance is None:
-            # Then this will correspond to 0 as the
-            # entropy of the class distribution can remain
-            # the same after a concept was intervened on
-            min_importance = 0
-        if max_importance is None:
-            # Then this will correspond to the difference between the entropy
-            # of a uniform distribution and that of a delta function
-            # distribution.
-            # This is the same as
-            #     (-log(1/n_tasks)) - (-log(1)) = log(n_tasks)
-            max_importance = np.log(n_tasks)
-        CooP.__init__(
-            self,
-            num_groups_intervened=num_groups_intervened,
-            concept_group_map=concept_group_map,
-            cbm=cbm,
-            concept_entropy_weight=concept_entropy_weight,
-            importance_weight=importance_weight,
-            acquisition_costs=acquisition_costs,
-            acquisition_weight=acquisition_weight,
-            group_based=group_based,
-            eps=eps,
-            max_uncertainty=max_uncertainty,
-            min_uncertainty=min_uncertainty,
-            max_importance=max_importance,
-            min_importance=min_importance,
-            use_uncertainty_proxy=use_uncertainty_proxy,
-            include_prior=include_prior,
-            n_tasks=n_tasks,
-            **kwargs,
-        )
-
-    def _importance_score(
-        self,
-        x,
-        concept_idx,
-        c,
-        pred_c,
-        prev_interventions,
-        latent=None,
-        pred_class_prob=None,
-        pred_class=None,
-        competencies=None,
-        prior_distribution=None,
-    ):
-        hat_c = pred_c[:, concept_idx]
-        # Find the class we will be predicting
-        if (pred_class is None) or (pred_class_prob is None):
-            _, _, y_preds, _, latent = self.cbm(
-                x,
-                intervention_idxs=prev_interventions,
-                c=c,
-                latent=latent,
-            )
-            if self.n_tasks > 1:
-                pred_class_prob, pred_class = torch.nn.functional.softmax(
-                    y_preds,
-                    dim=-1,
-                ).max(dim=-1)
-            else:
-                y_probs = torch.sigmoid(y_preds)
-                y_probs = torch.squeeze(y_probs, dim=-1)
-                pred_class = (y_probs >= 0.5).type(y_preds.type())
-                pred_class_prob = (
-                    y_probs * pred_class + (1 - y_probs) * (1 - pred_class)
-                )
-
-        prev_entropy = torch.sum(
-            -torch.log(pred_class_prob + self.eps) * pred_class_prob,
-            axis=-1,
-        )
-
-        # And then estimating how much this would change if we intervene on the
-        # concept of interest
-        expected_new_entropy = torch.zeros(x.shape[0]).to(hat_c.device)
-        for concept_val in [0, 1]:
-            old_c_vals = c[:, concept_idx]
-            # Make a fake intervention in the current concept
-            c[:, concept_idx] = concept_val
-            prev_mask = prev_interventions[:, concept_idx] == 1
-            prev_interventions[:, concept_idx] = 1
-            # See how the predictions change
-            _, _, change_y_preds, _, _ = self.cbm(
-                x,
-                intervention_idxs=prev_interventions,
-                c=c,
-                latent=latent,
-            )
-            # Restore prev-interventions
-            c[:, concept_idx] = old_c_vals
-            prev_interventions[:, concept_idx] = prev_mask
-            # And compute their weighted output
-            prob = hat_c if concept_val == 1 else 1 - hat_c
-            if self.n_tasks > 1:
-                new_class_probs = torch.nn.functional.softmax(
-                    change_y_preds,
-                    dim=-1,
-                )
-            else:
-                y_probs = torch.sigmoid(change_y_preds)
-                y_probs = torch.squeeze(y_probs, dim=-1)
-                pred_class = (y_probs >= 0.5).type(change_y_preds.type())
-                new_class_probs = torch.concat(
-                    [
-                        torch.unsqueeze(
-                            (1 - y_probs) * (1 - pred_class),
-                            dim=-1,
-                        ),
-                        torch.unsqueeze(y_probs * pred_class, dim=-1),
-                    ],
-                    dim=-1,
-                )
-
-            expected_new_entropy += prob * torch.sum(
-                -torch.log(new_class_probs + self.eps) * new_class_probs,
-                dim=-1,
-            )
-
-        # Put these together to get the expected change in output probability
-        return prev_entropy - expected_new_entropy
-
-class CompetenceCooPEntropy(CooP):
-    def __init__(
-        self,
-        concept_group_map,
-        cbm,
-        n_tasks,
-        num_groups_intervened=0,
-        importance_weight=1,
-        acquisition_weight=1,
-        acquisition_costs=None,
-        group_based=True,
-        eps=1e-8,
-        max_uncertainty=None,
-        min_uncertainty=None,
-        max_importance=None,
-        min_importance=None,
-        use_uncertainty_proxy=False,
-        include_prior=True,
-        **kwargs
-    ):
-        kwargs.pop("concept_entropy_weight", 0)
-        CooP.__init__(
-            self,
-            num_groups_intervened=num_groups_intervened,
-            concept_group_map=concept_group_map,
-            cbm=cbm,
-            concept_entropy_weight=0,
-            importance_weight=importance_weight,
-            acquisition_costs=acquisition_costs,
-            acquisition_weight=acquisition_weight,
-            group_based=group_based,
-            eps=eps,
-            max_uncertainty=max_uncertainty,
-            min_uncertainty=min_uncertainty,
-            max_importance=max_importance,
-            min_importance=min_importance,
-            use_uncertainty_proxy=use_uncertainty_proxy,
-            include_prior=include_prior,
-            n_tasks=n_tasks,
-            **kwargs,
-        )
-
-    def _importance_score(
-        self,
-        x,
-        concept_idx,
-        c,
-        pred_c,
-        prev_interventions,
-        latent=None,
-        pred_class_prob=None,
-        pred_class=None,
-        competencies=None,
-        prior_distribution=None,
-    ):
-        hat_c = pred_c[:, concept_idx]
-        # Find the class we will be predicting
-        if (pred_class is None) or (pred_class_prob is None):
-            _, _, y_preds, _, latent = self.cbm(
-                x,
-                intervention_idxs=prev_interventions,
-                c=c,
-                latent=latent,
-            )
-            if self.n_tasks > 1:
-                pred_class_prob, pred_class = torch.nn.functional.softmax(
-                    y_preds,
-                    dim=-1,
-                ).max(dim=-1)
-            else:
-                y_probs = torch.sigmoid(y_preds)
-                y_probs = torch.squeeze(y_probs, dim=-1)
-                pred_class = (y_probs >= 0.5).type(y_preds.type())
-                pred_class_prob = (
-                    y_probs * pred_class + (1 - y_probs) * (1 - pred_class)
-                )
-
-        # And then estimating how much this would change if we intervene on the
-        # concept of interest
-        expected_new_entropy = torch.zeros(x.shape[0]).to(hat_c.device)
-        for concept_val in [0, 1]:
-            old_c_vals = c[:, concept_idx]
-            # Make a fake intervention in the current concept
-            c[:, concept_idx] = concept_val
-            prev_mask = prev_interventions[:, concept_idx] == 1
-            prev_interventions[:, concept_idx] = 1
-            # See how the predictions change
-            _, _, change_y_preds, _, _ = self.cbm(
-                x,
-                intervention_idxs=prev_interventions,
-                c=c,
-                latent=latent,
-            )
-            # Restore prev-interventions
-            c[:, concept_idx] = old_c_vals
-            prev_interventions[:, concept_idx] = prev_mask
-            # And compute their weighted output
-            prob = hat_c * competencies + (1 - hat_c) * (1 - competencies)
-            if concept_val == 0:
-                prob = 1 - prob
-            if self.n_tasks > 1:
-                new_class_probs = torch.nn.functional.softmax(
-                    change_y_preds,
-                    dim=-1,
-                )
-                expected_new_entropy += (
-                    prob * new_class_probs[
-                        torch.eye(new_class_probs.shape[-1])[pred_class].type(
-                            torch.bool
-                        )
-                    ]
-                )
-            else:
-                y_probs = torch.sigmoid(change_y_preds)
-                y_probs = torch.squeeze(y_probs, dim=-1)
-                expected_new_entropy += (
-                    y_probs * pred_class + (1 - y_probs) * (1 - pred_class)
-                )
-
-        return self._normalize_importance(torch.abs(
-            expected_new_entropy - pred_class_prob.to(
-                expected_new_entropy.device
-            )
-        ))

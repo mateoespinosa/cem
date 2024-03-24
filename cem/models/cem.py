@@ -45,7 +45,6 @@ class ConceptEmbeddingModel(ConceptBottleneckModel):
         intervention_policy=None,
         output_interventions=False,
         use_concept_groups=False,
-        include_certainty=True,
 
         top_k_accuracy=None,
     ):
@@ -128,7 +127,6 @@ class ConceptEmbeddingModel(ConceptBottleneckModel):
         """
         pl.LightningModule.__init__(self)
         self.n_concepts = n_concepts
-        self.include_certainty = include_certainty
         self.output_interventions = output_interventions
         self.intervention_policy = intervention_policy
         self.pre_concept_model = c_extractor_arch(output_dim=None)
@@ -284,12 +282,6 @@ class ConceptEmbeddingModel(ConceptBottleneckModel):
             return prob, intervention_idxs
         intervention_idxs = intervention_idxs.type(torch.FloatTensor)
         intervention_idxs = intervention_idxs.to(prob.device)
-        if not self.include_certainty:
-            c_true = torch.where(
-                torch.logical_or(c_true == 0, c_true == 1),
-                c_true,
-                prob,
-            )
         return prob * (1 - intervention_idxs) + intervention_idxs * c_true, intervention_idxs
 
     def _forward(

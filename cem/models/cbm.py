@@ -44,7 +44,6 @@ class ConceptBottleneckModel(pl.LightningModule):
         intervention_policy=None,
         output_interventions=False,
         use_concept_groups=False,
-        include_certainty=True,
 
         top_k_accuracy=None,
     ):
@@ -145,7 +144,6 @@ class ConceptBottleneckModel(pl.LightningModule):
             for during training/testing when the number of tasks is high.
         """
         super().__init__()
-        self.include_certainty = include_certainty
         self.n_concepts = n_concepts
         self.intervention_policy = intervention_policy
         self.output_latent = output_latent
@@ -491,67 +489,25 @@ class ConceptBottleneckModel(pl.LightningModule):
         if (intervention_idxs is None) and (c is not None) and (
             self.intervention_policy is not None
         ):
-            if not self.include_certainty:
-                # For now, we will only intervene on the concepts that are
-                # fully determined (i.e., there is no uncertainty)
-                indices = torch.logical_or(c == 1, c == 0).type(torch.bool)
-                if torch.any(indices):
-                    prior_distribution = self._prior_int_distribution(
-                        c=c[indices],
-                        prob=c_sem[indices],
-                        pos_embeddings=pos_embeddings[indices],
-                        neg_embeddings=neg_embeddings[indices],
-                        competencies=(
-                            competencies[indices] if competencies is not None
-                            else None
-                        ),
-                        prev_interventions=(
-                            prev_interventions[indices]
-                            if prev_interventions is not None else None
-                        ),
-                        train=train,
-                        horizon=1,
-                    )
-                    current_intervention_idxs, current_c_int = \
-                        self.intervention_policy(
-                            x=x[indices],
-                            c=c[indices],
-                            pred_c=c_sem[indices],
-                            y=y[indices],
-                            competencies=(
-                                competencies[indices]
-                                if competencies is not None else None
-                            ),
-                            prev_interventions=(
-                                prev_interventions[indices]
-                                if prev_interventions is not None else None
-                            ),
-                            prior_distribution=prior_distribution,
-                        )
-                    intervention_idxs = torch.zeros(c.shape).to(c.device)
-                    c_int = torch.zeros(c.shape).to(c.device)
-                    intervention_idxs[indices] = current_intervention_idxs
-                    c_int[indices] = current_c_int
-            else:
-                prior_distribution = self._prior_int_distribution(
-                    c=c,
-                    prob=c_sem,
-                    pos_embeddings=pos_embeddings,
-                    neg_embeddings=neg_embeddings,
-                    competencies=competencies,
-                    prev_interventions=prev_interventions,
-                    train=train,
-                    horizon=1,
-                )
-                intervention_idxs, c_int = self.intervention_policy(
-                    x=x,
-                    c=c,
-                    pred_c=c_sem,
-                    y=y,
-                    competencies=competencies,
-                    prev_interventions=prev_interventions,
-                    prior_distribution=prior_distribution,
-                )
+            prior_distribution = self._prior_int_distribution(
+                c=c,
+                prob=c_sem,
+                pos_embeddings=pos_embeddings,
+                neg_embeddings=neg_embeddings,
+                competencies=competencies,
+                prev_interventions=prev_interventions,
+                train=train,
+                horizon=1,
+            )
+            intervention_idxs, c_int = self.intervention_policy(
+                x=x,
+                c=c,
+                pred_c=c_sem,
+                y=y,
+                competencies=competencies,
+                prev_interventions=prev_interventions,
+                prior_distribution=prior_distribution,
+            )
         else:
             c_int = c
         c_pred = self._concept_intervention(
@@ -651,17 +607,8 @@ class ConceptBottleneckModel(pl.LightningModule):
             # whenever no concept supervision is provided
             # Will only compute the concept loss for concepts whose certainty
             # values are fully given
-            if self.include_certainty:
-                concept_loss = self.loss_concept(c_sem, c)
-                concept_loss_scalar = concept_loss.detach()
-            else:
-                c_sem_used = torch.where(
-                    torch.logical_or(c == 0, c == 1),
-                    c_sem,
-                    c,
-                ) # This forces zero loss when c is uncertain
-                concept_loss = self.loss_concept(c_sem_used, c)
-                concept_loss_scalar = concept_loss.detach()
+            concept_loss = self.loss_concept(c_sem, c)
+            concept_loss_scalar = concept_loss.detach()
             loss = self.concept_loss_weight * concept_loss + task_loss + \
                 self._extra_losses(
                     x=x,

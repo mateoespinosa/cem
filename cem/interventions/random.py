@@ -56,6 +56,8 @@ class IndependentRandomMaskIntPolicy(InterventionPolicy):
             ).astype(np.int64)
         prev_intervened_groups = np.sum(group_mask, axis=-1)
         if prior_distribution is None:
+            # Then we will select every un-intervened concept with equal
+            # probability as the next candidate for interventions
             prior_distribution = np.array([
                 [
                     1/(

@@ -43,6 +43,7 @@ def construct_model(
     output_latent=False,
     output_interventions=False,
 ):
+    task_loss_weight = config.get('task_loss_weight', 1.0)
     if config["architecture"] in ["ConceptEmbeddingModel", "MixtureEmbModel"]:
         model_cls = models_cem.ConceptEmbeddingModel
         extra_params = {
@@ -59,12 +60,12 @@ def construct_model(
             ),
             "c2y_model": c2y_model,
             "c2y_layers": config.get("c2y_layers", []),
-            "include_certainty": config.get("include_certainty", True),
         }
         if "embeding_activation" in config:
             # Legacy support for typo in argument
             extra_params["embedding_activation"] = config["embeding_activation"]
     elif config["architecture"] in ["IntAwareConceptBottleneckModel", "IntCBM"]:
+        task_loss_weight = config.get('task_loss_weight', 0.0)
         model_cls = models_intcbm.IntAwareConceptBottleneckModel
         extra_params = {
             "bool": config["bool"],
@@ -82,58 +83,31 @@ def construct_model(
             "c2y_model": c2y_model,
             "c2y_layers": config.get("c2y_layers", []),
 
-            "intervention_discount": config.get("intervention_discount", 0.9),
             "intervention_weight": config.get("intervention_weight", 5),
             "horizon_rate": config.get("horizon_rate", 1.005),
-            "average_trajectory": config.get("average_trajectory", True),
             "concept_map": config.get("concept_map", None),
-            "tau": config.get("tau", 1),
-            "max_horizon": config.get("max_horizon", 5),
-            "include_task_trajectory_loss": config.get(
-                "include_task_trajectory_loss",
-                False,
-            ),
-            "horizon_binary_representation": config.get(
-                "horizon_binary_representation",
-                False,
-            ),
+            "max_horizon": config.get("max_horizon", 6),
             "include_only_last_trajectory_loss": config.get(
                 "include_only_last_trajectory_loss",
-                False,
+                True,
             ),
             "intervention_task_loss_weight": config.get(
                 "intervention_task_loss_weight",
                 1,
             ),
-            "initial_horizon": config.get("initial_horizon", 1),
-            "use_concept_groups": config.get("use_concept_groups", False),
-            "horizon_uniform_distr": config.get("horizon_uniform_distr", True),
-            "beta_a": config.get("beta_a", 1),
-            "beta_b": config.get("beta_b", 3),
+            "initial_horizon": config.get("initial_horizon", 2),
+            "use_concept_groups": config.get("use_concept_groups", True),
             "intervention_task_discount": config.get(
                 "intervention_task_discount",
-                config.get("intervention_discount", 0.9),
+                config.get("intervention_task_discount", 1.1),
             ),
-            "use_horizon": config.get("use_horizon", True),
             "rollout_init_steps": config.get('rollout_init_steps', 0),
-            "use_full_mask_distr": config.get("use_full_mask_distr", False),
             "int_model_layers": config.get("int_model_layers", None),
-            "int_model_use_bn": config.get("int_model_use_bn", False),
-            "initialize_discount": config.get("initialize_discount", False),
-            "include_probs": config.get("include_probs", False),
-            "propagate_target_gradients": config.get(
-                "propagate_target_gradients",
-                False,
-            ),
+            "int_model_use_bn": config.get("int_model_use_bn", True),
             "num_rollouts": config.get("num_rollouts", 1),
-            "max_num_rollouts": config.get("max_num_rollouts", None),
-            "rollout_aneal_rate": config.get("rollout_aneal_rate", 1),
-            "backprop_masks": config.get("backprop_masks", True),
-            "hard_intervention": config.get("hard_intervention", True),
-            "legacy_mode": config.get("legacy_mode", False),
-            "include_certainty": config.get("include_certainty", True),
         }
     elif config["architecture"] in ["IntAwareConceptEmbeddingModel", "IntCEM"]:
+        task_loss_weight = config.get('task_loss_weight', 0.0)
         model_cls = models_intcbm.IntAwareConceptEmbeddingModel
         extra_params = {
             "emb_size": config["emb_size"],
@@ -149,56 +123,28 @@ def construct_model(
             "c2y_model": c2y_model,
             "c2y_layers": config.get("c2y_layers", []),
 
-            "intervention_discount": config.get("intervention_discount", 0.9),
             "intervention_weight": config.get("intervention_weight", 5),
             "horizon_rate": config.get("horizon_rate", 1.005),
-            "average_trajectory": config.get("average_trajectory", True),
             "concept_map": config.get("concept_map", None),
-            "tau": config.get("tau", 1),
-            "max_horizon": config.get("max_horizon", 5),
-            "include_task_trajectory_loss": config.get(
-                "include_task_trajectory_loss",
-                False,
-            ),
-            "horizon_binary_representation": config.get(
-                "horizon_binary_representation",
-                False,
-            ),
+            "max_horizon": config.get("max_horizon", 6),
             "include_only_last_trajectory_loss": config.get(
                 "include_only_last_trajectory_loss",
-                False,
+                True,
             ),
             "intervention_task_loss_weight": config.get(
                 "intervention_task_loss_weight",
                 1,
             ),
-            "initial_horizon": config.get("initial_horizon", 1),
+            "initial_horizon": config.get("initial_horizon", 2),
             "use_concept_groups": config.get("use_concept_groups", False),
-            "horizon_uniform_distr": config.get("horizon_uniform_distr", True),
-            "beta_a": config.get("beta_a", 1),
-            "beta_b": config.get("beta_b", 3),
             "intervention_task_discount": config.get(
                 "intervention_task_discount",
-                config.get("intervention_discount", 0.9),
+                config.get("intervention_task_discount", 1.1),
             ),
-            "use_horizon": config.get("use_horizon", True),
             "rollout_init_steps": config.get('rollout_init_steps', 0),
-            "use_full_mask_distr": config.get("use_full_mask_distr", False),
             "int_model_layers": config.get("int_model_layers", None),
             "int_model_use_bn": config.get("int_model_use_bn", False),
-            "initialize_discount": config.get("initialize_discount", False),
-            "include_probs": config.get("include_probs", False),
-            "propagate_target_gradients": config.get(
-                "propagate_target_gradients",
-                False,
-            ),
             "num_rollouts": config.get("num_rollouts", 1),
-            "max_num_rollouts": config.get("max_num_rollouts", None),
-            "rollout_aneal_rate": config.get("rollout_aneal_rate", 1),
-            "backprop_masks": config.get("backprop_masks", True),
-            "hard_intervention": config.get("hard_intervention", True),
-            "legacy_mode": config.get("legacy_mode", False),
-            "include_certainty": config.get("include_certainty", True),
         }
     elif "ConceptBottleneckModel" in config["architecture"]:
         model_cls = models_cbm.ConceptBottleneckModel
@@ -217,7 +163,6 @@ def construct_model(
             "x2c_model": x2c_model,
             "c2y_model": c2y_model,
             "c2y_layers": config.get("c2y_layers", []),
-            "include_certainty": config.get("include_certainty", True),
         }
     else:
         raise ValueError(f'Invalid architecture "{config["architecture"]}"')
@@ -251,7 +196,7 @@ def construct_model(
             else None
         ),
         concept_loss_weight=config['concept_loss_weight'],
-        task_loss_weight=config.get('task_loss_weight', 1.0),
+        task_loss_weight=task_loss_weight,
         learning_rate=config['learning_rate'],
         weight_decay=config['weight_decay'],
         c_extractor_arch=utils.wrap_pretrained_model(c_extractor_arch),
@@ -356,9 +301,7 @@ def load_trained_model(
     imbalance=None,
     task_class_weights=None,
     train_dl=None,
-    sequential=False,
     logger=False,
-    independent=False,
     accelerator="auto",
     devices="auto",
     intervention_policy=None,
@@ -367,30 +310,27 @@ def load_trained_model(
     output_interventions=False,
     enable_checkpointing=False,
 ):
-    arch_name = config.get('c_extractor_arch', "")
-    if not isinstance(arch_name, str):
-        arch_name = "lambda"
-    key_full_run_name = (
-        f"{config['architecture']}{config.get('extra_name', '')}"
-    )
+    if "run_name" in config:
+        run_name = config["run_name"]
+    else:
+        run_name = (
+            f"{config['architecture']}{config.get('extra_name', '')}"
+        )
     if split is not None:
         full_run_name = (
-            f"{key_full_run_name}_{arch_name}_fold_{split + 1}"
+            f"{run_name}_fold_{split + 1}"
         )
     else:
-        full_run_name = (
-            f"{key_full_run_name}_{arch_name}"
-        )
-    selected_concepts = np.arange(n_concepts)
-    if sequential and not (config['architecture'].startswith("Sequential")):
-        extra = "Sequential"
-    elif independent and not (config['architecture'].startswith("Independent")):
-        extra = "Independent"
-    else:
-        extra = ""
+        full_run_name = run_name
+    independent = False
+    sequential = False
+    if config['architecture'].startswith("Sequential"):
+        sequential = True
+    elif config['architecture'].startswith("Independent"):
+        independent = True
     model_saved_path = os.path.join(
         result_dir or ".",
-        f'{extra}{full_run_name}.pt'
+        f'{full_run_name}.pt'
     )
 
     if (

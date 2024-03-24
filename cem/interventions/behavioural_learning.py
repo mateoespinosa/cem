@@ -58,8 +58,7 @@ class BehavioralLearningPolicy(InterventionPolicy):
         self.emb_size = emb_size
         units = [
             n_concepts * self.emb_size + # Bottleneck
-            n_concepts + # Prev interventions
-            1 # Horizon
+            n_concepts # Prev interventions
         ] + [
             256,
             128,
@@ -119,7 +118,6 @@ class BehavioralLearningPolicy(InterventionPolicy):
         pos_embeddings,
         neg_embeddings,
         c,
-        horizon,
         competencies=None,
         prev_interventions=None,
         use_concept_groups=False,
@@ -153,8 +151,6 @@ class BehavioralLearningPolicy(InterventionPolicy):
             [
                 np.reshape(embeddings, [-1, emb_size * self.n_concepts]),
                 prev_interventions,
-                np.ones((prev_interventions.shape[0], 1)) * horizon,
-#                     competencies,
             ],
             axis=-1,
         )
@@ -195,10 +191,6 @@ class BehavioralLearningPolicy(InterventionPolicy):
         for sample_idx in tqdm(range(dataset_size//compute_batch_size)):
             # Sample an initial mask to start with
             competencies = None
-            current_horizon = np.random.randint(
-                0,
-                min(int(horizon_limit), max_horizon),
-            )
             initially_selected = np.random.randint(
                 0,
                 min(int(horizon_limit), self.n_concepts),
@@ -208,10 +200,6 @@ class BehavioralLearningPolicy(InterventionPolicy):
                 x_train.shape[0],
                 replace=False,
                 size=compute_batch_size,
-            )
-            current_horizon = min(
-                current_horizon,
-                self.n_concepts - initially_selected,
             )
             prev_interventions = np.zeros(
                 (len(selected_samples), self.n_concepts)
@@ -251,7 +239,6 @@ class BehavioralLearningPolicy(InterventionPolicy):
                 competencies=competencies,
                 prev_interventions=prev_interventions,
                 use_concept_groups=False,
-                horizon=current_horizon,
             )
             horizon_limit = min(horizon_rate * horizon_limit, max_horizon)
             inputs.append(next_inputs)
@@ -298,10 +285,6 @@ class BehavioralLearningPolicy(InterventionPolicy):
             mask = np.zeros((x.shape[0], c.shape[-1]))
         else:
             mask = prev_interventions.copy()
-#         if not self.include_prior:
-#             prior_distribution = None
-#         elif prior_distribution is not None:
-#             prior_distribution = prior_distribution.detach().cpu().numpy()
 
 
         scores = torch.softmax(
@@ -314,7 +297,6 @@ class BehavioralLearningPolicy(InterventionPolicy):
                     competencies=competencies,
                     prev_interventions=prev_interventions,
                     use_concept_groups=False,
-                    horizon=1,
                 )
              )),
             dim=-1
