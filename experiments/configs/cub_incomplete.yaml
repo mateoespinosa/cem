@@ -9,7 +9,7 @@ shared_params:
     batch_size: 256
 
     # DATASET VARIABLES
-    root_dir: /auto/homes/me466/data/CUB200/
+    root_dir: data/CUB200/
     sampling_percent: 0.25  # [IMPORTANT] Select only a quarter of all concepts!
     sampling_groups: True
     test_subsampling: 1

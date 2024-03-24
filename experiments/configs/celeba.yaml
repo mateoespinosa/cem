@@ -8,7 +8,7 @@ shared_params:
     image_size: 64
     num_classes: 1000
     batch_size: 512
-    root_dir: /homes/me466/data/
+    root_dir: data/
     use_imbalance: True
     use_binary_vector_class: True
     num_concepts: 6

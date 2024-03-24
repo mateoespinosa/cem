@@ -2,12 +2,9 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/mateoespinosa/cem/blob/main/LICENSE) [![Python 3.7+](https://img.shields.io/badge/python-3.7+-green.svg)](https://www.python.org/downloads/release/python-370/) [![CEM Paper](https://img.shields.io/badge/-CEM%20Paper-red)](https://arxiv.org/abs/2209.09056) [![IntCEM Paper](https://img.shields.io/badge/-IntCEM%20Paper-red)](https://arxiv.org/abs/2309.16928) [![Poster](https://img.shields.io/badge/-Poster-yellow)](https://github.com/mateoespinosa/cem/blob/main/media/poster.pdf) [![Slides](https://img.shields.io/badge/-Slides-lightblue)](https://github.com/mateoespinosa/cem/blob/main/media/slides.pptx)
 
 
-This repository contains the official Pytorch implementation of our papers
-[*"Concept Embedding Models: Beyond the Accuracy-Explainability Trade-Off"*](https://arxiv.org/abs/2209.09056),
-accepted and presented at **NeurIPS 2022**, and [*"Learning to Receive Help: Intervention-Aware Concept Embedding Models"*](https://arxiv.org/abs/2309.16928),
-accepted and presented as a **spotlight paper** at **NeurIPS 2023**.
-
-This first paper was done by [Mateo Espinosa Zarlenga<sup>\*</sup>](https://mateoespinosa.github.io/),
+This repository contains the official Pytorch implementation of our two papers:
+- [*"Concept Embedding Models: Beyond the Accuracy-Explainability Trade-Off"*](https://arxiv.org/abs/2209.09056),
+accepted and presented at **NeurIPS 2022**. This paper was the work of [Mateo Espinosa Zarlenga<sup>\*</sup>](https://mateoespinosa.github.io/),
 [Pietro Barbiero<sup>\*</sup>](https://www.pietrobarbiero.eu/),
 [Gabriele Ciravegna](https://sailab.diism.unisi.it/people/gabriele-ciravegna/),
 [Giuseppe Marra](https://www.giuseppemarra.com/),
@@ -19,13 +16,16 @@ This first paper was done by [Mateo Espinosa Zarlenga<sup>\*</sup>](https://mate
 [Adrian Weller](http://mlg.eng.cam.ac.uk/adrian/),
 [Pietro Lio](https://www.cl.cam.ac.uk/~pl219/), and
 [Mateja Jamnik](https://www.cl.cam.ac.uk/~mj201/).
-
-The second paper was done by [Mateo Espinosa Zarlenga<sup>\*</sup>](https://mateoespinosa.github.io/),
+- [*"Learning to Receive Help: Intervention-Aware Concept Embedding Models"*](https://arxiv.org/abs/2309.16928),
+accepted and presented as a **spotlight paper** at **NeurIPS 2023**. The paper
+was the work of [Mateo Espinosa Zarlenga<sup>\*</sup>](https://mateoespinosa.github.io/),
 [Katie Collins](https://collinskatie.github.io/),
 [Krishnamurthy (Dj) Dvijotham](https://dj-research.netlify.app/),
 [Adrian Weller](http://mlg.eng.cam.ac.uk/adrian/),
 [Zohreh Shams](https://zohrehshams.com/), and
 [Mateja Jamnik](https://www.cl.cam.ac.uk/~mj201/)
+
+
 
 ## TL;DR
 
@@ -161,12 +161,12 @@ import cem
 ## High-level Usage
 In this repository, we include a standalone Pytorch implementation of Concept
 Embedding Models (CEMs), Intervention-aware Concept Embedding Models (IntCEMs),
-and seveeal variants of Concept Bottleneck Models (CBMs).
+and several variants of Concept Bottleneck Models (CBMs).
 These models can be easily trained from scratch given a set of samples annotated
 with a downstream task and a set of binary concepts. In order to use our
 implementation, however, you first need to install all our code's requirements
 (listed in `requirements.txt`) by following the installation instructions
-above,
+above.
 
 After installation has been completed, you should be able to import
 `cem` as a package and use it to train a **CEM** as follows:
@@ -273,7 +273,7 @@ You can import CBMs by including
 from cem.models.cbm import ConceptBottleneckModel
 ```
 
----
+## Class Arguments
 
 Our **CEM module** takes the following initialization arguments:
 - `n_concepts` (int): The number of concepts given at training time.

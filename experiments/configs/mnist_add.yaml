@@ -6,7 +6,7 @@ shared_params:
   # Dataset Configuration
   dataset_config:
     dataset: mnist_add
-    root_dir: /anfs/bigdisc/me466/
+    root_dir: data/
     num_workers: 8
     batch_size: 2048
     num_operands: 12

@@ -8,7 +8,7 @@ shared_params:
     dataset_size: 3000
     batch_size: 256
     num_workers: 8
-    root_dir: data/dot
+    root_dir: data/
     sampling_percent: 1
     test_subsampling: 1
 
