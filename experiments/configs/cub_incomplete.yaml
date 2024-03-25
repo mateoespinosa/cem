@@ -69,11 +69,8 @@ shared_params:
 runs:
   - architecture: 'ConceptEmbeddingModel'
     run_name: "CEM"
-    shared_prob_gen: True
     sigmoidal_prob: True
-    sigmoidal_embedding: False
     training_intervention_prob: 0.25
-    concat_prob: False
     embedding_activation: "leakyrelu"
 
   - architecture: "IntAwareConceptEmbeddingModel"
@@ -95,9 +92,7 @@ runs:
 
   - architecture: 'ConceptBottleneckModel'
     run_name: "CBM_Sigmoid"
-    sigmoidal_embedding: False
     training_intervention_prob: 0.25
-    concat_prob: False
     embedding_activation: "leakyrelu"
     bool: False
     extra_dims: 0
@@ -106,8 +101,6 @@ runs:
 
   - architecture: 'ConceptBottleneckModel'
     run_name: "CBM_Logit"
-    sigmoidal_embedding: False
-    concat_prob: False
     embedding_activation: "leakyrelu"
     bool: False
     extra_dims: 0
@@ -116,8 +109,6 @@ runs:
 
   - architecture: 'SequentialConceptBottleneckModel'
     run_name: "CBM_Seq"
-    sigmoidal_embedding: False
-    concat_prob: False
     embedding_activation: "leakyrelu"
     bool: False
     extra_dims: 0
@@ -126,8 +117,6 @@ runs:
 
   - architecture: 'IndependentConceptBottleneckModel'
     run_name: "CBM_Ind"
-    sigmoidal_embedding: False
-    concat_prob: False
     embedding_activation: "leakyrelu"
     bool: False
     extra_dims: 0

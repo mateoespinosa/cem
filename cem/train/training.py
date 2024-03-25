@@ -1245,7 +1245,6 @@ def train_independent_model(
                     model_saved_path.replace(".pt", "_training_times.npy"),
                     np.array([ind_training_time, ind_num_epochs]),
                 )
-
     eval_results = _evaluate_cbm(
         model=model,
         trainer=trainer,

@@ -110,16 +110,13 @@ runs:
     run_name: "CEM"
     shared_prob_gen: True
     sigmoidal_prob: True
-    sigmoidal_embedding: False
     training_intervention_prob: 0.25
-    concat_prob: False
     embedding_activation: "leakyrelu"
 
   - architecture: 'ConceptBottleneckModel'
     run_name: "CBM_Sigmoid"
-    sigmoidal_embedding: False
-    training_intervention_prob: 0.25
-    concat_prob: False
+    concept_loss_weight: 5
+    max_epochs: 500
     embedding_activation: "leakyrelu"
     bool: False
     extra_dims: 0
@@ -128,8 +125,6 @@ runs:
 
   - architecture: 'ConceptBottleneckModel'
     run_name: "CBM_Logit"
-    sigmoidal_embedding: False
-    concat_prob: False
     embedding_activation: "leakyrelu"
     bool: False
     extra_dims: 0
@@ -139,8 +134,7 @@ runs:
 
   - architecture: 'SequentialConceptBottleneckModel'
     run_name: "CBM_Seq"
-    sigmoidal_embedding: False
-    concat_prob: False
+    c2y_max_epochs: 200
     embedding_activation: "leakyrelu"
     bool: False
     extra_dims: 0
@@ -149,56 +143,9 @@ runs:
 
   - architecture: 'IndependentConceptBottleneckModel'
     run_name: "CBM_Ind"
-    sigmoidal_embedding: False
-    concat_prob: False
-    embedding_activation: "leakyrelu"
-    bool: False
-    extra_dims: 0
-    sigmoidal_extra_capacity: False
-    sigmoidal_prob: True
-
-  - architecture: 'ConceptBottleneckModel'
-    run_name: "CBM_Sigmoid_long"
-    sigmoidal_embedding: False
-    training_intervention_prob: 0.25
-    concept_loss_weight: 5
-    max_epochs: 500
-    concat_prob: False
-    embedding_activation: "leakyrelu"
-    bool: False
-    extra_dims: 0
-    sigmoidal_extra_capacity: False
-    sigmoidal_prob: True
-
-  - architecture: 'ConceptBottleneckModel'
-    run_name: "CBM_Logit_long"
-    sigmoidal_embedding: False
-    concat_prob: False
-    embedding_activation: "leakyrelu"
-    bool: False
-    extra_dims: 0
-    sigmoidal_extra_capacity: False
-    sigmoidal_prob: False
-    max_epochs: 500
-
-  - architecture: 'SequentialConceptBottleneckModel'
-    run_name: "CBM_Seq_long"
-    sigmoidal_embedding: False
-    concat_prob: False
-    embedding_activation: "leakyrelu"
-    bool: False
-    extra_dims: 0
-    sigmoidal_extra_capacity: False
-    sigmoidal_prob: True
-    c2y_max_epochs: 200
-
-  - architecture: 'IndependentConceptBottleneckModel'
-    run_name: "CBM_Ind_long"
-    sigmoidal_embedding: False
-    concat_prob: False
-    embedding_activation: "leakyrelu"
-    bool: False
-    extra_dims: 0
-    sigmoidal_extra_capacity: False
-    sigmoidal_prob: True
     max_epochs: 300
+    embedding_activation: "leakyrelu"
+    bool: False
+    extra_dims: 0
+    sigmoidal_extra_capacity: False
+    sigmoidal_prob: True

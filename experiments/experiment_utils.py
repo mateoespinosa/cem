@@ -137,7 +137,7 @@ def perform_model_selection(
                 new_results[fold][group_name] = copy.deepcopy(
                     results[fold][selected_method]
                 )
-    return new_results, selection_result
+    return dict(new_results), selection_result
 
 
 def perform_averaging(
@@ -189,6 +189,7 @@ def print_table(
     summary_table_metrics=None,
     sort_key="model",
     config=None,
+    save_name="output_table",
 ):
     config = config or {}
     # Initialise output table
@@ -228,7 +229,7 @@ def print_table(
         result_table_fields_keys.append("test_cas")
 
     # And intervention summaries if we chose to also include them
-    if len(shared_params.get("intervention_config", []).get("intervention_policies", [])) > 0:
+    if len(shared_params.get("intervention_config", {}).get("intervention_policies", [])) > 0:
         field_names.extend([
             "25% Int Acc",
             "50% Int Acc",
@@ -327,7 +328,7 @@ def print_table(
     # Also serialize the results
     if result_dir:
         with open(
-            os.path.join(result_dir, f"output_table_fold_{split + 1}.txt"),
+            os.path.join(result_dir, f"{save_name}_fold_{split + 1}.txt"),
             "w",
         ) as f:
             f.write(str(results_table))

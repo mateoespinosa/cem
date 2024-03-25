@@ -1,3 +1,66 @@
+"""
+$ python run_experiments.py --help
+usage: run_experiments.py [-h] [--config config.yaml] [--project_name name]
+                          [--output_dir path] [--rerun] [--num_workers N] [-d]
+                          [--force_cpu] [-p param_name=value param_name=value]
+                          [--activation_freq N] [--filter_out regex]
+                          [--filter_in regex] [--model_selection_metrics metric_name]
+                          [--summary_table_metrics metric_name pretty_name metric_name pretty_name]
+                          [-m group_pattern_regex group_name group_pattern_regex group_name]
+                          [--single_frequency_epochs N] [--fast_run]
+
+Runs the set of experiments of CBM-like models in the provided configuration file.
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --config config.yaml, -c config.yaml
+                        YAML file with the configuration for the set of
+                        experiments to run.
+  --project_name name   Project name used for Weights & Biases monitoring. If
+                        not provided, then we will not log in W&B.
+  --output_dir path, -o path
+                        directory where we will dump our experiment's results.
+  --rerun, -r           If set, then we will force a rerun of the entire
+                        experiment even if valid results are found in the
+                        provided output directory. Note that this may overwrite
+                        and previous results, so use with care.
+  --num_workers N       number of workers used for data feeders. Do not use more
+                        workers than cores in the machine.
+  -d, --debug           starts debug mode in our program.
+  --force_cpu           forces CPU training.
+  -p param_name=value param_name=value, --param param_name=value param_name=value
+                        Allows the passing of a config param that will overwrite
+                        anything passed as part of the config file itself.
+  --activation_freq N   how frequently, in terms of epochs, should we store the
+                        embedding activations for our validation set. By default
+                        we will not store any activations.
+  --filter_out regex    skips runs whose names match the regexes provided via
+                        this argument. These regexes must follow Python's regex
+                        syntax.
+  --filter_in regex     includes only runs whose names match the regexes provided
+                        with this argument. These regexes must follow Python's
+                        regex syntax.
+  --model_selection_metrics metric_name
+                        metrics to be used to make a summary table by selecting
+                        models based on some (validation) metric. If provided,
+                        the one must also provide groups via the
+                        model_selection_groups argument.
+  --summary_table_metrics metric_name pretty_name metric_name pretty_name
+                        List of metrics to be included as part of the final
+                        summary table of this run.
+  -m group_pattern_regex group_name group_pattern_regex group_name, --model_selection_groups group_pattern_regex group_name group_pattern_regex group_name
+                        Performs model selection based on the requested model
+                        selection metrics by grouping methods that match the
+                        Python regex `group_pattern_regex` into a single group
+                        with name `group_name`.
+  --single_frequency_epochs N
+                        how frequently, in terms of epochs, should we store the
+                        embedding activations for our validation set. By default
+                        we will not store any activations.
+  --fast_run            does not perform a check on expected result keys on
+                        previously found results. Only use if you are certain
+                        old results are not stale and are complete!
+"""
 import argparse
 import copy
 import joblib
@@ -244,7 +307,7 @@ def _perform_model_selection(
                 f"********** Results after model selection "
                 f"with {model_selection_metric} **********"
             )
-            experiment_utils.experiment_utils.print_table(
+            experiment_utils.print_table(
                 summary_table_metrics=summary_table_metrics,
                 config=config,
                 results=model_selection_results,
@@ -296,6 +359,7 @@ def main(
     filter_in_regex=None,
     model_selection_metrics=None,
     model_selection_groups=None,
+    fast_run=False,
 ):
     seed_everything(42)
     # parameters for data, model, and training
@@ -346,21 +410,7 @@ def main(
                 run_config['result_dir'] = result_dir
                 experiment_utils.evaluate_expressions(run_config, soft=True)
                 run_config['split'] = split
-                (
-                    train_dl,
-                    val_dl,
-                    test_dl,
-                    imbalance,
-                    concept_map,
-                    intervened_groups,
-                    task_class_weights,
-                    acquisition_costs
-                ) = _generate_dataset_and_update_config(
-                    run_config,
-                )
-                experiment_utils.evaluate_expressions(run_config)
 
-                now = datetime.now()
                 old_results = None
                 if "run_name" not in run_config:
                     run_name = (
@@ -425,6 +475,30 @@ def main(
                 if (not current_rerun) and os.path.exists(current_results_path):
                     with open(current_results_path, 'rb') as f:
                         old_results = joblib.load(f)
+                if fast_run and (old_results is not None):
+                    logging.info(
+                        f'\t\t[IMPORTANT] We found previous results for '
+                        f'run {run_name} at trial {split + 1} and WILL '
+                        f'use them without verifying all expected evaluation '
+                        f'keys are present as we are running in FAST RUN mode.'
+                    )
+                    results[f'{split}'][run_name].update(old_results)
+                    continue
+                (
+                    train_dl,
+                    val_dl,
+                    test_dl,
+                    imbalance,
+                    concept_map,
+                    intervened_groups,
+                    task_class_weights,
+                    acquisition_costs
+                ) = _generate_dataset_and_update_config(
+                    run_config,
+                )
+                experiment_utils.evaluate_expressions(run_config)
+
+                now = datetime.now()
 
                 # Get the appropiate training function
                 if run_config["architecture"] == \
@@ -688,6 +762,7 @@ def main(
         result_dir=result_dir,
         split=split,
         summary_table_metrics=summary_table_metrics,
+        config=experiment_config,
     )
         # Locally serialize the results of this trial
     return results
@@ -862,6 +937,16 @@ def _build_arg_parser():
         metavar='N',
         type=int,
     )
+    parser.add_argument(
+         "--fast_run",
+         action="store_true",
+         default=False,
+         help=(
+             "does not perform a check on expected result keys on previously "
+             "found results. Only use if you are certain old results are not "
+             "stale and are complete!"
+         ),
+     )
     return parser
 
 
@@ -958,4 +1043,5 @@ if __name__ == '__main__':
         model_selection_metrics=model_selection_metrics,
         model_selection_groups=model_selection_groups,
         summary_table_metrics=summary_table_metrics,
+        fast_run=args.fast_run,
     )
