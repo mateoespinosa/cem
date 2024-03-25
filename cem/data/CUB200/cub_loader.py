@@ -758,7 +758,8 @@ class CUBDataset(Dataset):
         if not self.is_train:
             assert any([("test" in path) or ("val" in path) for path in pkl_file_paths])
         for file_path in pkl_file_paths:
-            self.data.extend(pickle.load(open(file_path, 'rb')))
+            with open(file_path, 'rb') as f:
+                self.data.extend(pickle.load(f))
         self.transform = transform
         self.concept_transform = concept_transform
         self.label_transform = label_transform
@@ -968,8 +969,8 @@ def find_class_imbalance(pkl_file, multiple_attr=False, attr_idx=-1):
     If multiple_attr is True, then return imbalance ratio separately for each attribute. Else, calculate the overall imbalance across all attributes
     """
     imbalance_ratio = []
-    base_dir = os.path.join(DATASET_DIR, 'class_attr_data_10')
-    data = pickle.load(open(os.path.join(base_dir, pkl_file), 'rb'))
+    with open(pkl_file, 'rb') as f:
+        data = pickle.load(f)
     n = len(data)
     n_attr = len(data[0]['attribute_label'])
     if attr_idx >= 0:

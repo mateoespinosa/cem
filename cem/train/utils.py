@@ -54,7 +54,7 @@ def execute_and_save(
 def load_call(
     function,
     keys,
-    full_run_name,
+    run_name,
     old_results=None,
     rerun=False,
     kwargs=None,
@@ -66,22 +66,20 @@ def load_call(
 
     outputs = []
     for key in keys:
-        if key.endswith("_" + full_run_name):
-            real_key = key[:len(full_run_name) + 1]
-            search_key = key
+        if key.endswith("_" + run_name):
+            real_key = key[:len(run_name) + 1]
         else:
             real_key = key
-            search_key = key + "_" + full_run_name
         rerun = rerun or (
             os.environ.get(f"RERUN_METRIC_{real_key.upper()}", "0") == "1"
         )
-        if search_key in old_results:
-            outputs.append(old_results[search_key])
+        if (real_key in old_results):
+            outputs.append(old_results[real_key])
         else:
             rerun = True
             logging.debug(
-                f"Restarting run because we could not find {search_key} in "
-                f"old results."
+                f"Restarting run because we could not find {real_key} in "
+                f"old results for {run_name}."
             )
             break
     if not rerun:

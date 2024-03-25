@@ -1,0 +1,136 @@
+trials: 5
+results_dir: results/celeba/
+model_selection_groups:
+ - ["^CEM", "CEM"]
+ - ["^IntCEM(.*)", "IntCEM"]
+ - ["^CBM_Sigmoid", "CBM_Logit"]
+ - ["^CBM_Ind", "CBM_Seq"]
+model_selection_metrics: [val_acc_y]
+
+
+shared_params:
+  # Dataset Configuration
+  dataset_config:
+    dataset: "celeba"
+    image_size: 64
+    num_classes: 1000
+    batch_size: 512
+    root_dir: data/
+    use_imbalance: True
+    use_binary_vector_class: True
+    num_concepts: 6
+    label_binary_width: 1
+    label_dataset_subsample: 12
+    num_hidden_concepts: 2
+    selected_concepts: False
+    num_workers: 8
+
+  # Intervention Parameters
+  intervention_config:
+    competence_levels: [1, 0]
+    intervention_freq: 1
+    intervention_batch_size: 1024
+    intervention_policies:
+      - policy: "random"
+        group_level: True
+        use_prior: True  # This will make the random policy use the learnt IntCEM prior!!!
+      - policy: "random"
+        group_level: True
+        use_prior: False
+      - policy: "coop"
+        group_level: True
+        use_prior: False
+      - policy: "behavioural_cloning"
+        group_level: True
+        use_prior: False
+      - policy: "optimal_greedy"
+        group_level: True
+        use_prior: False
+      - policy: "global_val_error"
+        group_level: True
+        use_prior: False
+      - policy: "global_val_improvement"
+        group_level: True
+        use_prior: False
+
+  # Representation metrics
+  # Change to False if you want representation metrics to be included in the
+  # evaluation (may significantly increase experiment times)
+  skip_repr_evaluation: True
+  top_k_accuracy: [3, 5, 10]
+  save_model: True
+  max_epochs: 200
+  patience: 15
+  emb_size: 16
+  extra_dims: 0
+  concept_loss_weight: 1
+  learning_rate: 0.005
+  weight_decay: 0.000004
+  weight_loss: False
+  c_extractor_arch: resnet34
+  optimizer: sgd
+  bool: False
+  early_stopping_monitor: val_loss
+  early_stopping_mode: min
+  early_stopping_delta: 0.0
+  momentum: 0.9
+  sigmoidal_prob: False
+  training_intervention_prob: 0.25
+
+
+runs:
+  - architecture: 'ConceptEmbeddingModel'
+    run_name: "CEM"
+    sigmoidal_prob: True
+    training_intervention_prob: 0.25
+    embedding_activation: "leakyrelu"
+
+  - architecture: "IntAwareConceptEmbeddingModel"
+    run_name: "IntCEM_intervention_weight_{intervention_weight}_intervention_task_discount_{intervention_task_discount}"
+    training_intervention_prob: 0.25
+    intervention_weight: [0.1, 1, 5]
+    intervention_task_discount: [1.1, 1.5]
+    use_concept_groups: True
+    int_model_use_bn: True
+    int_model_layers: [128, 128, 64, 64]
+    embedding_activation: "leakyrelu"
+    max_horizon: 6
+    horizon_rate: 1.005
+    gradient_clip_val: 100
+    grid_variables:
+        - intervention_task_discount
+        - intervention_weight
+    grid_search_mode: exhaustive
+
+  - architecture: 'ConceptBottleneckModel'
+    run_name: "CBM_Sigmoid"
+    training_intervention_prob: 0.25
+    embedding_activation: "leakyrelu"
+    bool: False
+    extra_dims: 0
+    sigmoidal_extra_capacity: False
+    sigmoidal_prob: True
+
+  - architecture: 'ConceptBottleneckModel'
+    run_name: "CBM_Logit"
+    embedding_activation: "leakyrelu"
+    bool: False
+    extra_dims: 0
+    sigmoidal_extra_capacity: False
+    sigmoidal_prob: False
+
+  - architecture: 'SequentialConceptBottleneckModel'
+    run_name: "CBM_Seq"
+    embedding_activation: "leakyrelu"
+    bool: False
+    extra_dims: 0
+    sigmoidal_extra_capacity: False
+    sigmoidal_prob: True
+
+  - architecture: 'IndependentConceptBottleneckModel'
+    run_name: "CBM_Ind"
+    embedding_activation: "leakyrelu"
+    bool: False
+    extra_dims: 0
+    sigmoidal_extra_capacity: False
+    sigmoidal_prob: True

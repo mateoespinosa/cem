@@ -5,7 +5,7 @@ with open("README.md", "r") as f:
 
 setuptools.setup(
     name="cem",
-    version="1.1.0",
+    version="1.2.0",
     author="Mateo Espinosa Zarlenga, Pietro Barbiero, Gabriele Ciravegna, Giuseppe Marra, Francesco Giannini, Michelangelo Diligenti, Zohreh Shams, Frederic Precioso, Stefano Melacci, Adrian Weller, Pietro Lio, Mateja Jamnik",
     author_email="me466@cam.ac.uk",
     description="Concept Embedding Model",
@@ -39,7 +39,6 @@ setuptools.setup(
         "scikit-learn-extra>=0.2.0",
         "scikit-learn>=1.0.1",
         "seaborn>=0.11.2",
-        "sklearn>=0.0",
         "torch>=1.11.0",
         "torchmetrics>=0.6.2",
         "torchvision>=0.12.0",
