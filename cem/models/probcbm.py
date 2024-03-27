@@ -620,7 +620,6 @@ class ProbCBM(ProbConceptModel, ConceptBottleneckModel):
         concept_loss_weight=1,
         task_loss_weight=1,
         vib_beta=0.00005,
-        warmup=False,
 
         hidden_dim=16,
         class_hidden_dim=128,
@@ -647,6 +646,7 @@ class ProbCBM(ProbConceptModel, ConceptBottleneckModel):
         weight_decay=4e-05,
         weight_loss=None,
         task_class_weights=None,
+        lr_ratio=10,
 
         active_intervention_values=None,
         inactive_intervention_values=None,
@@ -698,7 +698,6 @@ class ProbCBM(ProbConceptModel, ConceptBottleneckModel):
         self.intervention_prob = intervention_prob
         self.use_class_emb_from_concept = use_class_emb_from_concept
         self.use_probabilistic_concept = use_probabilistic_concept
-        self.warmup = warmup
         del self.mean_head
         del self.logsigma_head
 
@@ -788,6 +787,7 @@ class ProbCBM(ProbConceptModel, ConceptBottleneckModel):
         self.use_concept_groups = use_concept_groups
         self.output_interventions = output_interventions
         self.output_latent = output_latent
+        self.lr_ratio = lr_ratio
 
     def _train_step(
         self,
@@ -803,14 +803,6 @@ class ProbCBM(ProbConceptModel, ConceptBottleneckModel):
         negative_scale,
         shift,
     ):
-        if self.warmup:
-            # Then we will freeze the weights of the CNN module as we are still
-            # warming up
-            for p in self.cnn_module.parameters():
-                p.requires_grad = False
-        else:
-            for p in self.cnn_module.parameters():
-                p.requires_grad = True
         loss, pred = 0, None
         loss_iter_dict = {}
         if isinstance(self.loss_concept, MCBCELoss):
@@ -1302,4 +1294,71 @@ class ProbCBM(ProbConceptModel, ConceptBottleneckModel):
             out_dict['all_class_uncertainty'] = all_uncertainty_class
 
         return out_dict
+
+    def configure_optimizers(self):
+        params_old = []
+        params_new = []
+        for name, parameter in self.named_parameters():
+            if (
+                parameter.requires_grad and
+                (name.split('.')[0] != 'features')
+            ):
+                if name.split('.')[0] in [
+                    'head',
+                    'concept_vectors',
+                    'concept_vectors_logsigma',
+                    'class_mean',
+                    'stem',
+                    'class_negative_scale',
+                    'class_head',
+                    'concept_head',
+                    'shift',
+                    'negative_scale',
+                    'scale',
+                    'mean_head',
+                    'logsigma_head',
+                ]:
+                    params_new.append(parameter)
+                else:
+                    params_old.append(parameter)
+        if self.optimizer_name.lower() == "adam":
+            optimizer = torch.optim.Adam([
+                dict(
+                    params=params_old,
+                    lr=self.learning_rate,
+                    weight_decay=self.weight_decay,
+                ),
+                dict(
+                    params=params_new,
+                    lr=self.learning_rate * self.lr_ratio,
+                    weight_decay=self.weight_decay,
+                )
+            ]
+
+            )
+        else:
+            optimizer = torch.optim.SGD([
+                dict(
+                    params=params_old,
+                    lr=self.learning_rate,
+                    momentum=self.momentum,
+                    weight_decay=self.weight_decay,
+                ),
+                dict(
+                    params=params_new,
+                    lr=self.learning_rate * self.lr_ratio,
+                    momentum=self.momentum,
+                    weight_decay=self.weight_decay,
+                ),
+            ])
+        lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+            optimizer,
+            verbose=True,
+        )
+        return {
+            "optimizer": optimizer,
+            "lr_scheduler": lr_scheduler,
+            "monitor": "loss",
+        }
+
 

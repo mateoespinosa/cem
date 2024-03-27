@@ -72,9 +72,9 @@ def construct_model(
     ]:
         model_cls = models_probcbm.ProbCBM
         extra_params = dict(
-            warmup=config.get(
-                'warmup',
-                False
+            lr_ratio=config.get(
+                'lr_ratio',
+                10,
             ),
             hidden_dim=config.get(
                 'hidden_dim',

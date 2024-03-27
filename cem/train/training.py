@@ -1237,13 +1237,21 @@ def train_prob_cbm(
             start_time = time.time()
             # First train the concept model by setting the mode accordingly
             if model.train_class_mode == 'sequential':
+                trainable_params = [
+                    name for name, param in model.named_parameters()
+                    if param.requires_grad
+                ]
+                old_lrs = [
+                    config['learning_rate'],
+                    config['learning_rate'] * config.get('lr_ratio', 10),
+                ]
                 if config.get('warmup_epochs', 5) != 0:
                     warmup_epochs = config.get('warmup_epochs', 5)
                     print(
                         f"\tWarming up ProbCBM for {warmup_epochs} epochs"
                     )
-                    model.stage = 'concept'
-                    model.warmup = True
+                    for p in model.cnn_module.parameters():
+                        p.requires_grad = False
                     warmup_trainer = pl.Trainer(
                         max_epochs=config.get(
                             'warmup_epochs',
@@ -1269,15 +1277,26 @@ def train_prob_cbm(
                                 'Experiment execution was manually '
                                 'interrupted!'
                             )
-                    model.warmup = False
+                    for p in model.cnn_module.parameters():
+                        p.requires_grad = True
                     print("\t\tDone with warmup!")
                 print("\tTraining ProbCBM's concept model")
                 model.stage = 'concept'
+                params_to_train = [
+                    name for name, _ in model.named_parameters()
+                    if name not in model.params_to_classify()
+                ]
+                # Make sure we unfreeze only the correct weights
+                for name, parameter in model.named_parameters():
+                    if name not in params_to_train:
+                        parameter.requires_grad = False
+                    elif name in trainable_params:
+                        parameter.requires_grad = True
                 concept_trainer = pl.Trainer(
                     max_epochs=config.get(
                         'max_concept_epochs',
                         config.get('max_epochs', None),
-                    ),
+                    ) - config.get('warmup_epochs', 5),
                     **trainer_args,
                 )
                 concept_trainer.fit(model, train_dl, val_dl)
@@ -1297,6 +1316,22 @@ def train_prob_cbm(
                 num_epochs = concept_trainer.current_epoch
                 print("\tTraining ProbCBM's task model")
                 model.stage = 'class'
+                params_to_train = [
+                    name for name, _ in model.named_parameters()
+                    if name in model.params_to_classify()
+                ]
+                # Make sure we unfreeze only the correct weights
+                for name, parameter in model.named_parameters():
+                    if name not in params_to_train:
+                        parameter.requires_grad = False
+                    elif name in trainable_params:
+                        parameter.requires_grad = True
+                # Reset learning rates too
+                for g, old_lr in zip(
+                    model.optimizers().param_groups,
+                    old_lrs,
+                ):
+                    g['lr'] = old_lr
                 task_trainer = pl.Trainer(
                     max_epochs=config.get(
                         'max_task_epochs',
