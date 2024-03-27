@@ -7,25 +7,21 @@ accompying repository (https://github.com/ejkim47/prob-cbm) as of March 25th,
 2024.
 """
 
+import math
 import numpy as np
 import pytorch_lightning as pl
+import sklearn.metrics
 import torch
+import torch.nn as nn
+import torch.nn.functional as F
 
-from torchvision.models import resnet50
+from torchvision.models import resnet18
 
 from cem.metrics.accs import compute_accuracy
 from cem.models.cbm import ConceptBottleneckModel
 import cem.train.utils as utils
 
 
-from email.mime import base
-import torch
-import torch.nn as nn
-import numpy as np
-import math
-import torch.nn.functional as F
-
-from torchvision.models import resnet18
 
 
 def weights_init(module):
@@ -164,6 +160,62 @@ class PIENet(nn.Module):
         out = self.layer_norm(out + residual)
         return out, attn
 
+class MCBCELoss(nn.Module):
+    """
+    Code adapted from Kim et al.'s https://github.com/ejkim47/prob-cbm/blob/main/utils/loss.py
+    """
+    def __init__(self, reduction='mean', criterion=None, weight=None, vib_beta=0.00005):
+        super().__init__()
+        if reduction not in {'mean', 'sum', None}:
+            raise ValueError('unknown reduction {}'.format(reduction))
+        self.reduction = reduction
+        self.vib_beta = vib_beta
+        self.criterion = (
+            criterion or nn.BCELoss(reduction='none', weight=weight)
+        )
+
+    def kl_divergence(self, mu, logsigma, reduction='sum'):
+        kl = -0.5 * (1 + logsigma - mu.pow(2) - logsigma.exp())
+        if reduction == 'sum':
+            return kl.sum()
+        else:
+            return kl.sum(dim=-1).mean()
+
+    def _compute_loss(self, probs, label):
+        loss = self.criterion(probs, label)
+        loss = loss.sum() if self.reduction == 'sum' else loss.mean()
+        if loss != loss:
+            print("NaN")
+        return loss
+
+    def forward(
+        self,
+        probs,
+        image_mean,
+        image_logsigma,
+        concept_labels,
+        negative_scale,
+        **kwargs,
+    ):
+        vib_loss = 0
+        loss_dict = {}
+
+        if self.vib_beta != 0:
+            vib_loss = self.kl_divergence(
+                image_mean,
+                image_logsigma,
+                reduction=self.reduction,
+            )
+            loss_dict['vib_loss'] = vib_loss.item()
+
+        t2i_loss = self._compute_loss(probs, concept_labels)
+        loss = t2i_loss + self.vib_beta * vib_loss
+
+        loss_dict['t2i_loss'] = t2i_loss.item()
+        loss_dict['negative_scale'] = negative_scale.mean().item()
+        loss_dict['loss'] = loss.mean().item()
+
+        return loss, loss_dict
 
 class UncertaintyModuleImage(nn.Module):
     """
@@ -202,15 +254,15 @@ class ConceptConvModelBase(nn.Module):
     """
     def __init__(
         self,
-        backbone=resnet18,
+        c_extractor_arch=resnet18,
         pretrained=True,
         train_class_mode='sequential',
     ):
-        super(ConceptConvModelBase, self).__init__()
+        nn.Module.__init__(self)
         self.train_class_mode = train_class_mode
         self.use_dropout = False
 
-        base_model = backbone(pretrained=pretrained, num_classes=1000)
+        base_model = c_extractor_arch(output_dim=1000)
         self.conv1 = base_model.conv1
         self.bn1 = base_model.bn1
         self.relu = base_model.relu
@@ -262,67 +314,69 @@ class ConceptConvModelBase(nn.Module):
 class ProbConceptModel(ConceptConvModelBase):
     def __init__(
         self,
-        num_concepts,
-        backbone=resnet18,
+        n_concepts,
+        c_extractor_arch=resnet18,
         pretrained=True,
-        num_classes=200,
-        hidden_dim=128,
-        n_samples_inference=7,
-        use_neg_concept=False,
-        pred_class=False,
-        use_scale=False,
+        n_tasks=200,
+        hidden_dim=16,
+        n_samples_inference=50,
+        use_neg_concept=True,
+        pred_class=True,
+        use_scale=True,
         activation_concept2class='prob',
         token2concept=None,
         train_class_mode='sequential',
-        **kwargs,
+        init_negative_scale=5,
+        init_shift=5,
     ):
         """
-        Code taken from Kim et al.'s https://github.com/ejkim47/prob-cbm/blob/main/models/build_model_resnset.py
+        Code adapted from Kim et al.'s https://github.com/ejkim47/prob-cbm/blob/main/models/build_model_resnset.py
         """
-        super(ProbConceptModel, self).__init__(
-            backbone=backbone,
+        ConceptConvModelBase.__init__(
+            self,
+            c_extractor_arch=c_extractor_arch,
             pretrained=pretrained,
         )
 
         self.group2concept = token2concept
-        self.num_concepts = num_concepts
-        self.num_classes = num_classes
+        self.n_concepts = n_concepts
+        self.n_tasks = n_tasks
         self.activation_concept2class = activation_concept2class
         self.train_class_mode = train_class_mode
         self.use_scale = use_scale
 
         self.mean_head = nn.Sequential(
-            nn.Conv2d(self.d_model, num_concepts * hidden_dim, kernel_size=1),
+            nn.Conv2d(self.d_model, n_concepts * hidden_dim, kernel_size=1),
             nn.ReLU(),
             nn.Conv2d(
-                num_concepts * hidden_dim,
-                num_concepts * hidden_dim,
+                n_concepts * hidden_dim,
+                n_concepts * hidden_dim,
                 kernel_size=1,
-                groups=num_concepts,
+                groups=n_concepts,
             ),
             nn.ReLU(),
             nn.Conv2d(
-                num_concepts * hidden_dim,
-                num_concepts * hidden_dim,
+                n_concepts * hidden_dim,
+                n_concepts * hidden_dim,
                 kernel_size=1,
-                groups=num_concepts,
+                groups=n_concepts,
             ),
         )
         self.logsigma_head = nn.Sequential(
-            nn.Conv2d(self.d_model, num_concepts * hidden_dim, kernel_size=1),
+            nn.Conv2d(self.d_model, n_concepts * hidden_dim, kernel_size=1),
             nn.LeakyReLU(),
             nn.Conv2d(
-                num_concepts * hidden_dim,
-                num_concepts * hidden_dim,
+                n_concepts * hidden_dim,
+                n_concepts * hidden_dim,
                 kernel_size=1,
-                groups=num_concepts,
+                groups=n_concepts,
             ),
             nn.LeakyReLU(),
             nn.Conv2d(
-                num_concepts * hidden_dim,
-                num_concepts * hidden_dim,
+                n_concepts * hidden_dim,
+                n_concepts * hidden_dim,
                 kernel_size=1,
-                groups=num_concepts,
+                groups=n_concepts,
             ),
         )
 
@@ -332,11 +386,11 @@ class ProbConceptModel(ConceptConvModelBase):
         self.use_neg_concept = use_neg_concept
         n_neg_concept = 1 if use_neg_concept else 0
         self.concept_vectors = nn.Parameter(
-            torch.randn(n_neg_concept+1, num_concepts, hidden_dim),
+            torch.randn(n_neg_concept+1, n_concepts, hidden_dim),
             requires_grad=True,
         )
-        negative_scale = kwargs.get('init_negative_scale', 1) * torch.ones(1)
-        shift = kwargs.get('init_shift', 0) * torch.ones(1)
+        negative_scale = init_negative_scale * torch.ones(1)
+        shift = init_shift * torch.ones(1)
         nn.init.trunc_normal_(
             self.concept_vectors,
             std=1.0 / math.sqrt(hidden_dim),
@@ -352,7 +406,7 @@ class ProbConceptModel(ConceptConvModelBase):
 
         self.pred_class = pred_class
         if pred_class:
-            self.head = nn.Linear(num_concepts, num_classes)
+            self.head = nn.Linear(n_concepts, n_tasks)
             if use_scale:
                 scale = nn.Parameter(torch.ones(1) * 5, requires_grad=True)
                 self.register_parameter('scale', scale)
@@ -445,7 +499,7 @@ class ProbConceptModel(ConceptConvModelBase):
         uncertainty = 1 - torch.sigmoid(logits).mean(dim=-1)
         return uncertainty
 
-    def sample_embeddings(self, x, n_samples_inference=None):
+    def sample_embeddings(self, x, n_samples_inference=50):
         n_samples_inference = (
             self.n_samples_inference if n_samples_inference is None
             else n_samples_inference
@@ -454,12 +508,12 @@ class ProbConceptModel(ConceptConvModelBase):
         feature = self.forward_basic(x)
         pred_concept_mean = self.mean_head(feature).view(
             B,
-            self.num_concepts,
+            self.n_concepts,
             -1,
         )
         pred_concept_logsigma = self.logsigma_head(feature).view(
             B,
-            self.num_concepts,
+            self.n_concepts,
             -1,
         )
         pred_concept_mean = F.normalize(pred_concept_mean, p=2, dim=-1)
@@ -482,12 +536,12 @@ class ProbConceptModel(ConceptConvModelBase):
         feature = self.forward_basic(x)
         pred_concept_mean = self.mean_head(feature).view(
             B,
-            self.num_concepts,
+            self.n_concepts,
             -1,
         )
         pred_concept_logsigma = self.logsigma_head(feature).view(
             B,
-            self.num_concepts,
+            self.n_concepts,
             -1,
         )
         pred_concept_logsigma = torch.clip(pred_concept_logsigma, max=10)
@@ -505,7 +559,7 @@ class ProbConceptModel(ConceptConvModelBase):
             pred_concept_mean,
             pred_concept_logsigma,
             self.n_samples_inference,
-        ) # B x num_concepts x n_samples x hidden_dim
+        ) # B x n_concepts x n_samples x hidden_dim
         concept_embeddings = concept_mean.unsqueeze(-2)
 
         concept_logit, concept_prob = self.match_prob(
@@ -555,39 +609,107 @@ class ProbConceptModel(ConceptConvModelBase):
 
 
 
-class ProbCBM(ProbConceptModel):
+class ProbCBM(ProbConceptModel, ConceptBottleneckModel):
+    """
+    Code adapted from Kim et al.'s https://github.com/ejkim47/prob-cbm/blob/main/models/build_model_resnset.py
+    """
     def __init__(
         self,
-        num_concepts,
-        hidden_dim=128,
-        num_classes=200,
-        class_hidden_dim=None,
-        intervention_prob=False,
+        n_concepts,
+        n_tasks,
+        concept_loss_weight=1,
+        task_loss_weight=1,
+        vib_beta=0.00005,
+        warmup=False,
+
+        hidden_dim=16,
+        class_hidden_dim=128,
+        intervention_prob=0.5,
         use_class_emb_from_concept=False,
-        use_probabilsitic_concept=True,
-        **kwargs,
+        use_probabilistic_concept=True,
+
+        c_extractor_arch=resnet18,
+        pretrained=True,
+        n_samples_inference=50,
+        use_neg_concept=True,
+        pred_class=True,
+        use_scale=True,
+        activation_concept2class='prob',
+        token2concept=None,
+        train_class_mode='sequential',
+        init_negative_scale=5,
+        init_shift=5,
+
+
+        optimizer="adam",
+        momentum=0.9,
+        learning_rate=0.01,
+        weight_decay=4e-05,
+        weight_loss=None,
+        task_class_weights=None,
+
+        active_intervention_values=None,
+        inactive_intervention_values=None,
+        intervention_policy=None,
+        output_interventions=False,
+        output_latent=False,
+        use_concept_groups=False,
+
+        top_k_accuracy=None,
     ):
-        super(ProbCBM, self).__init__(
-            num_concepts=num_concepts,
-            hidden_dim=hidden_dim,
-            num_classes=num_classes,
-            **kwargs,
+        assert not output_latent, (
+            f'Currently we have not yet added support for '
+            'output_latent = False in ProbCBMs'
         )
+        assert not output_interventions, (
+            f'Currently we have not yet added support for '
+            'output_interventions = False in ProbCBMs'
+        )
+        pl.LightningModule.__init__(self)
+        ProbConceptModel.__init__(
+            self,
+            n_concepts=n_concepts,
+            hidden_dim=hidden_dim,
+            n_tasks=n_tasks,
+            c_extractor_arch=c_extractor_arch,
+            pretrained=pretrained,
+            n_samples_inference=n_samples_inference,
+            use_neg_concept=use_neg_concept,
+            pred_class=pred_class,
+            use_scale=use_scale,
+            activation_concept2class=activation_concept2class,
+            token2concept=token2concept,
+            train_class_mode=train_class_mode,
+            init_negative_scale=init_negative_scale,
+            init_shift=init_shift,
+        )
+        self.train_class_mode = train_class_mode
+        if train_class_mode in ['joint', 'independent']:
+            self.stage = 'joint'
+        elif train_class_mode == 'sequential':
+            # Starts with concept training and then progresses to label
+            # predictor training (i.e., stage = 'class')
+            self.stage = 'concept'
+        else:
+            raise ValueError(
+                f'Unsupported train_class_mode "{train_class_mode}"'
+            )
 
         self.intervention_prob = intervention_prob
         self.use_class_emb_from_concept = use_class_emb_from_concept
-        self.use_probabilsitic_concept = use_probabilsitic_concept
+        self.use_probabilistic_concept = use_probabilistic_concept
+        self.warmup = warmup
         del self.mean_head
         del self.logsigma_head
 
         self.mean_head = nn.ModuleList([
             PIENet(1, self.d_model, hidden_dim, hidden_dim // 2)
-            for _ in range(num_concepts)
+            for _ in range(n_concepts)
         ])
-        if self.use_probabilsitic_concept:
+        if self.use_probabilistic_concept:
             self.logsigma_head = nn.ModuleList([
                 UncertaintyModuleImage(self.d_model, hidden_dim, hidden_dim // 2)
-                for _ in range(num_concepts)
+                for _ in range(n_concepts)
             ])
 
         if self.pred_class:
@@ -599,11 +721,11 @@ class ProbCBM(ProbConceptModel):
             )
             if not self.use_class_emb_from_concept:
                 self.class_mean = nn.Parameter(
-                    torch.randn(num_classes, class_hidden_dim),
+                    torch.randn(n_tasks, class_hidden_dim),
                     requires_grad=True,
                 )
             self.head = nn.Sequential(
-                nn.Linear(hidden_dim * num_concepts, class_hidden_dim)
+                nn.Linear(hidden_dim * n_concepts, class_hidden_dim)
             )
 
             if self.use_scale:
@@ -617,22 +739,242 @@ class ProbCBM(ProbConceptModel):
         del self.mean_head
 
         self.stem = nn.Sequential(
-            nn.Conv2d(self.d_model, hidden_dim * num_concepts, kernel_size=1),
-            nn.BatchNorm2d(hidden_dim * num_concepts),
+            nn.Conv2d(self.d_model, hidden_dim * n_concepts, kernel_size=1),
+            nn.BatchNorm2d(hidden_dim * n_concepts),
             nn.ReLU(),
         )
         weights_init(self.stem)
         self.mean_head = nn.ModuleList([
             PIENet(1, hidden_dim, hidden_dim, hidden_dim)
-            for _ in range(num_concepts)
+            for _ in range(n_concepts)
         ])
-        if self.use_probabilsitic_concept:
+        if self.use_probabilistic_concept:
             del self.logsigma_head
             self.logsigma_head = nn.ModuleList([
                 UncertaintyModuleImage(hidden_dim, hidden_dim, hidden_dim)
-                for _ in range(num_concepts)
+                for _ in range(n_concepts)
             ])
 
+        if active_intervention_values is not None:
+            self.active_intervention_values = torch.tensor(
+                active_intervention_values
+            )
+        else:
+            self.active_intervention_values = torch.ones(n_concepts)
+        if inactive_intervention_values is not None:
+            self.inactive_intervention_values = torch.tensor(
+                inactive_intervention_values
+            )
+        else:
+            self.inactive_intervention_values = torch.ones(n_concepts)
+
+        self.loss_concept = MCBCELoss(weight=weight_loss, vib_beta=vib_beta)
+        self.loss_task = (
+            torch.nn.CrossEntropyLoss(weight=task_class_weights)
+            if n_tasks > 1 else torch.nn.BCEWithLogitsLoss(
+                pos_weight=task_class_weights
+            )
+        )
+
+        self.top_k_accuracy = top_k_accuracy
+        self.concept_loss_weight = concept_loss_weight
+        self.task_loss_weight = task_loss_weight
+        self.momentum = momentum
+        self.learning_rate = learning_rate
+        self.weight_decay = weight_decay
+        self.optimizer_name = optimizer
+        self.n_tasks = n_tasks
+        self.intervention_policy = intervention_policy
+        self.use_concept_groups = use_concept_groups
+        self.output_interventions = output_interventions
+        self.output_latent = output_latent
+
+    def _train_step(
+        self,
+        stage,
+        c,
+        y,
+        pred_concept_prob,
+        pred_concept_logit,
+        pred_class_logit,
+        pred_class_prob,
+        pred_mean,
+        pred_logsigma,
+        negative_scale,
+        shift,
+    ):
+        if self.warmup:
+            # Then we will freeze the weights of the CNN module as we are still
+            # warming up
+            for p in self.cnn_module.parameters():
+                p.requires_grad = False
+        else:
+            for p in self.cnn_module.parameters():
+                p.requires_grad = True
+        loss, pred = 0, None
+        loss_iter_dict = {}
+        if isinstance(self.loss_concept, MCBCELoss):
+            pred_concept = pred_concept_prob
+            loss_concept, concept_loss_dict = self.loss_concept(
+                probs=pred_concept_prob,
+                image_mean=pred_mean,
+                image_logsigma=pred_logsigma,
+                concept_labels=c,
+                negative_scale=negative_scale,
+                shift=shift,
+            )
+            for k, v in concept_loss_dict.items():
+                if k != 'loss':
+                    loss_iter_dict['pcme_' + k] = v
+        elif isinstance(self.loss_concept, nn.BCELoss):
+            pred_concept = pred_concept_prob
+            loss_concept = self.loss_concept(pred_concept, c)
+        else:
+            pred_concept = pred_concept_logit
+            loss_concept = self.loss_concept(pred_concept, c)
+            pred_concept = torch.sigmoid(pred_concept)
+
+        if stage != 'class':
+            loss += loss_concept * self.concept_loss_weight
+        pred = pred_concept
+        loss_iter_dict['concept'] = loss_concept
+
+        if self.pred_class:
+            if pred_class_logit is not None:
+                pred_class = pred_class_logit
+                loss_class = self.loss_task(pred_class, y)
+                pred_class = F.softmax(pred_class, dim=-1)
+            else:
+                assert pred_class_prob is not None
+                pred_class = pred_class_prob
+                loss_class = F.nll_loss(pred_class.log(), y, reduction='mean')
+            loss_iter_dict['class'] = loss_class
+
+            if stage != 'concept':
+                loss += loss_class * self.task_loss_weight
+            pred = (
+                pred_class if pred is None
+                else torch.cat((pred_concept, pred_class), dim=1)
+            )
+        # And increase the number of epochs trained
+        return loss, loss_iter_dict
+
+    def _run_step(
+        self,
+        batch,
+        batch_idx,
+        train=False,
+        intervention_idxs=None,
+    ):
+        x, y, (c, competencies, prev_interventions) = self._unpack_batch(batch)
+        c_sem, c_embs, y_probs, tail_outputs, _, _ = self._forward(
+            x,
+            intervention_idxs=intervention_idxs,
+            c=c,
+            y=y,
+            train=train,
+            competencies=competencies,
+            prev_interventions=prev_interventions,
+            output_embeddings=True,
+            output_latent=True,
+            output_interventions=False,
+        )
+        loss, loss_iter_dict = self._train_step(
+            stage=self.stage,
+            c=c,
+            y=y,
+            pred_concept_prob=c_sem,
+            pred_concept_logit=tail_outputs.get('pred_concept_logit', None),
+            pred_class_logit=tail_outputs.get('pred_class_logit', None),
+            pred_class_prob=y_probs,
+            pred_mean=tail_outputs.get('pred_mean', None),
+            pred_logsigma=tail_outputs.get('pred_logsigma', None),
+            negative_scale=tail_outputs.get('negative_scale', None),
+            shift=tail_outputs.get('shift', None),
+        )
+        loss += self._extra_losses(
+            x=x,
+            y=y,
+            c=c,
+            c_sem=c_sem,
+            c_pred=c_embs,
+            y_pred=y_probs,
+            competencies=competencies,
+            prev_interventions=prev_interventions,
+        )
+        # compute accuracy
+        (c_accuracy, c_auc, c_f1), (y_accuracy, y_auc, y_f1) = compute_accuracy(
+            c_sem,
+            y_probs,
+            c,
+            y,
+        )
+        result = {
+            "c_accuracy": c_accuracy,
+            "c_auc": c_auc,
+            "c_f1": c_f1,
+            "y_accuracy": y_accuracy,
+            "y_auc": y_auc,
+            "y_f1": y_f1,
+            "concept_loss": float(loss_iter_dict['concept'].detach().cpu().numpy()),
+            "task_loss": float(loss_iter_dict['class'].detach().cpu().numpy()),
+            "loss": float(loss.detach().cpu().numpy()) if not isinstance(loss, float) else loss,
+            "avg_c_y_acc": (c_accuracy + y_accuracy) / 2,
+        }
+        if self.top_k_accuracy is not None:
+            y_true = y.reshape(-1).cpu().detach()
+            y_pred = y_probs.cpu().detach()
+            labels = list(range(self.n_tasks))
+            for top_k_val in self.top_k_accuracy:
+                y_top_k_accuracy = sklearn.metrics.top_k_accuracy_score(
+                    y_true,
+                    y_pred,
+                    k=top_k_val,
+                    labels=labels,
+                )
+                result[f'y_top_{top_k_val}_accuracy'] = y_top_k_accuracy
+        return loss, result
+
+    def _forward(
+        self,
+        x,
+        intervention_idxs=None,
+        c=None,
+        y=None,
+        train=False,
+        latent=None,
+        competencies=None,
+        prev_interventions=None,
+        output_embeddings=False,
+        output_latent=None,
+        output_interventions=False,
+        inference_with_sampling=False,
+        n_samples_inference=50,
+    ):
+        assert not output_interventions, (
+            f'Currently we have not yet added support for '
+            'output_interventions != None in ProbCBMs'
+        )
+        fwd_results = self.inner_forward(
+            x=x,
+            c=c,
+            y=y,
+            train=train,
+            inference_with_sampling=inference_with_sampling,
+            n_samples_inference=n_samples_inference,
+        )
+        c_sem = fwd_results.pop('pred_concept_prob')
+        y_pred = fwd_results.pop('pred_class_prob')
+        c_pred = fwd_results.pop('pred_embeddings')
+        tail_results = []
+        if output_interventions:
+            raise NotImplementedError('output_interventions')
+        if output_latent:
+            tail_results.append(fwd_results)
+        if output_embeddings:
+            tail_results.append(self.concept_vectors[0, :, :].detach())
+            tail_results.append(self.concept_vectors[1, :, :].detach())
+        return tuple([c_sem, c_pred, y_pred] + tail_results)
 
     def predict_concept_dist(self, x):
         B = x.shape[0]
@@ -641,11 +983,11 @@ class ProbCBM(ProbConceptModel):
         feature_avg = self.avgpool(feature).flatten(1)
         feature = feature.view(
             B,
-            self.num_concepts,
+            self.n_concepts,
             -1,
             feature.shape[-2:].numel(),
         ).transpose(2, 3)
-        feature_avg = feature_avg.view(B, self.num_concepts, -1)
+        feature_avg = feature_avg.view(B, self.n_concepts, -1)
         pred_concept_mean = torch.stack(
             [
                 mean_head(feature_avg[:, i], feature[:, i])[0]
@@ -654,7 +996,7 @@ class ProbCBM(ProbConceptModel):
             dim=1,
         )
         pred_concept_mean = F.normalize(pred_concept_mean, p=2, dim=-1)
-        if self.use_probabilsitic_concept:
+        if self.use_probabilistic_concept:
             pred_concept_logsigma = torch.stack(
                 [
                     logsigma_head(feature_avg[:, i], feature[:, i])['logsigma']
@@ -666,22 +1008,24 @@ class ProbCBM(ProbConceptModel):
             return pred_concept_mean, pred_concept_logsigma
         return pred_concept_mean, None
 
-    def forward(
+
+    def inner_forward(
         self,
         x,
+        c=None,
+        y=None,
+        train=False,
         inference_with_sampling=False,
-        n_samples_inference=None,
-        **kwargs,
+        n_samples_inference=50,
     ):
-        B = x.shape[0]
         pred_concept_mean, pred_concept_logsigma = self.predict_concept_dist(x)
         concept_mean = F.normalize(self.concept_vectors, p=2, dim=-1)
 
         if self.use_neg_concept and concept_mean.shape[0] < 2:
             concept_mean = torch.cat([-concept_mean, concept_mean])
 
-        if self.use_probabilsitic_concept:
-            if self.training:
+        if self.use_probabilistic_concept:
+            if train:
                 pred_embeddings = sample_gaussian_tensors(
                     pred_concept_mean,
                     pred_concept_logsigma,
@@ -715,7 +1059,7 @@ class ProbCBM(ProbConceptModel):
             else concept_prob.mean(dim=-1)
         )
 
-        if self.use_probabilsitic_concept:
+        if self.use_probabilistic_concept:
             concept_uncertainty = self.get_uncertainty(pred_concept_logsigma)
             out_dict = {
                 'pred_concept_prob': out_concept_prob,
@@ -751,9 +1095,9 @@ class ProbCBM(ProbConceptModel):
                     'train_class_mode should be one of [sequential, joint]'
                 )
 
-            if self.training:
+            if train:
                 target_concept_onehot = F.one_hot(
-                    kwargs['target_concept'].long(),
+                    c.long(),
                     num_classes=2,
                 )
                 gt_concept_embedddings = (
@@ -797,7 +1141,7 @@ class ProbCBM(ProbConceptModel):
                         pred_embeddings_for_class.unsqueeze(1) -
                         class_mean.unsqueeze(1).repeat(
                             1,
-                            self.n_samples_inference if self.training else 1,
+                            self.n_samples_inference if train else 1,
                             1,
                         ).unsqueeze(0)
                     ) ** 2
@@ -807,13 +1151,13 @@ class ProbCBM(ProbConceptModel):
                 distance = self.class_negative_scale * distance
             out_class = F.softmax(-distance, dim=-2)
             out_dict['pred_class_prob'] = out_class.mean(dim=-1)
-            if self.use_probabilsitic_concept and not self.training:
+            if self.use_probabilistic_concept and not train:
                 out_dict['pred_class_uncertainty'] = self.get_class_uncertainty(
                     pred_concept_logsigma.exp(),
                     self.head[0].weight,
                 )
 
-        return out_dict, {}
+        return out_dict
 
     @torch.jit.ignore
     def no_weight_decay(self):
@@ -959,390 +1303,3 @@ class ProbCBM(ProbConceptModel):
 
         return out_dict
 
-
-################################################################################
-## OUR MODEL
-################################################################################
-
-
-class ProbCBM(ConceptBottleneckModel):
-    def __init__(
-        self,
-        n_concepts,
-        n_tasks,
-        emb_size=16,
-        training_intervention_prob=0.25,
-        embedding_activation="leakyrelu",
-        shared_prob_gen=True,
-        concept_loss_weight=1,
-        task_loss_weight=1,
-
-        c2y_model=None,
-        c2y_layers=None,
-        c_extractor_arch=utils.wrap_pretrained_model(resnet50),
-        output_latent=False,
-
-        optimizer="adam",
-        momentum=0.9,
-        learning_rate=0.01,
-        weight_decay=4e-05,
-        weight_loss=None,
-        task_class_weights=None,
-        tau=1,
-
-        active_intervention_values=None,
-        inactive_intervention_values=None,
-        intervention_policy=None,
-        output_interventions=False,
-        use_concept_groups=False,
-
-        top_k_accuracy=None,
-    ):
-        """
-        Constructs a Concept Embedding Model (CEM) as defined by
-        Espinosa Zarlenga et al. 2022.
-
-        :param int n_concepts: The number of concepts given at training time.
-        :param int n_tasks: The number of output classes of the CEM.
-        :param int emb_size: The size of each concept embedding. Defaults to 16.
-        :param float training_intervention_prob: RandInt probability. Defaults
-            to 0.25.
-        :param str embedding_activation: A valid nonlinearity name to use for the
-            generated embeddings. It must be one of [None, "sigmoid", "relu",
-            "leakyrelu"] and defaults to "leakyrelu".
-        :param Bool shared_prob_gen: Whether or not weights are shared across
-            all probability generators. Defaults to True.
-        :param float concept_loss_weight: Weight to be used for the final loss'
-            component corresponding to the concept classification loss. Default
-            is 0.01.
-        :param float task_loss_weight: Weight to be used for the final loss'
-            component corresponding to the output task classification loss.
-            Default is 1.
-
-        :param Pytorch.Module c2y_model:  A valid pytorch Module used to map the
-            CEM's bottleneck (with size n_concepts * emb_size) to `n_tasks`
-            output activations (i.e., the output of the CEM).
-            If not given, then a simple leaky-ReLU MLP, whose hidden
-            layers have sizes `c2y_layers`, will be used.
-        :param List[int] c2y_layers: List of integers defining the size of the
-            hidden layers to be used in the MLP to predict classes from the
-            bottleneck if c2y_model was NOT provided. If not given, then we will
-            use a simple linear layer to map the bottleneck to the output classes.
-        :param Fun[(int), Pytorch.Module] c_extractor_arch: A generator function
-            for the latent code generator model that takes as an input the size
-            of the latent code before the concept embedding generators act (
-            using an argument called `output_dim`) and returns a valid Pytorch
-            Module that maps this CEM's inputs to the latent space of the
-            requested size.
-
-        :param str optimizer:  The name of the optimizer to use. Must be one of
-            `adam` or `sgd`. Default is `adam`.
-        :param float momentum: Momentum used for optimization. Default is 0.9.
-        :param float learning_rate:  Learning rate used for optimization.
-            Default is 0.01.
-        :param float weight_decay: The weight decay factor used during
-            optimization. Default is 4e-05.
-        :param List[float] weight_loss: Either None or a list with n_concepts
-            elements indicating the weights assigned to each predicted concept
-            during the loss computation. Could be used to improve
-            performance/fairness in imbalanced datasets.
-        :param List[float] task_class_weights: Either None or a list with
-            n_tasks elements indicating the weights assigned to each output
-            class during the loss computation. Could be used to improve
-            performance/fairness in imbalanced datasets.
-
-        :param List[float] active_intervention_values: A list of n_concepts
-            values to use when positively intervening in a given concept (i.e.,
-            setting concept c_i to 1 would imply setting its corresponding
-            predicted concept to active_intervention_values[i]). If not given,
-            then we will assume that we use `1` for all concepts. This
-            parameter is important when intervening in CEMs that do not have
-            sigmoidal concepts, as the intervention thresholds must then be
-            inferred from their empirical training distribution.
-        :param List[float] inactive_intervention_values: A list of n_concepts
-            values to use when negatively intervening in a given concept (i.e.,
-            setting concept c_i to 0 would imply setting its corresponding
-            predicted concept to inactive_intervention_values[i]). If not given,
-            then we will assume that we use `0` for all concepts.
-        :param Callable[(np.ndarray, np.ndarray, np.ndarray), np.ndarray] intervention_policy:
-            An optional intervention policy to be used when intervening on a
-            test batch sample x (first argument), with corresponding true
-            concepts c (second argument), and true labels y (third argument).
-            The policy must produce as an output a list of concept indices to
-            intervene (in batch form) or a batch of binary masks indicating
-            which concepts we will intervene on.
-
-        :param List[int] top_k_accuracy: List of top k values to report accuracy
-            for during training/testing when the number of tasks is high.
-        """
-        pl.LightningModule.__init__(self)
-        self.n_concepts = n_concepts
-        self.output_interventions = output_interventions
-        self.intervention_policy = intervention_policy
-        self.pre_concept_model = c_extractor_arch(output_dim=None)
-        self.training_intervention_prob = training_intervention_prob
-        self.output_latent = output_latent
-        if self.training_intervention_prob != 0:
-            self.ones = torch.ones(n_concepts)
-
-        if active_intervention_values is not None:
-            self.active_intervention_values = torch.tensor(
-                active_intervention_values
-            )
-        else:
-            self.active_intervention_values = torch.ones(n_concepts)
-        if inactive_intervention_values is not None:
-            self.inactive_intervention_values = torch.tensor(
-                inactive_intervention_values
-            )
-        else:
-            self.inactive_intervention_values = torch.ones(n_concepts)
-        self.task_loss_weight = task_loss_weight
-        self.concept_context_generators = torch.nn.ModuleList()
-        self.concept_prob_generators = torch.nn.ModuleList()
-        self.shared_prob_gen = shared_prob_gen
-        self.top_k_accuracy = top_k_accuracy
-        for i in range(n_concepts):
-            if embedding_activation is None:
-                self.concept_context_generators.append(
-                    torch.nn.Sequential(*[
-                        torch.nn.Linear(
-                            list(
-                                self.pre_concept_model.modules()
-                            )[-1].out_features,
-                            # Two as each concept will have a positive and a
-                            # negative embedding portion which are later mixed
-                            2 * emb_size,
-                        ),
-                    ])
-                )
-            elif embedding_activation == "sigmoid":
-                self.concept_context_generators.append(
-                    torch.nn.Sequential(*[
-                        torch.nn.Linear(
-                            list(
-                                self.pre_concept_model.modules()
-                            )[-1].out_features,
-                            # Two as each concept will have a positive and a
-                            # negative embedding portion which are later mixed
-                            2 * emb_size,
-                        ),
-                        torch.nn.Sigmoid(),
-                    ])
-                )
-            elif embedding_activation == "leakyrelu":
-                self.concept_context_generators.append(
-                    torch.nn.Sequential(*[
-                        torch.nn.Linear(
-                            list(
-                                self.pre_concept_model.modules()
-                            )[-1].out_features,
-                            # Two as each concept will have a positive and a
-                            # negative embedding portion which are later mixed
-                            2 * emb_size,
-                        ),
-                        torch.nn.LeakyReLU(),
-                    ])
-                )
-            elif embedding_activation == "relu":
-                self.concept_context_generators.append(
-                    torch.nn.Sequential(*[
-                        torch.nn.Linear(
-                            list(
-                                self.pre_concept_model.modules()
-                            )[-1].out_features,
-                            # Two as each concept will have a positive and a
-                            # negative embedding portion which are later mixed
-                            2 * emb_size,
-                        ),
-                        torch.nn.ReLU(),
-                    ])
-                )
-            if self.shared_prob_gen and (
-                len(self.concept_prob_generators) == 0
-            ):
-                # Then we will use one and only one probability generator which
-                # will be shared among all concepts. This will force concept
-                # embedding vectors to be pushed into the same latent space
-                self.concept_prob_generators.append(torch.nn.Linear(
-                    2 * emb_size,
-                    1,
-                ))
-            elif not self.shared_prob_gen:
-                self.concept_prob_generators.append(torch.nn.Linear(
-                    2 * emb_size,
-                    1,
-                ))
-        if c2y_model is None:
-            # Else we construct it here directly
-            units = [
-                n_concepts * emb_size
-            ] + (c2y_layers or []) + [n_tasks]
-            layers = []
-            for i in range(1, len(units)):
-                layers.append(torch.nn.Linear(units[i-1], units[i]))
-                if i != len(units) - 1:
-                    layers.append(torch.nn.LeakyReLU())
-            self.c2y_model = torch.nn.Sequential(*layers)
-        else:
-            self.c2y_model = c2y_model
-        self.sig = torch.nn.Sigmoid()
-
-        self.loss_concept = torch.nn.BCELoss(weight=weight_loss)
-        self.loss_task = (
-            torch.nn.CrossEntropyLoss(weight=task_class_weights)
-            if n_tasks > 1 else torch.nn.BCEWithLogitsLoss(
-                weight=task_class_weights
-            )
-        )
-        self.concept_loss_weight = concept_loss_weight
-        self.momentum = momentum
-        self.learning_rate = learning_rate
-        self.weight_decay = weight_decay
-        self.optimizer_name = optimizer
-        self.n_tasks = n_tasks
-        self.emb_size = emb_size
-        self.tau = tau
-        self.use_concept_groups = use_concept_groups
-
-
-    def _after_interventions(
-        self,
-        prob,
-        pos_embeddings,
-        neg_embeddings,
-        intervention_idxs=None,
-        c_true=None,
-        train=False,
-        competencies=None,
-    ):
-        if train and (self.training_intervention_prob != 0) and (
-            (c_true is not None) and
-            (intervention_idxs is None)
-        ):
-            # Then we will probabilistically intervene in some concepts
-            mask = torch.bernoulli(
-                self.ones * self.training_intervention_prob,
-            )
-            intervention_idxs = torch.tile(
-                mask,
-                (c_true.shape[0], 1),
-            )
-        if (c_true is None) or (intervention_idxs is None):
-            return prob, intervention_idxs
-        intervention_idxs = intervention_idxs.type(torch.FloatTensor)
-        intervention_idxs = intervention_idxs.to(prob.device)
-        return prob * (1 - intervention_idxs) + intervention_idxs * c_true, intervention_idxs
-
-    def _forward(
-        self,
-        x,
-        intervention_idxs=None,
-        c=None,
-        y=None,
-        train=False,
-        latent=None,
-        competencies=None,
-        prev_interventions=None,
-        output_embeddings=False,
-        output_latent=None,
-        output_interventions=None,
-    ):
-        output_interventions = (
-            output_interventions if output_interventions is not None
-            else self.output_interventions
-        )
-        output_latent = (
-            output_latent if output_latent is not None
-            else self.output_latent
-        )
-        if latent is None:
-            pre_c = self.pre_concept_model(x)
-            contexts = []
-            c_sem = []
-
-            # First predict all the concept probabilities
-            for i, context_gen in enumerate(self.concept_context_generators):
-                if self.shared_prob_gen:
-                    prob_gen = self.concept_prob_generators[0]
-                else:
-                    prob_gen = self.concept_prob_generators[i]
-                context = context_gen(pre_c)
-                prob = prob_gen(context)
-                contexts.append(torch.unsqueeze(context, dim=1))
-                c_sem.append(self.sig(prob))
-            c_sem = torch.cat(c_sem, axis=-1)
-            contexts = torch.cat(contexts, axis=1)
-            latent = contexts, c_sem
-        else:
-            contexts, c_sem = latent
-
-        # Now include any interventions that we may want to perform!
-        if (intervention_idxs is None) and (c is not None) and (
-            self.intervention_policy is not None
-        ):
-            horizon = self.intervention_policy.num_groups_intervened
-            if hasattr(self.intervention_policy, "horizon"):
-                horizon = self.intervention_policy.horizon
-            prior_distribution = self._prior_int_distribution(
-                prob=c_sem,
-                pos_embeddings=contexts[:, :, :self.emb_size],
-                neg_embeddings=contexts[:, :, self.emb_size:],
-                competencies=competencies,
-                prev_interventions=prev_interventions,
-                c=c,
-                train=train,
-                horizon=horizon,
-            )
-            intervention_idxs, c_int = self.intervention_policy(
-                x=x,
-                c=c,
-                pred_c=c_sem,
-                y=y,
-                competencies=competencies,
-                prev_interventions=prev_interventions,
-                prior_distribution=prior_distribution,
-            )
-
-        else:
-            c_int = c
-        if not train:
-            intervention_idxs = self._standardize_indices(
-                intervention_idxs=intervention_idxs,
-                batch_size=x.shape[0],
-            )
-
-        # Then, time to do the mixing between the positive and the
-        # negative embeddings
-        probs, intervention_idxs = self._after_interventions(
-            c_sem,
-            pos_embeddings=contexts[:, :, :self.emb_size],
-            neg_embeddings=contexts[:, :, self.emb_size:],
-            intervention_idxs=intervention_idxs,
-            c_true=c_int,
-            train=train,
-            competencies=competencies,
-        )
-        # Then time to mix!
-        c_pred = (
-            contexts[:, :, :self.emb_size] * torch.unsqueeze(probs, dim=-1) +
-            contexts[:, :, self.emb_size:] * (1 - torch.unsqueeze(probs, dim=-1))
-        )
-        c_pred = c_pred.view((-1, self.emb_size * self.n_concepts))
-        y = self.c2y_model(c_pred)
-        tail_results = []
-        if output_interventions:
-            if (
-                (intervention_idxs is not None) and
-                isinstance(intervention_idxs, np.ndarray)
-            ):
-                intervention_idxs = torch.FloatTensor(
-                    intervention_idxs
-                ).to(x.device)
-            tail_results.append(intervention_idxs)
-        if output_latent:
-            tail_results.append(latent)
-        if output_embeddings:
-            tail_results.append(contexts[:, :, :self.emb_size])
-            tail_results.append(contexts[:, :, self.emb_size:])
-        return tuple([c_sem, c_pred, y] + tail_results)

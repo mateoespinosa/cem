@@ -515,6 +515,12 @@ def main(
                     # config["architecture"] = "ConceptBottleneckModel"
                     config["sigmoidal_prob"] = True
                     train_fn = training.train_sequential_model
+                elif run_config["architecture"] in [
+                    "ProbCBM",
+                    "ProbabilisticCBM",
+                    "ProbabilisticConceptBottleneckModel",
+                ]:
+                    train_fn = training.train_prob_cbm
                 else:
                     train_fn = training.train_end_to_end_model
 

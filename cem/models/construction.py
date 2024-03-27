@@ -6,9 +6,10 @@ import torch
 
 from torchvision.models import resnet18, resnet34, resnet50, densenet121
 
-import cem.models.cem as models_cem
 import cem.models.cbm as models_cbm
+import cem.models.cem as models_cem
 import cem.models.intcbm as models_intcbm
+import cem.models.probcbm as models_probcbm
 import cem.train.utils as utils
 
 
@@ -64,6 +65,89 @@ def construct_model(
         if "embeding_activation" in config:
             # Legacy support for typo in argument
             extra_params["embedding_activation"] = config["embeding_activation"]
+    elif config["architecture"] in [
+        "ProbCBM",
+        "ProbabilisticConceptBottleneckModel",
+        "ProbabilisticCBM",
+    ]:
+        model_cls = models_probcbm.ProbCBM
+        extra_params = dict(
+            warmup=config.get(
+                'warmup',
+                False
+            ),
+            hidden_dim=config.get(
+                'hidden_dim',
+                16,
+            ),
+            class_hidden_dim=config.get(
+                'class_hidden_dim',
+                128,
+            ),
+            intervention_prob=config.get(
+                'intervention_prob',
+                0.5,
+            ),
+            use_class_emb_from_concept=config.get(
+                'use_class_emb_from_concept',
+                False,
+            ),
+            use_probabilistic_concept=config.get(
+                'use_probabilistic_concept',
+                True,
+            ),
+            pretrained=config.get(
+                'pretrained',
+                True,
+            ),
+            n_samples_inference=config.get(
+                'n_samples_inference',
+                50,
+            ),
+            use_neg_concept=config.get(
+                'use_neg_concept',
+                True,
+            ),
+            pred_class=config.get(
+                'pred_class',
+                True,
+            ),
+            use_scale=config.get(
+                'use_scale',
+                True,
+            ),
+            activation_concept2class=config.get(
+                'activation_concept2class',
+                'prob',
+            ),
+            token2concept=config.get(
+                'token2concept',
+                None,
+            ),
+            train_class_mode=config.get(
+                'train_class_mode',
+                'sequential',
+            ),
+            init_negative_scale=config.get(
+                'init_negative_scale',
+                5,
+            ),
+            init_shift=config.get(
+                'init_shift',
+                5,
+            ),
+            active_intervention_values=active_intervention_values,
+            inactive_intervention_values=inactive_intervention_values,
+            intervention_policy=intervention_policy,
+            use_concept_groups=config.get(
+                'use_concept_groups',
+                False,
+            ),
+            vib_beta=config.get(
+                'vib_beta',
+                0.00005,
+            )
+        )
     elif config["architecture"] in ["IntAwareConceptBottleneckModel", "IntCBM"]:
         task_loss_weight = config.get('task_loss_weight', 0.0)
         model_cls = models_intcbm.IntAwareConceptBottleneckModel
