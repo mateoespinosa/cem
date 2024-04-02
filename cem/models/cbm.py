@@ -516,9 +516,9 @@ class ConceptBottleneckModel(pl.LightningModule):
             c_true=c_int,
         )
         if self.bool:
-            y = self.c2y_model((c_pred > 0.5).float())
+            y_pred = self.c2y_model((c_pred > 0.5).float())
         else:
-            y = self.c2y_model(c_pred)
+            y_pred = self.c2y_model(c_pred)
         tail_results = []
         if output_interventions:
             if intervention_idxs is None:
@@ -533,7 +533,7 @@ class ConceptBottleneckModel(pl.LightningModule):
         if output_embeddings:
             tail_results.append(pos_embeddings)
             tail_results.append(neg_embeddings)
-        return tuple([c_sem, c_pred, y] + tail_results)
+        return tuple([c_sem, c_pred, y_pred] + tail_results)
 
     def forward(
         self,
@@ -544,6 +544,7 @@ class ConceptBottleneckModel(pl.LightningModule):
         intervention_idxs=None,
         competencies=None,
         prev_interventions=None,
+        **kwargs
     ):
         return self._forward(
             x,
@@ -554,6 +555,7 @@ class ConceptBottleneckModel(pl.LightningModule):
             prev_interventions=prev_interventions,
             intervention_idxs=intervention_idxs,
             latent=latent,
+            **kwargs
         )
 
     def predict_step(

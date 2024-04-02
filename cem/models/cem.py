@@ -379,7 +379,7 @@ class ConceptEmbeddingModel(ConceptBottleneckModel):
             contexts[:, :, self.emb_size:] * (1 - torch.unsqueeze(probs, dim=-1))
         )
         c_pred = c_pred.view((-1, self.emb_size * self.n_concepts))
-        y = self.c2y_model(c_pred)
+        y_pred = self.c2y_model(c_pred)
         tail_results = []
         if output_interventions:
             if (
@@ -395,4 +395,4 @@ class ConceptEmbeddingModel(ConceptBottleneckModel):
         if output_embeddings:
             tail_results.append(contexts[:, :, :self.emb_size])
             tail_results.append(contexts[:, :, self.emb_size:])
-        return tuple([c_sem, c_pred, y] + tail_results)
+        return tuple([c_sem, c_pred, y_pred] + tail_results)
