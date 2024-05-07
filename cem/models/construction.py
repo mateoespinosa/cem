@@ -8,6 +8,7 @@ from torchvision.models import resnet18, resnet34, resnet50, densenet121
 
 import cem.models.cbm as models_cbm
 import cem.models.cem as models_cem
+import cem.models.hybrid_cem as models_hcem
 import cem.models.intcbm as models_intcbm
 import cem.models.probcbm as models_probcbm
 import cem.train.utils as utils
@@ -45,7 +46,7 @@ def construct_model(
     output_interventions=False,
 ):
     task_loss_weight = config.get('task_loss_weight', 1.0)
-    if config["architecture"] in ["ConceptEmbeddingModel", "MixtureEmbModel"]:
+    if config["architecture"] in ["ConceptEmbeddingModel", "CEM"]:
         model_cls = models_cem.ConceptEmbeddingModel
         extra_params = {
             "emb_size": config["emb_size"],
@@ -65,6 +66,35 @@ def construct_model(
         if "embeding_activation" in config:
             # Legacy support for typo in argument
             extra_params["embedding_activation"] = config["embeding_activation"]
+
+    elif (
+        config["architecture"] in ["HybridConceptEmbeddingModel", "H-CEM"]
+    ):
+        model_cls = models_hcem.HybridConceptEmbeddingModel
+        extra_params = {
+            "emb_size": config["emb_size"],
+            "constant_emb_proportion": config.get(
+                "constant_emb_proportion",
+                0.5,
+            ),
+            "shared_prob_gen": config.get("shared_prob_gen", True),
+            "intervention_policy": intervention_policy,
+            "training_intervention_prob": config.get(
+                'training_intervention_prob',
+                0.25,
+            ),
+            "embedding_activation": config.get(
+                "embedding_activation",
+                "leakyrelu"
+            ),
+            "c2y_model": c2y_model,
+            "c2y_layers": config.get("c2y_layers", []),
+        }
+        if "embeding_activation" in config:
+            # Legacy support for typo in argument
+            extra_params["embedding_activation"] = config["embeding_activation"]
+
+
     elif config["architecture"] in [
         "ProbCBM",
         "ProbabilisticConceptBottleneckModel",
@@ -230,7 +260,10 @@ def construct_model(
             "int_model_use_bn": config.get("int_model_use_bn", False),
             "num_rollouts": config.get("num_rollouts", 1),
         }
-    elif "ConceptBottleneckModel" in config["architecture"]:
+    elif (
+        "ConceptBottleneckModel" in config["architecture"] or
+        "CBM" in config["architecture"]
+    ):
         model_cls = models_cbm.ConceptBottleneckModel
         extra_params = {
             "bool": config["bool"],
@@ -282,7 +315,7 @@ def construct_model(
         concept_loss_weight=config['concept_loss_weight'],
         task_loss_weight=task_loss_weight,
         learning_rate=config['learning_rate'],
-        weight_decay=config['weight_decay'],
+        weight_decay=config.get('weight_decay', 0),
         c_extractor_arch=utils.wrap_pretrained_model(c_extractor_arch),
         optimizer=config['optimizer'],
         top_k_accuracy=config.get('top_k_accuracy'),
@@ -339,7 +372,7 @@ def construct_sequential_models(
             else None
         ),
         learning_rate=config['learning_rate'],
-        weight_decay=config['weight_decay'],
+        weight_decay=config.get('weight_decay', 0),
         optimizer=config['optimizer'],
         binary_output=True,
         sigmoidal_output=True,
@@ -357,7 +390,7 @@ def construct_sequential_models(
         n_tasks=n_tasks,
         model=torch.nn.Sequential(*layers),
         learning_rate=config['learning_rate'],
-        weight_decay=config['weight_decay'],
+        weight_decay=config.get('weight_decay', 0),
         optimizer=config['optimizer'],
         top_k_accuracy=config.get('top_k_accuracy'),
         binary_output=False,
