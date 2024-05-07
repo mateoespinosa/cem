@@ -34,17 +34,37 @@ def determine_rerun(
             return True
     return False
 
-def get_mnist_extractor_arch(input_shape, num_operands):
+def get_mnist_extractor_arch(input_shape, in_channels):
     def c_extractor_arch(output_dim):
         intermediate_maps = 16
         output_dim = output_dim or 128
+        first_dim_out = ((input_shape[2] - (2-1) - 1) // 2) + 1
+        first_dim_out = ((first_dim_out - (2-1) - 1) // 2) + 1
+        first_dim_out = ((first_dim_out - (2-1) - 1) // 2) + 1
+        first_dim_out = ((first_dim_out - (3-1) - 1) // 3) + 1
+
+        second_dim_out = ((input_shape[3] - (2-1) - 1) // 2) + 1
+        second_dim_out = ((second_dim_out - (2-1) - 1) // 2) + 1
+        second_dim_out = ((second_dim_out - (2-1) - 1) // 2) + 1
+        second_dim_out = ((second_dim_out - (3-1) - 1) // 3) + 1
+        out_shape = (first_dim_out, second_dim_out)
         return torch.nn.Sequential(*[
             torch.nn.Conv2d(
-                in_channels=num_operands,
+                in_channels=in_channels,
                 out_channels=intermediate_maps,
                 kernel_size=(3,3),
                 padding='same',
             ),
+            torch.nn.BatchNorm2d(num_features=intermediate_maps),
+            torch.nn.LeakyReLU(),
+            torch.nn.MaxPool2d((2, 2)),
+            torch.nn.Conv2d(
+                in_channels=intermediate_maps,
+                out_channels=intermediate_maps,
+                kernel_size=(3,3),
+                padding='same',
+            ),
+            torch.nn.MaxPool2d((2, 2)),
             torch.nn.BatchNorm2d(num_features=intermediate_maps),
             torch.nn.LeakyReLU(),
             torch.nn.Conv2d(
@@ -55,6 +75,7 @@ def get_mnist_extractor_arch(input_shape, num_operands):
             ),
             torch.nn.BatchNorm2d(num_features=intermediate_maps),
             torch.nn.LeakyReLU(),
+            torch.nn.MaxPool2d((2, 2)),
             torch.nn.Conv2d(
                 in_channels=intermediate_maps,
                 out_channels=intermediate_maps,
@@ -63,17 +84,10 @@ def get_mnist_extractor_arch(input_shape, num_operands):
             ),
             torch.nn.BatchNorm2d(num_features=intermediate_maps),
             torch.nn.LeakyReLU(),
-            torch.nn.Conv2d(
-                in_channels=intermediate_maps,
-                out_channels=intermediate_maps,
-                kernel_size=(3,3),
-                padding='same',
-            ),
-            torch.nn.BatchNorm2d(num_features=intermediate_maps),
-            torch.nn.LeakyReLU(),
+            torch.nn.MaxPool2d((3, 3)),
             torch.nn.Flatten(),
             torch.nn.Linear(
-                int(np.prod(input_shape[2:]))*intermediate_maps,
+                np.prod(out_shape) * intermediate_maps,
                 output_dim,
             ),
         ])
@@ -384,7 +398,58 @@ def initialize_result_directory(results_dir):
     ).mkdir(parents=True, exist_ok=True)
 
 
-def generate_hyperatemer_configs(config):
+def has_hierarchical_key(key, dictionary):
+    for subkey in key.split("."):
+        if subkey not in dictionary:
+            return False
+            # raise ValueError(
+            #     f"Failed to find subkey {subkey} when looking for "
+            #     f"hierarchical key {key}."
+            # )
+        dictionary = dictionary[subkey]
+    # If we reached this point, then the key must be present
+    return True
+
+def get_hierarchical_key(key, dictionary):
+    for subkey in key.split("."):
+        if subkey not in dictionary:
+            raise ValueError(
+                f"Failed to find subkey {subkey} when looking for "
+                f"hierarchical key {key}."
+            )
+        dictionary = dictionary[subkey]
+    # If we reached this point, then the variable dictionary must have the
+    # drones we are looking for
+    return dictionary
+
+def flatten_dictionary(dictionary, current_result=None, prefix="", sep="."):
+    current_result = current_result or {}
+    for key, val in dictionary.items():
+        if isinstance(val, dict):
+            flatten_dictionary(
+                dictionary=val,
+                current_result=current_result,
+                prefix=prefix + key + sep,
+                sep=sep,
+            )
+        else:
+            current_result[prefix + key] = val
+    return current_result
+
+def nested_dictionary_set(dictionary, key, val):
+    atoms = key.split(".")
+    for idx, subkey in enumerate(atoms):
+        if idx == (len(atoms) - 1):
+            dictionary[subkey] = val
+        elif subkey not in dictionary:
+            raise ValueError(
+                f"Failed to find subkey {subkey} when looking for "
+                f"hierarchical key {key}."
+            )
+        else:
+            dictionary = dictionary[subkey]
+
+def generate_hyperparameter_configs(config):
     if "grid_variables" not in config:
         # Then nothing to see here so we will return
         # a singleton set with this config in it
@@ -393,19 +458,20 @@ def generate_hyperatemer_configs(config):
     vars = config["grid_variables"]
     options = []
     for var in vars:
-        if var not in config:
+        if not has_hierarchical_key(var, config):
             raise ValueError(
                 f'All variable names in "grid_variables" must be exhisting '
-                f'fields in the config. However, we could not find any field '
-                f'with name "{var}".'
+                f'fields in the config. However, we could not find any '
+                f'(nested) field with name "{var}".'
             )
-        if not isinstance(config[var], list):
+        val = get_hierarchical_key(var, config)
+        if not isinstance(val, list):
             raise ValueError(
-                f'If we are doing a hyperparamter search over variable '
-                f'"{var}", we expect it to be a list of values. Instead '
-                f'we got {config[var]}.'
+                f'If we are doing a hyperparameter search over (nested) '
+                f'variable "{var}", we expect it to be a list of values. '
+                f'Instead we got {val}.'
             )
-        options.append(config[var])
+        options.append(val)
     mode = config.get('grid_search_mode', "exhaustive").lower().strip()
     if mode in ["grid", "exhaustive"]:
         iterator = itertools.product(*options)
@@ -421,6 +487,6 @@ def generate_hyperatemer_configs(config):
     for specific_vals in iterator:
         current = copy.deepcopy(config)
         for var_name, new_val in zip(vars, specific_vals):
-            current[var_name] = new_val
+            nested_dictionary_set(current, var_name, new_val)
         result.append(current)
     return result

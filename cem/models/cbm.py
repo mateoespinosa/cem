@@ -244,18 +244,24 @@ class ConceptBottleneckModel(pl.LightningModule):
     def _unpack_batch(self, batch):
         x = batch[0]
         if isinstance(batch[1], list):
+            offset = 2
             y, c = batch[1]
         else:
+            offset = 3
             y, c = batch[1], batch[2]
-        if len(batch) > 3:
-            competencies = batch[3]
+        if len(batch) > (offset):
+            g = batch[offset]
+        else:
+            g = None
+        if len(batch) > (offset + 1):
+            competencies = batch[offset + 1]
         else:
             competencies = None
-        if len(batch) > 4:
-            prev_interventions = batch[4]
+        if len(batch) > (offset + 2):
+            prev_interventions = batch[offset + 2]
         else:
             prev_interventions = None
-        return x, y, (c, competencies, prev_interventions)
+        return x, y, (c, g, competencies, prev_interventions)
 
     def _standardize_indices(self, intervention_idxs, batch_size):
         if isinstance(intervention_idxs, list):
@@ -565,7 +571,9 @@ class ConceptBottleneckModel(pl.LightningModule):
         intervention_idxs=None,
         dataloader_idx=0,
     ):
-        x, y, (c, competencies, prev_interventions) = self._unpack_batch(batch)
+        x, y, (c, g, competencies, prev_interventions) = self._unpack_batch(
+            batch
+        )
         return self._forward(
             x,
             intervention_idxs=intervention_idxs,
@@ -583,7 +591,9 @@ class ConceptBottleneckModel(pl.LightningModule):
         train=False,
         intervention_idxs=None,
     ):
-        x, y, (c, competencies, prev_interventions) = self._unpack_batch(batch)
+        x, y, (c, g, competencies, prev_interventions) = self._unpack_batch(
+            batch
+        )
         outputs = self._forward(
             x,
             intervention_idxs=intervention_idxs,

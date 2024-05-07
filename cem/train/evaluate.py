@@ -16,6 +16,7 @@ import tensorflow as tf
 import cem.metrics.niching as niching
 import cem.metrics.oracle as oracle
 import cem.train.utils as utils
+import cem.utils.data as data_utils
 
 from cem.metrics.cas import concept_alignment_score
 from cem.models.construction import load_trained_model
@@ -110,21 +111,10 @@ def evaluate_representation_metrics(
     if seed is not None:
         seed_everything(seed)
 
-    x_test, y_test, c_test = [], [], []
-    for ds_data in test_dl:
-        if len(ds_data) == 2:
-            x, (y, c) = ds_data
-        else:
-            (x, y, c) = ds_data
-        x_type = x.type()
-        y_type = y.type()
-        c_type = c.type()
-        x_test.append(x)
-        y_test.append(y)
-        c_test.append(c)
-    x_test = np.concatenate(x_test, axis=0)
-    y_test = np.concatenate(y_test, axis=0)
-    c_test = np.concatenate(c_test, axis=0)
+    x_test, y_test, c_test = data_utils.daloader_to_memory(
+        test_dl,
+        as_torch=True,
+    )
 
     # Now include the competence that we will assume
     # for all concepts
@@ -138,9 +128,9 @@ def evaluate_representation_metrics(
         y_test = y_test[indices]
         test_dl = torch.utils.data.DataLoader(
             dataset=torch.utils.data.TensorDataset(
-                torch.FloatTensor(x_test).type(x_type),
-                torch.FloatTensor(y_test).type(y_type),
-                torch.FloatTensor(c_test).type(c_type),
+                x_test,
+                y_test,
+                c_test,
             ),
             batch_size=test_dl.batch_size,
             num_workers=test_dl.num_workers,
@@ -234,27 +224,16 @@ def evaluate_representation_metrics(
     if train_dl is not None and (
         config.get("run_repr_avg_pred", False)
     ):
-        x_train, y_train, c_train = [], [], []
-        for ds_data in train_dl:
-            if len(ds_data) == 2:
-                x, (y, c) = ds_data
-            else:
-                (x, y, c) = ds_data
-            x_type = x.type()
-            y_type = y.type()
-            c_type = c.type()
-            x_train.append(x)
-            y_train.append(y)
-            c_train.append(c)
-        x_train = np.concatenate(x_train, axis=0)
-        y_train = np.concatenate(y_train, axis=0)
-        c_train = np.concatenate(c_train, axis=0)
+        x_train, y_train, c_train = data_utils.daloader_to_memory(
+            train_dl,
+            as_torch=True,
+        )
 
         used_train_dl = torch.utils.data.DataLoader(
             dataset=torch.utils.data.TensorDataset(
-                torch.FloatTensor(x_train).type(x_type),
-                torch.FloatTensor(y_train).type(y_type),
-                torch.FloatTensor(c_train).type(c_type),
+                x_train,
+                y_train,
+                c_train,
             ),
             batch_size=32,
             num_workers=train_dl.num_workers,

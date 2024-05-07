@@ -13,6 +13,8 @@ import time
 from pytorch_lightning import seed_everything
 from typing import Callable
 
+import cem.utils.data as data_utils
+
 from cem.train.utils import load_call
 from cem.models.construction import load_trained_model
 from cem.interventions.random import IndependentRandomMaskIntPolicy
@@ -25,7 +27,6 @@ from cem.interventions.global_policies import (
     GlobalValidationPolicy,
     GlobalValidationImprovementPolicy,
 )
-
 
 ################################################################################
 ## Global Variables
@@ -134,12 +135,12 @@ class AllInterventionPolicy(object):
         return mask, c
 
 def concepts_from_competencies(
-        c,
-        competencies,
-        use_concept_groups=False,
-        concept_map=None,
-        assume_mutually_exclusive=False,
-    ):
+    c,
+    competencies,
+    use_concept_groups=False,
+    concept_map=None,
+    assume_mutually_exclusive=False,
+):
     if concept_map is None:
         concept_map = {i : [i] for i in range(c.shape[-1])}
 
@@ -259,6 +260,7 @@ def adversarial_intervene_in_cbm(
     x_test=None,
     y_test=None,
     c_test=None,
+    g_test=None,
     seed=None,
 ):
     def competence_generator(
@@ -293,6 +295,7 @@ def adversarial_intervene_in_cbm(
         x_test=x_test,
         y_test=y_test,
         c_test=c_test,
+        g_test=g_test,
         seed=seed,
     )
 
@@ -323,6 +326,7 @@ def intervene_in_cbm(
     x_test=None,
     y_test=None,
     c_test=None,
+    g_test=None,
     seed=None,
 ):
     run_name = run_name or config.get('run_name', config['architecture'])
@@ -404,32 +408,14 @@ def intervene_in_cbm(
     if (
         (x_test is None) or
         (y_test is None) or
-        (c_test is None)
+        (c_test is None) or
+        (g_test is None)
     ):
-        if hasattr(test_dl.dataset, 'tensors'):
-            x_test, y_test, c_test = test_dl.dataset.tensors
-        else:
-            x_test, y_test, c_test = [], [], []
-            for data in test_dl:
-                if len(data) == 2:
-                    x, (y, c) = data
-                else:
-                    (x, y, c) = data
-                x_type = x.type()
-                y_type = y.type()
-                c_type = c.type()
-                x_test.append(x)
-                y_test.append(y)
-                c_test.append(c)
-            x_test = torch.FloatTensor(
-                np.concatenate(x_test, axis=0)
-            ).type(x_type)
-            y_test = torch.FloatTensor(
-                np.concatenate(y_test, axis=0)
-            ).type(y_type)
-            c_test = torch.FloatTensor(
-                np.concatenate(c_test, axis=0)
-            ).type(c_type)
+        x_test, y_test, c_test, g_test = data_utils.daloader_to_memory(
+            test_dl,
+            as_torch=True,
+            output_groups=True,
+        )
     np.random.seed(42)
     indices = np.random.permutation(x_test.shape[0])[
         :int(np.ceil(x_test.shape[0]*test_subsampling))
@@ -455,6 +441,7 @@ def intervene_in_cbm(
             x_test,
             y_test,
             c_test,
+            g_test,
             competencies_test,
         ),
         batch_size=test_dl.batch_size,
@@ -550,6 +537,7 @@ def intervene_in_cbm(
                 x_test,
                 y_test,
                 c_test,
+                g_test,
                 competencies_test,
                 torch.IntTensor(prev_interventions),
             ),
@@ -789,18 +777,10 @@ def generate_policy_training_data(
         train_dl=train_dl,
     )
     batch_size = batch_size or train_dl.batch_size
-    x_train, y_train, c_train = [], [], []
-    for ds_data in train_dl:
-        if len(ds_data) == 2:
-            x, (y, c) = ds_data
-        else:
-            (x, y, c) = ds_data
-        x_train.append(x)
-        y_train.append(y)
-        c_train.append(c)
-    x_train = torch.FloatTensor(np.concatenate(x_train, axis=0))
-    y_train = torch.FloatTensor(np.concatenate(y_train, axis=0))
-    c_train = torch.FloatTensor(np.concatenate(c_train, axis=0))
+    x_train, y_train, c_train = data_utils.daloader_to_memory(
+        train_dl,
+        as_torch=True,
+    )
     unshuffle_dl = torch.utils.data.DataLoader(
         dataset=torch.utils.data.TensorDataset(x_train, y_train, c_train),
         batch_size=batch_size,
@@ -841,14 +821,7 @@ def generate_policy_training_data(
             list(map(lambda x: x[0].detach().cpu().numpy(), val_batch_results)),
             axis=0,
         )
-        val_c_true = []
-        for data in val_dl:
-            if len(data) == 2:
-                x, (y, c) = data
-            else:
-                (x, y, c) = data
-            val_c_true.append(c)
-        val_c_true = np.concatenate(val_c_true, axis=0)
+        _, _, val_c_true = data_utils.daloader_to_memory(val_dl)
         for concept_idx in range(n_concepts):
             if (
                 (len(np.unique(val_c_true[:, concept_idx] >= 0.5)) == 1) or
@@ -1085,8 +1058,10 @@ def get_int_policy(
                 config["emb_size"] if config["architecture"] in [
                     "CEM",
                     "ConceptEmbeddingModel",
-                    "IntAwareConceptEmbeddingModel",
                     "IntCEM",
+                    "IntAwareConceptEmbeddingModel",
+                    "H-CEM",
+                    "HybridConceptEmbeddingModel",
                 ]
                 else 1
             )
@@ -1210,31 +1185,11 @@ def test_interventions(
         int(os.environ.get(f"INT_BATCH_SIZE", intervention_batch_size)),
     )
     results = {}
-    if hasattr(test_dl.dataset, 'tensors'):
-        x_test, y_test, c_test = test_dl.dataset.tensors
-    else:
-        x_test, y_test, c_test = [], [], []
-        for ds_data in test_dl:
-            if len(ds_data) == 2:
-                x, (y, c) = ds_data
-            else:
-                (x, y, c) = ds_data
-            x_type = x.type()
-            y_type = y.type()
-            c_type = c.type()
-            x_test.append(x)
-            y_test.append(y)
-            c_test.append(c)
-        x_test = torch.FloatTensor(
-            np.concatenate(x_test, axis=0)
-        ).type(x_type)
-        y_test = torch.FloatTensor(
-            np.concatenate(y_test, axis=0)
-        ).type(y_type)
-        c_test = torch.FloatTensor(
-            np.concatenate(c_test, axis=0)
-        ).type(c_type)
-
+    x_test, y_test, c_test, g_test = data_utils.daloader_to_memory(
+        test_dl,
+        as_torch=True,
+        output_groups=True,
+    )
 
     for competence_level in competence_levels:
         def competence_generator(
@@ -1414,6 +1369,7 @@ def test_interventions(
                     x_test=x_test,
                     y_test=y_test,
                     c_test=c_test,
+                    g_test=g_test,
                     test_subsampling=dataset_config.get('test_subsampling', 1),
                     seed=(42 + split),
                     task_class_weights=task_class_weights,

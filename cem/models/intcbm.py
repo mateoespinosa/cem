@@ -820,7 +820,9 @@ class IntAwareConceptBottleneckModel(ConceptBottleneckModel):
         train=False,
         intervention_idxs=None,
     ):
-        x, y, (c, competencies, prev_interventions) = self._unpack_batch(batch)
+        x, y, (c, g, competencies, prev_interventions) = self._unpack_batch(
+            batch
+        )
         outputs = self._forward(
             x,
             intervention_idxs=intervention_idxs,

@@ -10,22 +10,29 @@ import torch
 from pytorch_lightning import seed_everything
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 from pytorch_lightning.loggers import WandbLogger
-from scipy.special import expit
-from sklearn.metrics import accuracy_score
-from tqdm import tqdm
-import tensorflow as tf
 
-import cem.metrics.niching as niching
-import cem.metrics.oracle as oracle
 import cem.train.utils as utils
+import cem.utils.data as data_utils
 
-from cem.metrics.cas import concept_alignment_score
 from cem.models.construction import (
     construct_model,
     construct_sequential_models,
-    load_trained_model,
 )
 
+def _make_callbacks(config):
+    callbacks = []
+    if 'early_stopping_monitor' in config:
+        callbacks.append(
+            EarlyStopping(
+                monitor=config["early_stopping_monitor"],
+                min_delta=config.get("early_stopping_delta", 0.00),
+                patience=config.get('patience', 5),
+                verbose=config.get("verbose", False),
+                mode=config.get("early_stopping_mode", "min"),
+            )
+        )
+
+    return callbacks
 def _evaluate_cbm(
     model,
     trainer,
@@ -182,16 +189,7 @@ def train_end_to_end_model(
         enter_obj = utils.EmptyEnter()
 
     with enter_obj as run:
-        callbacks = [
-            EarlyStopping(
-                monitor=config["early_stopping_monitor"],
-                min_delta=config.get("early_stopping_delta", 0.00),
-                patience=config['patience'],
-                verbose=config.get("verbose", False),
-                mode=config["early_stopping_mode"],
-            ),
-        ]
-
+        callbacks = _make_callbacks(config)
         trainer = pl.Trainer(
             accelerator=accelerator,
             devices=devices,
@@ -307,13 +305,6 @@ def train_end_to_end_model(
     return model, eval_results
 
 
-def _largest_divisor(x, max_val):
-    largest = 1
-    for i in range(1, max_val + 1):
-        if x % i == 0:
-            largest = i
-    return largest
-
 def train_sequential_model(
     n_concepts,
     n_tasks,
@@ -396,51 +387,12 @@ def train_sequential_model(
     # Construct the datasets we will need for training if the model
     # has not been found
     if rerun or (not chpt_exists):
-        x_train = []
-        y_train = []
-        c_train = []
-        for elems in train_dl:
-            if len(elems) == 2:
-                (x, (y, c)) = elems
-            else:
-                (x, y, c) = elems
-            x_train.append(x.cpu().detach())
-            y_train.append(y.cpu().detach())
-            c_train.append(c.cpu().detach())
-        x_train = np.concatenate(x_train, axis=0)
-        y_train = np.concatenate(y_train, axis=0)
-        c_train = np.concatenate(c_train, axis=0)
+        x_train, y_train, c_train = data_utils.daloader_to_memory(train_dl)
 
         if test_dl:
-            x_test = []
-            y_test = []
-            c_test = []
-            for elems in test_dl:
-                if len(elems) == 2:
-                    (x, (y, c)) = elems
-                else:
-                    (x, y, c) = elems
-                x_test.append(x.cpu().detach())
-                y_test.append(y.cpu().detach())
-                c_test.append(c.cpu().detach())
-            x_test = np.concatenate(x_test, axis=0)
-            y_test = np.concatenate(y_test, axis=0)
-            c_test = np.concatenate(c_test, axis=0)
+            x_test, y_test, c_test = data_utils.daloader_to_memory(test_dl)
         if val_dl is not None:
-            x_val = []
-            y_val = []
-            c_val = []
-            for elems in val_dl:
-                if len(elems) == 2:
-                    (x, (y, c)) = elems
-                else:
-                    (x, y, c) = elems
-                x_val.append(x.cpu().detach())
-                y_val.append(y.cpu().detach())
-                c_val.append(c.cpu().detach())
-            x_val = np.concatenate(x_val, axis=0)
-            y_val = np.concatenate(y_val, axis=0)
-            c_val = np.concatenate(c_val, axis=0)
+            x_val, y_val, c_val = data_utils.daloader_to_memory(val_dl)
 
 
     if (project_name) and result_dir and (not chpt_exists):
@@ -461,15 +413,7 @@ def train_sequential_model(
             # We will distribute half epochs in one model and half on the other
             max_epochs=config['max_epochs'],
             check_val_every_n_epoch=config.get("check_val_every_n_epoch", 5),
-            callbacks=[
-                EarlyStopping(
-                    monitor=config["early_stopping_monitor"],
-                    min_delta=config.get("early_stopping_delta", 0.00),
-                    patience=config['patience'],
-                    verbose=config.get("verbose", False),
-                    mode=config["early_stopping_mode"],
-                ),
-            ],
+            callbacks=_make_callbacks(config),
             # Only use the wandb logger when it is a fresh run
             logger=(
                 logger or
@@ -610,15 +554,7 @@ def train_sequential_model(
                     "check_val_every_n_epoch",
                     5,
                 ),
-                callbacks=[
-                    EarlyStopping(
-                        monitor=config["early_stopping_monitor"],
-                        min_delta=config.get("early_stopping_delta", 0.00),
-                        patience=config['patience'],
-                        verbose=config.get("verbose", False),
-                        mode=config["early_stopping_mode"],
-                    ),
-                ],
+                callbacks=_make_callbacks(config),
                 # Only use the wandb logger when it is a fresh run
                 logger=(
                     logger or
@@ -799,66 +735,12 @@ def train_independent_model(
     # Construct the datasets we will need for training if the model
     # has not been found
     if rerun or (not chpt_exists):
-        x_train = []
-        y_train = []
-        c_train = []
-        fast_loader = torch.utils.data.DataLoader(
-            train_dl.dataset,
-            batch_size=_largest_divisor(len(train_dl.dataset), max_val=512),
-            num_workers=config.get('num_workers', 5),
-        )
-        for elems in fast_loader:
-            if len(elems) == 2:
-                (x, (y, c)) = elems
-            else:
-                (x, y, c) = elems
-            x_train.append(x.cpu().detach())
-            y_train.append(y.cpu().detach())
-            c_train.append(c.cpu().detach())
-        x_train = np.concatenate(x_train, axis=0)
-        y_train = np.concatenate(y_train, axis=0)
-        c_train = np.concatenate(c_train, axis=0)
+        x_train, y_train, c_train = data_utils.daloader_to_memory(train_dl)
 
         if test_dl:
-            x_test = []
-            y_test = []
-            c_test = []
-            fast_loader = torch.utils.data.DataLoader(
-                test_dl.dataset,
-                batch_size=_largest_divisor(len(test_dl.dataset), max_val=512),
-                num_workers=config.get('num_workers', 5),
-            )
-            for elems in fast_loader:
-                if len(elems) == 2:
-                    (x, (y, c)) = elems
-                else:
-                    (x, y, c) = elems
-                x_test.append(x.cpu().detach())
-                y_test.append(y.cpu().detach())
-                c_test.append(c.cpu().detach())
-            x_test = np.concatenate(x_test, axis=0)
-            y_test = np.concatenate(y_test, axis=0)
-            c_test = np.concatenate(c_test, axis=0)
+            x_test, y_test, c_test = data_utils.daloader_to_memory(test_dl)
         if val_dl is not None:
-            x_val = []
-            y_val = []
-            c_val = []
-            fast_loader = torch.utils.data.DataLoader(
-                val_dl.dataset,
-                batch_size=_largest_divisor(len(val_dl.dataset), max_val=512),
-                num_workers=config.get('num_workers', 5),
-            )
-            for elems in fast_loader:
-                if len(elems) == 2:
-                    (x, (y, c)) = elems
-                else:
-                    (x, y, c) = elems
-                x_val.append(x.cpu().detach())
-                y_val.append(y.cpu().detach())
-                c_val.append(c.cpu().detach())
-            x_val = np.concatenate(x_val, axis=0)
-            y_val = np.concatenate(y_val, axis=0)
-            c_val = np.concatenate(c_val, axis=0)
+            x_val, y_val, c_val = data_utils.daloader_to_memory(val_dl)
         else:
             c2y_val_dl = None
 
@@ -881,15 +763,7 @@ def train_independent_model(
             # We will distribute half epochs in one model and half on the other
             max_epochs=config['max_epochs'],
             check_val_every_n_epoch=config.get("check_val_every_n_epoch", 5),
-            callbacks=[
-                EarlyStopping(
-                    monitor=config["early_stopping_monitor"],
-                    min_delta=config.get("early_stopping_delta", 0.00),
-                    patience=config['patience'],
-                    verbose=config.get("verbose", False),
-                    mode=config["early_stopping_mode"],
-                ),
-            ],
+            callbacks=_make_callbacks(config),
             # Only use the wandb logger when it is a fresh run
             logger=(
                 logger or
@@ -999,15 +873,7 @@ def train_independent_model(
                     "check_val_every_n_epoch",
                     5,
                 ),
-                callbacks=[
-                    EarlyStopping(
-                        monitor=config["early_stopping_monitor"],
-                        min_delta=config.get("early_stopping_delta", 0.00),
-                        patience=config['patience'],
-                        verbose=config.get("verbose", False),
-                        mode=config["early_stopping_mode"],
-                    ),
-                ],
+                callbacks=_make_callbacks(config),
                 # Only use the wandb logger when it is a fresh run
                 logger=(
                     logger or
@@ -1204,15 +1070,7 @@ def train_prob_cbm(
         accelerator=accelerator,
         devices=devices,
         check_val_every_n_epoch=config.get("check_val_every_n_epoch", 5),
-        callbacks=[
-            EarlyStopping(
-                monitor=config["early_stopping_monitor"],
-                min_delta=config.get("early_stopping_delta", 0.00),
-                patience=config['patience'],
-                verbose=config.get("verbose", False),
-                mode=config["early_stopping_mode"],
-            ),
-        ],
+        callbacks=_make_callbacks(config),
         enable_checkpointing=enable_checkpointing,
         gradient_clip_val=gradient_clip_val,
         # Only use the wandb logger when it is a fresh run
