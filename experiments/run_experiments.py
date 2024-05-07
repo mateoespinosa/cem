@@ -66,6 +66,7 @@ import copy
 import joblib
 import json
 import logging
+import multiprocessing
 import numpy as np
 import os
 import re
@@ -83,6 +84,7 @@ from cem.data.synthetic_loaders import (
     get_synthetic_data_loader, get_synthetic_num_features
 )
 import cem.data.celeba_loader as celeba_data_module
+import cem.data.color_mnist_add as color_mnist_data_module
 import cem.data.CUB200.cub_loader as cub_data_module
 import cem.data.mnist_add as mnist_data_module
 import cem.interventions.utils as intervention_utils
@@ -158,7 +160,7 @@ def _update_config_with_dataset(
             if len(data) == 2:
                 (_, (y, _)) = data
             else:
-                (_, y, _) = data
+                y = data[1]
             if n_tasks > 1:
                 y = torch.nn.functional.one_hot(
                     y,
@@ -201,7 +203,8 @@ def _generate_dataset_and_update_config(
         data_module = get_synthetic_data_loader(dataset_config["dataset"])
     elif dataset_config["dataset"] == "mnist_add":
         data_module = mnist_data_module
-
+    elif dataset_config["dataset"] == "color_mnist_add":
+        data_module = color_mnist_data_module
     else:
         raise ValueError(f"Unsupported dataset {dataset_config['dataset']}!")
 
@@ -215,7 +218,19 @@ def _generate_dataset_and_update_config(
                     28,
                     28,
                 ),
-                num_operands=num_operands,
+                in_channels=num_operands,
+            )
+    if experiment_config['c_extractor_arch'] == "color_mnist_extractor":
+        num_operands = dataset_config.get('num_operands', 32)
+        experiment_config["c_extractor_arch"] = \
+            experiment_utils.get_mnist_extractor_arch(
+                input_shape=(
+                    dataset_config.get('batch_size', 512),
+                    3,
+                    28*num_operands,
+                    28,
+                ),
+                in_channels=3,
             )
     elif experiment_config['c_extractor_arch'] == 'synth_extractor':
         input_features = get_synthetic_num_features(dataset_config["dataset"])
@@ -337,6 +352,230 @@ def _perform_model_selection(
     return prev_selected_results
 
 
+
+def _multiprocess_run_trial(
+    trial_results,
+    run_name,
+    run_config,
+    accelerator,
+    devices,
+    result_dir,
+    split,
+    project_name,
+    current_rerun,
+    old_results,
+    single_frequency_epochs,
+    activation_freq,
+):
+    (
+        train_dl,
+        val_dl,
+        test_dl,
+        imbalance,
+        concept_map,
+        intervened_groups,
+        task_class_weights,
+        acquisition_costs
+    ) = _generate_dataset_and_update_config(
+        run_config,
+    )
+    experiment_utils.evaluate_expressions(run_config)
+
+    now = datetime.now()
+
+    # Get the appropiate training function
+    if run_config["architecture"] == \
+            "IndependentConceptBottleneckModel":
+        # Special case for now for independent CBMs
+        config = copy.deepcopy(run_config)
+        # config["architecture"] = "ConceptBottleneckModel"
+        config["sigmoidal_prob"] = True
+        train_fn = training.train_independent_model
+    elif run_config["architecture"] == \
+            "SequentialConceptBottleneckModel":
+        # Special case for now for sequential CBMs
+        config = copy.deepcopy(run_config)
+        # config["architecture"] = "ConceptBottleneckModel"
+        config["sigmoidal_prob"] = True
+        train_fn = training.train_sequential_model
+    elif run_config["architecture"] in [
+        "ProbCBM",
+        "ProbabilisticCBM",
+        "ProbabilisticConceptBottleneckModel",
+    ]:
+        train_fn = training.train_prob_cbm
+    else:
+        train_fn = training.train_end_to_end_model
+
+    # Train the model and get testing and validation results
+    model, model_results = train_fn(
+        run_name=run_name,
+        task_class_weights=task_class_weights,
+        accelerator=accelerator,
+        devices=devices,
+        n_concepts=run_config['n_concepts'],
+        n_tasks=run_config['n_tasks'],
+        config=run_config,
+        train_dl=train_dl,
+        val_dl=val_dl,
+        test_dl=test_dl,
+        split=split,
+        result_dir=result_dir,
+        rerun=current_rerun,
+        project_name=project_name,
+        seed=(42 + split),
+        imbalance=imbalance,
+        old_results=old_results,
+        gradient_clip_val=run_config.get(
+            'gradient_clip_val',
+            0,
+        ),
+        single_frequency_epochs=single_frequency_epochs,
+        activation_freq=activation_freq,
+    )
+    model_results[f'num_trainable_params'] = sum(
+        p.numel() for p in model.parameters() if p.requires_grad
+    )
+    model_results[f'num_non_trainable_params'] = sum(
+        p.numel() for p in model.parameters() if not p.requires_grad
+    )
+
+    training.update_statistics(
+        aggregate_results=trial_results,
+        run_config=run_config,
+        model=model,
+        test_results=model_results,
+        run_name=run_name,
+        prefix="",
+    )
+
+    # Evaluate interventions
+    if 'intervention_config' in run_config:
+        intervention_config = run_config['intervention_config']
+        test_int_args = dict(
+            task_class_weights=task_class_weights,
+            run_name=run_name,
+            train_dl=train_dl,
+            val_dl=val_dl,
+            test_dl=test_dl,
+            imbalance=imbalance,
+            config=run_config,
+            n_tasks=run_config['n_tasks'],
+            n_concepts=run_config['n_concepts'],
+            acquisition_costs=acquisition_costs,
+            result_dir=result_dir,
+            concept_map=concept_map,
+            intervened_groups=intervened_groups,
+            accelerator=accelerator,
+            devices=devices,
+            split=split,
+            rerun=current_rerun,
+            old_results=old_results,
+            group_level_competencies=intervention_config.get(
+                "group_level_competencies",
+                False,
+            ),
+            competence_levels=intervention_config.get(
+                'competence_levels',
+                [1],
+            ),
+        )
+        if "real_competencies" in intervention_config:
+            for real_comp in \
+                    intervention_config['real_competencies']:
+                def _real_competence_generator(x):
+                    if real_comp == "same":
+                        return x
+                    if real_comp == "complement":
+                        return 1 - x
+                    if test_int_args['group_level_competencies']:
+                        if real_comp == "unif":
+                            batch_group_level_competencies = np.zeros(
+                                (x.shape[0], len(concept_map))
+                            )
+                            for batch_idx in range(x.shape[0]):
+                                for group_idx, (_, concept_members) in enumerate(
+                                    concept_map.items()
+                                ):
+                                    batch_group_level_competencies[
+                                        batch_idx,
+                                        group_idx,
+                                    ] = np.random.uniform(
+                                        1/len(concept_members),
+                                        1,
+                                    )
+                        else:
+                            batch_group_level_competencies = np.ones(
+                                (x.shape[0], len(concept_map))
+                            ) * real_comp
+                        return batch_group_level_competencies
+
+                    if real_comp == "unif":
+                        return np.random.uniform(
+                            0.5,
+                            1,
+                            size=x.shape,
+                        )
+                    return np.ones(x.shape) * real_comp
+                if real_comp == "same":
+                    # Then we will just run what we normally run
+                    # as the provided competency matches the level
+                    # of competency of the user
+                    test_int_args.pop(
+                        "real_competence_generator",
+                        None,
+                    )
+                    test_int_args.pop(
+                        "extra_suffix",
+                        None,
+                    )
+                    test_int_args.pop(
+                        "real_competence_level",
+                        None,
+                    )
+                else:
+                    test_int_args['real_competence_generator'] = \
+                            _real_competence_generator
+                    test_int_args['extra_suffix'] = \
+                        f"_real_comp_{real_comp}_"
+                    test_int_args["real_competence_level"] = \
+                        real_comp
+        training.update_statistics(
+            aggregate_results=trial_results,
+            run_config=run_config,
+            model=model,
+            test_results=intervention_utils.test_interventions(
+                **test_int_args
+            ),
+            run_name=run_name,
+            prefix="",
+        )
+
+    # Finally, evaluate various representation metrics
+    training.update_statistics(
+        aggregate_results=trial_results,
+        run_config=run_config,
+        model=model,
+        test_results=evaluation.evaluate_representation_metrics(
+            config=run_config,
+            n_concepts=run_config['n_concepts'],
+            n_tasks=run_config['n_tasks'],
+            test_dl=test_dl,
+            run_name=run_name,
+            split=split,
+            imbalance=imbalance,
+            result_dir=result_dir,
+            task_class_weights=task_class_weights,
+            accelerator=accelerator,
+            devices=devices,
+            rerun=current_rerun,
+            seed=42,
+            old_results=old_results,
+        ),
+        run_name=run_name,
+        prefix="",
+    )
+
 ################################################################################
 ## MAIN FUNCTION
 ################################################################################
@@ -405,7 +644,7 @@ def main(
             trial_config = copy.deepcopy(shared_params)
             trial_config.update(current_config)
             # Time to try as many seeds as requested
-            for run_config in experiment_utils.generate_hyperatemer_configs(trial_config):
+            for run_config in experiment_utils.generate_hyperparameter_configs(trial_config):
                 run_config = copy.deepcopy(run_config)
                 run_config['result_dir'] = result_dir
                 experiment_utils.evaluate_expressions(run_config, soft=True)
@@ -484,210 +723,56 @@ def main(
                     )
                     results[f'{split}'][run_name].update(old_results)
                     continue
-                (
-                    train_dl,
-                    val_dl,
-                    test_dl,
-                    imbalance,
-                    concept_map,
-                    intervened_groups,
-                    task_class_weights,
-                    acquisition_costs
-                ) = _generate_dataset_and_update_config(
-                    run_config,
-                )
-                experiment_utils.evaluate_expressions(run_config)
 
-                now = datetime.now()
-
-                # Get the appropiate training function
-                if run_config["architecture"] == \
-                        "IndependentConceptBottleneckModel":
-                    # Special case for now for independent CBMs
-                    config = copy.deepcopy(run_config)
-                    # config["architecture"] = "ConceptBottleneckModel"
-                    config["sigmoidal_prob"] = True
-                    train_fn = training.train_independent_model
-                elif run_config["architecture"] == \
-                        "SequentialConceptBottleneckModel":
-                    # Special case for now for sequential CBMs
-                    config = copy.deepcopy(run_config)
-                    # config["architecture"] = "ConceptBottleneckModel"
-                    config["sigmoidal_prob"] = True
-                    train_fn = training.train_sequential_model
-                elif run_config["architecture"] in [
-                    "ProbCBM",
-                    "ProbabilisticCBM",
-                    "ProbabilisticConceptBottleneckModel",
-                ]:
-                    train_fn = training.train_prob_cbm
+                if int(os.environ.get("MULTIPROCESS", "0")):
+                    manager = multiprocessing.Manager()
+                    trial_results = manager.dict()
+                    context = multiprocessing.get_context('spawn')
+                    p = context.Process(
+                        target=_multiprocess_run_trial,
+                        kwargs=dict(
+                            trial_results=trial_results,
+                            run_name=run_name,
+                            run_config=run_config,
+                            accelerator=accelerator,
+                            devices=devices,
+                            result_dir=result_dir,
+                            split=split,
+                            project_name=project_name,
+                            current_rerun=current_rerun,
+                            old_results=old_results,
+                            single_frequency_epochs=single_frequency_epochs,
+                            activation_freq=activation_freq,
+                        ),
+                    )
+                    p.start()
+                    logging.debug(f"\t\tStarting run in subprocess {p.pid}")
+                    p.join()
+                    if p.exitcode:
+                        raise ValueError(
+                            f'Subprocess for trial {split + 1} of {run_name} failed!'
+                        )
+                    p.kill()
                 else:
-                    train_fn = training.train_end_to_end_model
-
-                # Train the model and get testing and validation results
-                model, model_results = train_fn(
-                    run_name=run_name,
-                    task_class_weights=task_class_weights,
-                    accelerator=accelerator,
-                    devices=devices,
-                    n_concepts=run_config['n_concepts'],
-                    n_tasks=run_config['n_tasks'],
-                    config=run_config,
-                    train_dl=train_dl,
-                    val_dl=val_dl,
-                    test_dl=test_dl,
-                    split=split,
-                    result_dir=result_dir,
-                    rerun=current_rerun,
-                    project_name=project_name,
-                    seed=(42 + split),
-                    imbalance=imbalance,
-                    old_results=old_results,
-                    gradient_clip_val=run_config.get(
-                        'gradient_clip_val',
-                        0,
-                    ),
-                    single_frequency_epochs=single_frequency_epochs,
-                    activation_freq=activation_freq,
-                )
-                training.update_statistics(
-                    aggregate_results=results[f'{split}'][run_name],
-                    run_config=run_config,
-                    model=model,
-                    test_results=model_results,
-                    run_name=run_name,
-                    prefix="",
-                )
-                results[f'{split}'][run_name][f'num_trainable_params'] = sum(
-                    p.numel() for p in model.parameters() if p.requires_grad
-                )
-                results[f'{split}'][run_name][f'num_non_trainable_params'] = sum(
-                    p.numel() for p in model.parameters() if not p.requires_grad
-                )
-
-                # Evaluate interventions
-                if 'intervention_config' in run_config:
-                    intervention_config = run_config['intervention_config']
-                    test_int_args = dict(
-                        task_class_weights=task_class_weights,
+                    trial_results = {}
+                    _multiprocess_run_trial(
+                        trial_results=trial_results,
                         run_name=run_name,
-                        train_dl=train_dl,
-                        val_dl=val_dl,
-                        test_dl=test_dl,
-                        imbalance=imbalance,
-                        config=run_config,
-                        n_tasks=run_config['n_tasks'],
-                        n_concepts=run_config['n_concepts'],
-                        acquisition_costs=acquisition_costs,
-                        result_dir=result_dir,
-                        concept_map=concept_map,
-                        intervened_groups=intervened_groups,
-                        accelerator=accelerator,
-                        devices=devices,
-                        split=split,
-                        rerun=current_rerun,
-                        old_results=old_results,
-                        group_level_competencies=intervention_config.get(
-                            "group_level_competencies",
-                            False,
-                        ),
-                        competence_levels=intervention_config.get(
-                            'competence_levels',
-                            [1],
-                        ),
-                    )
-                    if "real_competencies" in intervention_config:
-                        for real_comp in \
-                                intervention_config['real_competencies']:
-                            def _real_competence_generator(x):
-                                if real_comp == "same":
-                                    return x
-                                if real_comp == "complement":
-                                    return 1 - x
-                                if test_int_args['group_level_competencies']:
-                                    if real_comp == "unif":
-                                        batch_group_level_competencies = np.zeros(
-                                            (x.shape[0], len(concept_map))
-                                        )
-                                        for batch_idx in range(x.shape[0]):
-                                            for group_idx, (_, concept_members) in enumerate(
-                                                concept_map.items()
-                                            ):
-                                                batch_group_level_competencies[
-                                                    batch_idx,
-                                                    group_idx,
-                                                ] = np.random.uniform(
-                                                    1/len(concept_members),
-                                                    1,
-                                                )
-                                    else:
-                                        batch_group_level_competencies = np.ones(
-                                            (x.shape[0], len(concept_map))
-                                        ) * real_comp
-                                    return batch_group_level_competencies
-
-                                if real_comp == "unif":
-                                    return np.random.uniform(
-                                        0.5,
-                                        1,
-                                        size=x.shape,
-                                    )
-                                return np.ones(x.shape) * real_comp
-                            if real_comp == "same":
-                                # Then we will just run what we normally run
-                                # as the provided competency matches the level
-                                # of competency of the user
-                                test_int_args.pop(
-                                    "real_competence_generator",
-                                    None,
-                                )
-                                test_int_args.pop(
-                                    "extra_suffix",
-                                    None,
-                                )
-                                test_int_args.pop(
-                                    "real_competence_level",
-                                    None,
-                                )
-                            else:
-                                test_int_args['real_competence_generator'] = \
-                                        _real_competence_generator
-                                test_int_args['extra_suffix'] = \
-                                    f"_real_comp_{real_comp}_"
-                                test_int_args["real_competence_level"] = \
-                                    real_comp
-                    training.update_statistics(
-                        aggregate_results=results[f'{split}'][run_name],
                         run_config=run_config,
-                        model=model,
-                        test_results=intervention_utils.test_interventions(
-                            **test_int_args
-                        ),
-                        run_name=run_name,
-                        prefix="",
+                        accelerator=accelerator,
+                        devices=devices,
+                        result_dir=result_dir,
+                        split=split,
+                        project_name=project_name,
+                        current_rerun=current_rerun,
+                        old_results=old_results,
+                        single_frequency_epochs=single_frequency_epochs,
+                        activation_freq=activation_freq,
                     )
-
-                # Finally, evaluate various representation metrics
                 training.update_statistics(
                     aggregate_results=results[f'{split}'][run_name],
                     run_config=run_config,
-                    model=model,
-                    test_results=evaluation.evaluate_representation_metrics(
-                        config=run_config,
-                        n_concepts=run_config['n_concepts'],
-                        n_tasks=run_config['n_tasks'],
-                        test_dl=test_dl,
-                        run_name=run_name,
-                        split=split,
-                        imbalance=imbalance,
-                        result_dir=result_dir,
-                        task_class_weights=task_class_weights,
-                        accelerator=accelerator,
-                        devices=devices,
-                        rerun=current_rerun,
-                        seed=42,
-                        old_results=old_results,
-                    ),
+                    test_results=trial_results,
                     run_name=run_name,
                     prefix="",
                 )
