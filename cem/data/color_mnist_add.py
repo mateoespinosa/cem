@@ -1,3 +1,4 @@
+import copy
 import logging
 import numpy as np
 import os
@@ -7,99 +8,99 @@ import sklearn.model_selection
 import torch
 import torchvision
 
-from pytorch_lightning import seed_everything
 
-
-def inject_uncertainty(
-    *datasets,
-    uncertain_width=0,
-    concept_groups=None,
-    batch_size=512,
-    num_workers=-1,
-    mixing=True,
-    threshold=False,
+def _color_digit(
+    x,
+    color_distr_label,
+    rng,
+    colors=["red", "green", "blue"],
+    digit_color_distribution=None,
+    seed=42,
+    normalize_samples=True,
 ):
-    seed_everything(42)
-    results = []
-    concept_groups = concept_groups or []
-    for ds in datasets:
-        xs = []
-        ys = []
-        cs = []
+    if (digit_color_distribution is not None) and (
+        color_distr_label in digit_color_distribution
+    ):
+        color_distr = digit_color_distribution[color_distr_label]
+    else:
+        # Otherwise we select a color uniformly at random
+        color_distr = [1/len(colors) for _ in colors]
+    selected_color_idx = rng.choice(
+        range(len(colors)),
+        p=color_distr,
+    )
+    group = selected_color_idx
+    color = colors[selected_color_idx]
+    corresponding_sample = np.transpose(x, (0, 3, 1, 2))
+    rest_sample = np.zeros_like(corresponding_sample)
+    if normalize_samples:
+        corresponding_sample = corresponding_sample.copy() / 255.0
 
-        for x, y, c in ds:
-            ys.append(y)
-            c_new = c.numpy()
-            x_new = x.numpy()
-            if uncertain_width:
-                for j in range(c_new.shape[-1]):
-                    num_operands = x.shape[1] if x.shape[1] > 2 else 1
-                    if mixing:
-                        possible_options_pos = x[
-                            c[:, j] == 1,
-                            j//num_operands,
-                            :,
-                            :,
-                        ]
-                        possible_options_neg = x[
-                            c[:, j] == 0,
-                            j//num_operands,
-                            :,
-                            :,
-                        ]
-                    for i in range(c_new.shape[0]):
-                        if c_new[i, j] == 1:
-                            c_new[i, j] = np.random.uniform(
-                                low=1.0 - uncertain_width,
-                                high=1,
-                            )
-                            if mixing:
-                                selected_mix = np.random.randint(
-                                    0,
-                                    possible_options_neg.shape[0],
-                                )
-                                x_new[i,j//num_operands,:,:]  = (
-                                    x_new[i,j//num_operands,:,:] * c_new[i, j] +
-                                    (
-                                        (1 - c_new[i, j]) *
-                                        possible_options_neg[
-                                            selected_mix,
-                                            :,
-                                            :,
-                                        ].numpy()
-                                    )
-                                )
-                        else:
-                            c_new[i, j] = np.random.uniform(
-                                low=0.0,
-                                high=uncertain_width,
-                            )
-                            if mixing:
-                                selected_mix = np.random.randint(
-                                    0,
-                                    possible_options_pos.shape[0],
-                                )
-                                x_new[i,j//num_operands,:,:]  = (
-                                    x_new[i,j//num_operands,:,:] * (1 - c_new[i, j]) +
-                                    c_new[i, j] * possible_options_pos[selected_mix, :, :].numpy()
-                                )
-                        if threshold:
-                            c_new[i, j] = int(c_new[i, j] >= 0.5)
-
-            xs.append(x_new)
-            cs.append(c_new)
-        x = torch.FloatTensor(np.concatenate(xs, axis=0))
-
-        y = torch.cat(ys, dim=0)
-        c = torch.FloatTensor(np.concatenate(cs, axis=0))
-        results.append(
-            torch.utils.data.DataLoader(
-                torch.utils.data.TensorDataset(x, y, c),
-                batch_size=batch_size,
-                num_workers=num_workers,
-            ),
+    # Now time to generate the color using RGB maps!
+    if color == "red":
+        new_digit = np.concatenate(
+            [
+                corresponding_sample,
+                rest_sample,
+                rest_sample,
+            ],
+            axis=1,
         )
-    return results
+    elif color == "green":
+        new_digit = np.concatenate(
+            [
+                rest_sample,
+                corresponding_sample,
+                rest_sample,
+            ],
+            axis=1,
+        )
+    elif color == "blue":
+        new_digit = np.concatenate(
+            [
+                rest_sample,
+                rest_sample,
+                corresponding_sample,
+            ],
+            axis=1,
+        )
+    elif color == "white":
+        new_digit = np.concatenate(
+            [
+                corresponding_sample,
+                corresponding_sample,
+                corresponding_sample,
+            ],
+            axis=1,
+        )
+    elif color == "gray":
+        new_map = (
+            corresponding_sample / 2 if normalize_samples
+            else corresponding_sample // 2
+        )
+        new_digit = np.concatenate(
+            [new_map, new_map, new_map],
+            axis=1,
+        )
+    elif color.startswith("random_"):
+        # If it is random, then we randomly generate an RGB color using the
+        # seed provided after the word "random_"
+        use_color_seed = int(color[len("random_"):])
+        rng_2 = np.random.default_rng(seed=use_color_seed)
+        selected_color = rng_2.uniform(0, 1, size=3)
+        new_digit = np.concatenate(
+            [
+                corresponding_sample * selected_color[0],
+                corresponding_sample * selected_color[1],
+                corresponding_sample * selected_color[2],
+            ],
+            axis=1,
+        )
+    else:
+        raise ValueError(
+            f'Unsupported color name {color}'
+        )
+    return new_digit, group
 
 def produce_addition_set(
     X,
@@ -107,18 +108,25 @@ def produce_addition_set(
     dataset_size=30000,
     num_operands=2,
     selected_digits=list(range(10)),
-    output_channels=1,
     img_format='channels_first',
     sample_concepts=None,
     normalize_samples=True,
-    concat_dim='channels',
+    concat_dim='y',
     even_concepts=False,
     even_labels=False,
+    count_labels=False,
     threshold_labels=None,
     concept_transform=None,
     noise_level=0.0,
+    low_noise_level=0.0,
+    colors=["gray"],
+    digit_color_distribution=None,
+    seed=42,
+    color_by_label=False,
+    count_digit=None,
 ):
     filter_idxs = []
+    rng = np.random.default_rng(seed=seed)
     if len(y.shape) == 2 and y.shape[-1] == 1:
         y = y[:, 0]
     if not isinstance(selected_digits[0], list):
@@ -146,18 +154,21 @@ def produce_addition_set(
     sum_train_samples = []
     sum_train_concepts = []
     sum_train_labels = []
+    sum_train_colors = []
     for i in range(dataset_size):
         operands = []
         concepts = []
         sample_label = 0
         selected = []
+        used_colors = []
+        sum_train_colors.append(used_colors)
         for operand_digits, remap, total_samples, total_labels in zip(
             selected_digits,
             operand_remaps,
             total_operand_samples,
             total_operand_labels,
         ):
-            img_idx = np.random.choice(total_samples.shape[0])
+            img_idx = rng.choice(total_samples.shape[0])
             selected.append(total_labels[img_idx])
             img = total_samples[img_idx: img_idx + 1, :, :, :].copy()
             if len(operand_digits) > 2:
@@ -185,77 +196,130 @@ def produce_addition_set(
                     concepts.append(np.array([[val]]))
             sample_label += total_labels[img_idx]
             operands.append(img)
-        if concat_dim == 'channels':
-            sum_train_samples.append(np.concatenate(operands, axis=3))
-        elif concat_dim == 'x':
-            sum_train_samples.append(np.concatenate(operands, axis=2))
-        else:
-            sum_train_samples.append(np.concatenate(operands, axis=1))
         if even_labels:
             sum_train_labels.append(int(sample_label % 2 == 0))
-        elif threshold_labels is not None:
-            sum_train_labels.append(int(sample_label >= threshold_labels))
+        elif count_labels:
+            sum_train_labels.append(int(np.sum(np.concatenate(concepts, axis=-1))))
         else:
             sum_train_labels.append(sample_label)
+
+        if threshold_labels is not None:
+            sum_train_labels[-1] = int(
+                sum_train_labels[-1] >= threshold_labels
+            )
+
+        for operand_idx, img in enumerate(operands):
+            img, color = _color_digit(
+                img,
+                color_distr_label=(
+                    sum_train_labels[-1] if color_by_label
+                    else total_labels[img_idx]
+                ),
+                rng=rng,
+                colors=colors,
+                digit_color_distribution=digit_color_distribution,
+                normalize_samples=normalize_samples,
+            )
+            used_colors.append(color)
+            operands[operand_idx] = img
+
+        if concat_dim == 'y':
+            sum_train_samples.append(np.concatenate(operands, axis=2))
+        elif concat_dim == 'x':
+            sum_train_samples.append(np.concatenate(operands, axis=3))
+        else:
+            raise ValueError(f'Unsupported concat dim {concat_dim}')
         sum_train_concepts.append(np.concatenate(concepts, axis=-1))
+
     sum_train_samples = np.concatenate(sum_train_samples, axis=0)
     sum_train_concepts = np.concatenate(sum_train_concepts, axis=0)
+    sum_train_colors = np.array(sum_train_colors)
     sum_train_labels = np.array(sum_train_labels)
-    if output_channels != 1 and concat_dim != 'channels':
-        sum_train_samples = np.stack(
-            (sum_train_samples[:, :, :, 0].astype(np.float32),)*output_channels,
-            axis=-1,
-        )
-    if img_format == 'channels_first':
-        sum_train_samples = np.transpose(sum_train_samples, axes=[0, 3, 2, 1])
-    if normalize_samples:
-        sum_train_samples = sum_train_samples/255.0
+    if img_format == 'channels_last':
+        sum_train_samples = np.transpose(sum_train_samples, axes=[0, 2, 3, 1])
     if sample_concepts is not None:
         sum_train_concepts = sum_train_concepts[:, sample_concepts]
     if concept_transform is not None:
         sum_train_concepts = concept_transform(sum_train_concepts)
     if noise_level > 0.0:
-        sum_train_samples = sum_train_samples + np.random.normal(
-            loc=0.0,
-            scale=noise_level,
+        mask = rng.choice(
+            [0, 1],
+            size=sum_train_samples.shape,
+            p=[1 - noise_level, noise_level],
+        )
+        substitutes = rng.uniform(
+            low=0,
+            high=low_noise_level,
             size=sum_train_samples.shape,
         )
-        if normalize_samples:
-            sum_train_samples = np.clip(
-                sum_train_samples,
-                a_min=0.0,
-                a_max=1.0,
-            )
-    return sum_train_samples, sum_train_labels, sum_train_concepts
+        sum_train_samples = mask * substitutes + (1 - mask) * sum_train_samples
+    return sum_train_samples, sum_train_labels, sum_train_concepts, sum_train_colors
 
-def load_mnist_addition(
+def load_color_mnist_addition(
     cache_dir="mnist",
     seed=42,
     train_dataset_size=30000,
     test_dataset_size=10000,
     num_operands=10,
     selected_digits=list(range(10)),
-    uncertain_width=0,
-    renormalize=True,
     val_percent=0.2,
     batch_size=512,
     test_only=False,
     num_workers=-1,
     sample_concepts=None,
-    as_channels=True,
     img_format='channels_first',
-    output_channels=1,
-    threshold=False,
-    mixing=True,
     even_concepts=False,
     even_labels=False,
+    count_labels=False,
+    count_digit=None,
     threshold_labels=None,
     concept_transform=None,
+    low_noise_level=0.0,
     noise_level=0.0,
     test_noise_level=None,
+    test_low_noise_level=None,
+    colors=["gray"],
+    digit_color_distribution=None,
+    test_digit_color_distribution=None,
+    spurious_strength=0,
+    color_by_label=False,
 ):
+    if digit_color_distribution:
+        real_distr_map = copy.deepcopy(digit_color_distribution)
+        for digit, distr_vals in real_distr_map.items():
+            if "spurious" in distr_vals:
+                color_index = distr_vals.index("spurious")
+                other_probs = (1 - spurious_strength)/(len(colors) - 1)
+                real_distr_map[digit] = [
+                    spurious_strength if i == color_index else other_probs
+                    for i in range(len(colors))
+                ]
+    else:
+        real_distr_map = {
+            digit: [1/len(colors) for _ in colors]
+            for digit in selected_digits
+        }
+    digit_color_distribution = real_distr_map
+    if test_digit_color_distribution is None:
+        test_digit_color_distribution = digit_color_distribution
+    else:
+        test_real_distr_map = copy.deepcopy(test_digit_color_distribution)
+        for digit, distr_vals in test_real_distr_map.items():
+            if "spurious" in distr_vals:
+                color_index = distr_vals.index("spurious")
+                other_probs = (1 - spurious_strength)/(len(colors) - 1)
+                test_real_distr_map[digit] = [
+                    spurious_strength if i == color_index else other_probs
+                    for i in range(len(colors))
+                ]
+        test_digit_color_distribution = test_real_distr_map
+
     test_noise_level = (
         test_noise_level if (test_noise_level is not None) else noise_level
+    )
+    test_low_noise_level = (
+        test_low_noise_level if (test_low_noise_level is not None)
+        else low_noise_level
     )
     os.environ['PYTHONHASHSEED'] = str(seed)
     random.seed(seed)
@@ -293,7 +357,7 @@ def load_mnist_addition(
     y_test = np.concatenate(y_test, axis=0)
 
     # Wrap them up in dataloaders
-    x_test, y_test, c_test = produce_addition_set(
+    x_test, y_test, c_test, g_test = produce_addition_set(
         X=x_test,
         y=y_test,
         dataset_size=test_dataset_size,
@@ -301,36 +365,40 @@ def load_mnist_addition(
         selected_digits=selected_digits,
         sample_concepts=sample_concepts,
         img_format=img_format,
-        output_channels=1 if as_channels else output_channels,
-        concat_dim='channels' if as_channels else 'y',
+        concat_dim='y',
         even_concepts=even_concepts,
         even_labels=even_labels,
+        count_labels=count_labels,
+        count_digit=count_digit,
         threshold_labels=threshold_labels,
         concept_transform=concept_transform,
         noise_level=test_noise_level,
+        low_noise_level=test_low_noise_level,
+        colors=colors,
+        digit_color_distribution=test_digit_color_distribution,
+        seed=seed,
+        color_by_label=color_by_label,
     )
     x_test = torch.FloatTensor(x_test)
-    if even_labels or (threshold_labels is not None):
+    if even_labels or (threshold_labels is not None) or (
+        count_labels and (len(selected_digits) == 2)
+    ):
         y_test = torch.FloatTensor(y_test)
     else:
         y_test = torch.LongTensor(y_test)
     c_test = torch.FloatTensor(c_test)
-    test_data = torch.utils.data.TensorDataset(x_test, y_test, c_test)
+    g_test = torch.LongTensor(g_test)
+    test_data = torch.utils.data.TensorDataset(
+        x_test,
+        y_test,
+        c_test,
+        g_test,
+    )
     test_dl = torch.utils.data.DataLoader(
         test_data,
         batch_size=batch_size,
         num_workers=num_workers,
     )
-    if uncertain_width and (not even_concepts):
-        [test_dl] = inject_uncertainty(
-            test_dl,
-            uncertain_width=uncertain_width,
-            concept_groups=concept_groups,
-            batch_size=batch_size,
-            num_workers=num_workers,
-            mixing=mixing,
-            threshold=threshold,
-        )
     if test_only:
         return test_dl
 
@@ -368,7 +436,7 @@ def load_mnist_addition(
                 y_train,
                 test_size=val_percent,
             )
-        x_val, y_val, c_val = produce_addition_set(
+        x_val, y_val, c_val, g_val = produce_addition_set(
             X=x_val,
             y=y_val,
             dataset_size=int(train_dataset_size*val_percent),
@@ -376,40 +444,39 @@ def load_mnist_addition(
             selected_digits=selected_digits,
             sample_concepts=sample_concepts,
             img_format=img_format,
-            output_channels=1 if as_channels else output_channels,
-            concat_dim='channels' if as_channels else 'y',
+            concat_dim='y',
             even_concepts=even_concepts,
             even_labels=even_labels,
+            count_labels=count_labels,
+            count_digit=count_digit,
             threshold_labels=threshold_labels,
             concept_transform=concept_transform,
             noise_level=noise_level,
+            low_noise_level=low_noise_level,
+            colors=colors,
+            digit_color_distribution=digit_color_distribution,
+            seed=seed,
+            color_by_label=color_by_label,
         )
         x_val = torch.FloatTensor(x_val)
-        if even_labels or (threshold_labels is not None):
+        if even_labels or (threshold_labels is not None) or (
+            count_labels and (len(selected_digits) == 2)
+        ):
             y_val = torch.FloatTensor(y_val)
         else:
             y_val = torch.LongTensor(y_val)
+        g_val = torch.LongTensor(g_val)
         c_val = torch.FloatTensor(c_val)
-        val_data = torch.utils.data.TensorDataset(x_val, y_val, c_val)
+        val_data = torch.utils.data.TensorDataset(x_val, y_val, c_val, g_val)
         val_dl = torch.utils.data.DataLoader(
             val_data,
             batch_size=batch_size,
             num_workers=num_workers,
         )
-        if uncertain_width and (not even_concepts):
-            [val_dl] = inject_uncertainty(
-                val_dl,
-                uncertain_width=uncertain_width,
-                concept_groups=concept_groups,
-                batch_size=batch_size,
-                num_workers=num_workers,
-                mixing=mixing,
-                threshold=threshold,
-            )
     else:
         val_dl = None
 
-    x_train, y_train, c_train = produce_addition_set(
+    x_train, y_train, c_train, g_train = produce_addition_set(
         X=x_train,
         y=y_train,
         dataset_size=train_dataset_size,
@@ -417,37 +484,40 @@ def load_mnist_addition(
         selected_digits=selected_digits,
         sample_concepts=sample_concepts,
         img_format=img_format,
-        output_channels=1 if as_channels else output_channels,
-        concat_dim='channels' if as_channels else 'y',
+        concat_dim='y',
         even_concepts=even_concepts,
         even_labels=even_labels,
+        count_labels=count_labels,
+        count_digit=count_digit,
         threshold_labels=threshold_labels,
         concept_transform=concept_transform,
         noise_level=noise_level,
+        low_noise_level=low_noise_level,
+        colors=colors,
+        digit_color_distribution=digit_color_distribution,
+        seed=seed,
+        color_by_label=color_by_label,
     )
     x_train = torch.FloatTensor(x_train)
-    if even_labels or (threshold_labels is not None):
+    if even_labels or (threshold_labels is not None) or (
+        count_labels and (len(selected_digits) == 2)
+    ):
         y_train = torch.FloatTensor(y_train)
     else:
         y_train = torch.LongTensor(y_train)
     c_train = torch.FloatTensor(c_train)
-    train_data = torch.utils.data.TensorDataset(x_train, y_train, c_train)
+    g_train = torch.LongTensor(g_train)
+    train_data = torch.utils.data.TensorDataset(
+        x_train,
+        y_train,
+        c_train,
+        g_train,
+    )
     train_dl = torch.utils.data.DataLoader(
         train_data,
         batch_size=batch_size,
         num_workers=num_workers,
     )
-
-    if uncertain_width and (not even_concepts):
-        [train_dl] = inject_uncertainty(
-            train_dl,
-            uncertain_width=uncertain_width,
-            concept_groups=concept_groups,
-            batch_size=batch_size,
-            num_workers=num_workers,
-            mixing=mixing,
-            threshold=threshold,
-        )
 
     if val_dl is not None:
         return train_dl, val_dl, test_dl
@@ -455,12 +525,12 @@ def load_mnist_addition(
 
 
 def generate_data(
-        config,
-        root_dir="mnist",
-        seed=42,
-        output_dataset_vars=False,
-        rerun=False,
-    ):
+    config,
+    root_dir="mnist",
+    seed=42,
+    output_dataset_vars=False,
+    rerun=False,
+):
     selected_digits = config.get("selected_digits", list(range(2)))
     num_operands = config.get("num_operands", 32)
     if not isinstance(selected_digits[0], list):
@@ -472,6 +542,7 @@ def generate_data(
         )
     even_concepts = config.get("even_concepts", False)
     even_labels = config.get("even_labels", False)
+    count_labels = config.get('count_labels', False)
     threshold_labels = config.get("threshold_labels", None)
 
     if even_concepts:
@@ -491,6 +562,8 @@ def generate_data(
 
     if even_labels or (threshold_labels is not None):
         n_tasks = 1
+    elif count_labels:
+        n_tasks = num_operands + 1
 
     sampling_percent = config.get("sampling_percent", 1)
     sampling_groups = config.get("sampling_groups", False)
@@ -563,34 +636,40 @@ def generate_data(
             logging.debug(f"\t\t\t{k} -> {v}")
     else:
         concept_transform = None
-    train_dl, val_dl, test_dl = load_mnist_addition(
+    train_dl, val_dl, test_dl = load_color_mnist_addition(
         cache_dir=root_dir,
         seed=seed,
         train_dataset_size=config.get("train_dataset_size", 30000),
         test_dataset_size=config.get("test_dataset_size", 10000),
         num_operands=num_operands,
         selected_digits=selected_digits,
-        uncertain_width=config.get("uncertain_width", 0),
-        renormalize=config.get("renormalize", True),
+        spurious_strength=config.get("spurious_strength", 0),
         val_percent=config.get("val_percent", 0.2),
         batch_size=config.get("batch_size", 512),
         test_only=config.get("test_only", False),
         num_workers=config.get("num_workers", -1),
         sample_concepts=config.get("sample_concepts", None),
-        as_channels=config.get("as_channels", True),
         img_format=config.get("img_format", 'channels_first'),
-        output_channels=config.get("output_channels", 1),
-        threshold=config.get("threshold", True),
-        mixing=config.get("mixing", True),
         even_labels=even_labels,
+        count_labels=count_labels,
+        count_digit=config.get('count_digit', None),
         threshold_labels=threshold_labels,
         even_concepts=even_concepts,
         concept_transform=concept_transform,
         noise_level=config.get("noise_level", 0),
+        low_noise_level=config.get("low_noise_level", 0),
         test_noise_level=config.get(
             "test_noise_level",
             config.get("noise_level", 0),
         ),
+        test_low_noise_level=config.get(
+            "test_low_noise_level",
+            config.get("low_noise_level", 0),
+        ),
+        colors=config.get("colors", ['gray']),
+        digit_color_distribution=config.get("digit_color_distribution", None),
+        test_digit_color_distribution=config.get("test_digit_color_distribution", None),
+        color_by_label=config.get('color_by_label', False),
     )
 
     if config.get('weight_loss', False):
