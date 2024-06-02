@@ -1110,6 +1110,7 @@ class IntAwareConceptEmbeddingModel(
         c_true=None,
         train=False,
         competencies=None,
+        **kwargs,
     ):
         if train and (self.training_intervention_prob != 0) and (
             (c_true is not None) and
@@ -1141,13 +1142,21 @@ class IntAwareConceptEmbeddingModel(
                     (c_true.shape[0], 1),
                 )
         if (c_true is None) or (intervention_idxs is None):
-            return prob, intervention_idxs
+            # Then time to mix!
+            bottleneck = (
+                pos_embeddings * torch.unsqueeze(prob, dim=-1) +
+                neg_embeddings * (1 - torch.unsqueeze(prob, dim=-1))
+            )
+            return prob, intervention_idxs, bottleneck
         intervention_idxs = intervention_idxs.type(torch.FloatTensor)
         intervention_idxs = intervention_idxs.to(prob.device)
-        return (
-            prob * (1 - intervention_idxs) + intervention_idxs * c_true,
-            intervention_idxs,
+        # Then time to mix!
+        out_probs = prob * (1 - intervention_idxs) + intervention_idxs * c_true
+        bottleneck = (
+            pos_embeddings * torch.unsqueeze(out_probs, dim=-1) +
+            neg_embeddings * (1 - torch.unsqueeze(out_probs, dim=-1))
         )
+        return (out_probs, intervention_idxs, bottleneck)
 
     def _prior_int_distribution(
         self,

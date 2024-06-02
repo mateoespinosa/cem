@@ -540,11 +540,24 @@ def _multiprocess_run_trial(
                         f"_real_comp_{real_comp}_"
                     test_int_args["real_competence_level"] = \
                         real_comp
+
         training.update_statistics(
             aggregate_results=trial_results,
             run_config=run_config,
             model=model,
             test_results=intervention_utils.test_interventions(
+                dl_name="val",
+                **test_int_args
+            ),
+            run_name=run_name,
+            prefix="",
+        )
+        training.update_statistics(
+            aggregate_results=trial_results,
+            run_config=run_config,
+            model=model,
+            test_results=intervention_utils.test_interventions(
+                dl_name="test",
                 **test_int_args
             ),
             run_name=run_name,

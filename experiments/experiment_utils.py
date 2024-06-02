@@ -249,12 +249,16 @@ def print_table(
             "50% Int Acc",
             "75% Int Acc",
             "100% Int Acc",
+            "Val Int AUC",
+            "Test Int AUC",
         ])
         result_table_fields_keys.extend([
             "test_acc_y_random_group_level_True_use_prior_False_ints_25%",
             "test_acc_y_random_group_level_True_use_prior_False_ints_50%",
             "test_acc_y_random_group_level_True_use_prior_False_ints_75%",
             "test_acc_y_random_group_level_True_use_prior_False_ints_100%",
+            "val_acc_y_random_group_level_True_use_prior_False_int_auc",
+            "test_acc_y_random_group_level_True_use_prior_False_int_auc",
         ])
 
     if summary_table_metrics is not None:

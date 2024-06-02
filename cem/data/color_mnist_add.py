@@ -124,6 +124,7 @@ def produce_addition_set(
     seed=42,
     color_by_label=False,
     count_digit=None,
+    condition=lambda x: x,
 ):
     filter_idxs = []
     rng = np.random.default_rng(seed=seed)
@@ -157,6 +158,7 @@ def produce_addition_set(
     sum_train_colors = []
     for i in range(dataset_size):
         operands = []
+        digit_identities = []
         concepts = []
         sample_label = 0
         selected = []
@@ -196,6 +198,7 @@ def produce_addition_set(
                     concepts.append(np.array([[val]]))
             sample_label += total_labels[img_idx]
             operands.append(img)
+            digit_identities.append(total_labels[img_idx])
         if even_labels:
             sum_train_labels.append(int(sample_label % 2 == 0))
         elif count_labels:
@@ -213,7 +216,7 @@ def produce_addition_set(
                 img,
                 color_distr_label=(
                     sum_train_labels[-1] if color_by_label
-                    else total_labels[img_idx]
+                    else digit_identities[operand_idx]
                 ),
                 rng=rng,
                 colors=colors,

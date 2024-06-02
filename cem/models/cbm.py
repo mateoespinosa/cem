@@ -1,7 +1,7 @@
 import sklearn.metrics
 import torch
 import pytorch_lightning as pl
-from torchvision.models import resnet50, densenet121
+from torchvision.models import resnet50
 import numpy as np
 
 import cem.train.utils as utils

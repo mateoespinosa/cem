@@ -510,7 +510,7 @@ def intervene_in_cbm(
         if n_tasks > 1:
             acc = np.mean(y_pred == y_test.detach().cpu().numpy())
             logging.debug(
-                f"\tTest accuracy when intervening "
+                f"\tAccuracy when intervening "
                 f"with {num_groups_intervened} "
                 f"concept groups is {acc * 100:.2f}%."
             )
@@ -523,7 +523,7 @@ def intervene_in_cbm(
                     [test_results] = trainer.test(model, test_dl)
             acc = test_results['test_y_auc']
             logging.debug(
-                f"\tTest AUC when intervening with {num_groups_intervened} "
+                f"\tAUC when intervening with {num_groups_intervened} "
                 f"concept groups is {acc * 100:.2f}% (accuracy "
                 f"is {np.mean(y_pred == y_test.detach().cpu().numpy()) * 100:.2f}%)."
             )
@@ -1148,6 +1148,82 @@ def _rerun_policy(
                 return True
     return False
 
+
+def _evaluate_intervention_auc(
+    results,
+    config,
+    competence_levels=[1],
+    extra_suffix="",
+    real_competence_level="same",
+    group_level_competencies=False,
+    dl_name="test",
+):
+    intervention_config = config.get('intervention_config', {})
+    if f'{dl_name}_intervention_policies' in intervention_config:
+        used_policies = intervention_config[f'{dl_name}_intervention_policies']
+    else:
+        used_policies = intervention_config.get(
+            'intervention_policies',
+            DEFAULT_POLICIES,
+        )
+    for competence_level in competence_levels:
+
+        if competence_level == 1:
+            currently_used_policies = used_policies
+        else:
+            currently_used_policies = intervention_config.get(
+                f'{dl_name}_incompetence_intervention_policies',
+                used_policies,
+            )
+        for policy_args in currently_used_policies:
+            key_policy_name = policy_args["policy"] + "_" + "_".join([
+                f'{key}_{policy_args[key]}'
+                for key in sorted(policy_args.keys())
+                if key != 'policy'
+            ])
+            if (
+                os.environ.get(
+                    f"IGNORE_INTERVENTION_{key_policy_name.upper()}",
+                    "0"
+                ) == "1"
+            ):
+                continue
+            if competence_level == 1:
+                int_results_key = f'{dl_name}_acc_y_{key_policy_name}_ints'
+                int_auc_key = f'{dl_name}_acc_y_{key_policy_name}_int_auc'
+            else:
+                extra_suffix = (
+                    ("_"  + extra_suffix) if extra_suffix else extra_suffix
+                )
+                if group_level_competencies:
+                    int_results_key = (
+                        f'{dl_name}_acc_y_{key_policy_name}_ints'
+                        f'_co_{competence_level}_gl{extra_suffix}'
+                    )
+                    int_auc_key = (
+                        f'{dl_name}_acc_y_{key_policy_name}_int_auc_'
+                        f'co_{competence_level}_gl{extra_suffix}'
+                    )
+                else:
+                    int_results_key = (
+                        f'{dl_name}_acc_y_{key_policy_name}_ints'
+                        f'_co_{competence_level}{extra_suffix}'
+                    )
+                    int_auc_key = (
+                        f'{dl_name}_acc_y_{key_policy_name}_int_auc'
+                        f'_co_{competence_level}{extra_suffix}'
+                    )
+            int_results = results[int_results_key]
+            int_auc = np.sum(int_results)
+            results[int_auc_key] = int_auc
+            logging.info(
+                f"\t\t{dl_name} area under the intervention accuracy curve with "
+                f"policy {key_policy_name}, claimed "
+                f"competence {competence_level}, and real competence "
+                f"{real_competence_level} is {int_auc * 100:.2f}%."
+            )
+
+
 def test_interventions(
     run_name,
     train_dl,
@@ -1174,19 +1250,35 @@ def test_interventions(
     rerun=False,
     old_results=None,
     task_class_weights=None,
+    dl_name='test',
 ):
     intervention_config = config.get('intervention_config', {})
-    used_policies = intervention_config.get(
-        'intervention_policies',
-        DEFAULT_POLICIES,
-    )
+    if f'{dl_name}_intervention_policies' in intervention_config:
+        used_policies = intervention_config[f'{dl_name}_intervention_policies']
+    else:
+        used_policies = intervention_config.get(
+            'intervention_policies',
+            DEFAULT_POLICIES,
+        )
     intervention_batch_size = intervention_config.get(
         "intervention_batch_size",
         int(os.environ.get(f"INT_BATCH_SIZE", intervention_batch_size)),
     )
     results = {}
+    if dl_name == 'test':
+        used_dl = test_dl
+    elif dl_name == 'val':
+        used_dl = val_dl
+    elif dl_name == 'train':
+        used_dl = train_dl
+    else:
+        raise ValueError(
+            f'Currently we only support dl_name "test", "train", or "val". '
+            f'Instead we got "{dl_name}".'
+        )
+
     x_test, y_test, c_test, g_test = data_utils.daloader_to_memory(
-        test_dl,
+        used_dl,
         as_torch=True,
         output_groups=True,
     )
@@ -1240,7 +1332,7 @@ def test_interventions(
             currently_used_policies = used_policies
         else:
             currently_used_policies = intervention_config.get(
-                'incompetence_intervention_policies',
+                f'{dl_name}_incompetence_intervention_policies',
                 used_policies,
             )
         for policy_args in currently_used_policies:
@@ -1290,7 +1382,7 @@ def test_interventions(
                 f"competence {competence_level}"
             )
             if competence_level == 1:
-                key = f'test_acc_y_{key_policy_name}_ints'
+                key = f'{dl_name}_acc_y_{key_policy_name}_ints'
                 int_time_key = f'avg_int_time_{key_policy_name}_ints'
                 construction_times_key = (
                     f'construction_time_{key_policy_name}_ints'
@@ -1301,29 +1393,29 @@ def test_interventions(
                 )
                 if group_level_competencies:
                     key = (
-                        f'test_acc_y_{key_policy_name}_ints_co_{competence_level}'
-                        f'_gl{extra_suffix}'
+                        f'{dl_name}_acc_y_{key_policy_name}_ints_'
+                        f'co_{competence_level}_gl{extra_suffix}'
                     )
                     int_time_key = (
-                        f'avg_int_time_{key_policy_name}_ints_co_{competence_level}'
-                        f'_gl{extra_suffix}'
+                        f'{dl_name}_avg_int_time_{key_policy_name}_ints_'
+                        f'co_{competence_level}_gl{extra_suffix}'
                     )
                     construction_times_key = (
-                        f'construction_time_{key_policy_name}_ints_'
+                        f'{dl_name}_construction_time_{key_policy_name}_ints_'
                         f'co_{competence_level}_gl_{extra_suffix}'
                     )
                 else:
                     key = (
-                        f'test_acc_y_{key_policy_name}_ints_co_{competence_level}'
-                        f'{extra_suffix}'
+                        f'{dl_name}_acc_y_{key_policy_name}_ints_'
+                        f'co_{competence_level}{extra_suffix}'
                     )
                     int_time_key = (
-                        f'avg_int_time_{key_policy_name}_ints_co_{competence_level}'
-                        f'{extra_suffix}'
+                        f'{dl_name}_avg_int_time_{key_policy_name}_ints_'
+                        f'co_{competence_level}{extra_suffix}'
                     )
                     construction_times_key = (
-                        f'construction_time_{key_policy_name}_ints_co_{competence_level}'
-                        f'{extra_suffix}'
+                        f'{dl_name}_construction_time_{key_policy_name}_ints_'
+                        f'co_{competence_level}{extra_suffix}'
                     )
             dataset_config = config['dataset_config']
             (int_results, avg_time, constr_time), loaded = load_call(
@@ -1347,7 +1439,7 @@ def test_interventions(
                     accelerator=accelerator,
                     devices=devices,
                     config=config,
-                    test_dl=test_dl,
+                    test_dl=used_dl,
                     train_dl=train_dl,
                     n_tasks=n_tasks,
                     n_concepts=n_concepts,
@@ -1370,7 +1462,10 @@ def test_interventions(
                     y_test=y_test,
                     c_test=c_test,
                     g_test=g_test,
-                    test_subsampling=dataset_config.get('test_subsampling', 1),
+                    test_subsampling=dataset_config.get(
+                        f'{dl_name}_subsampling',
+                        1,
+                    ),
                     seed=(42 + split),
                     task_class_weights=task_class_weights,
                 ),
@@ -1388,7 +1483,7 @@ def test_interventions(
             for num_groups_intervened, val in enumerate(int_results):
                 if n_tasks > 1:
                     logging.info(
-                        f"\t\tTest accuracy when intervening "
+                        f"\t\t{dl_name} accuracy when intervening "
                         f"with {num_groups_intervened} "
                         f"concept groups with claimed competence "
                         f"{competence_level} and real competence "
@@ -1396,10 +1491,19 @@ def test_interventions(
                     )
                 else:
                     logging.info(
-                        f"\t\tTest AUC when intervening "
+                        f"\t\t{dl_name} AUC when intervening "
                         f"with {num_groups_intervened} "
                         f"concept groups with claimed competence "
                         f"{competence_level} and real competence "
                         f"{real_competence_level} is {val * 100:.2f}%{extra}."
                     )
+    _evaluate_intervention_auc(
+        results=results,
+        config=config,
+        competence_levels=competence_levels,
+        extra_suffix=extra_suffix,
+        real_competence_level=real_competence_level,
+        group_level_competencies=group_level_competencies,
+        dl_name=dl_name,
+    )
     return results

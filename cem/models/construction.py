@@ -83,6 +83,45 @@ def construct_model(
                 'training_intervention_prob',
                 0.25,
             ),
+            "const_embedding_activation": config.get(
+                "const_embedding_activation",
+                "leakyrelu"
+            ),
+            "dyn_embedding_activation": config.get(
+                "dyn_embedding_activation",
+                "leakyrelu"
+            ),
+            "c2y_model": c2y_model,
+            "c2y_layers": config.get("c2y_layers", []),
+            "contrastive_anchors": config.get(
+                "contrastive_anchors",
+                False,
+            ),
+        }
+
+    elif (
+        config["architecture"] in ["MultiConceptEmbeddingModel", "Multi-CEM"]
+    ):
+        model_cls = models_hcem.MultiConceptEmbeddingModel
+        extra_params = {
+            "emb_size": config["emb_size"],
+            "n_discovered_embs": config.get(
+                "n_discovered_embs",
+                4,
+            ),
+            "contrastive_loss_weight": config.get(
+                "contrastive_loss_weight",
+                0.0,
+            ),
+            "mix_ground_truth_embs": config.get(
+                "mix_ground_truth_embs",
+                True,
+            ),
+            "intervention_policy": intervention_policy,
+            "training_intervention_prob": config.get(
+                'training_intervention_prob',
+                0.25,
+            ),
             "embedding_activation": config.get(
                 "embedding_activation",
                 "leakyrelu"
@@ -90,10 +129,75 @@ def construct_model(
             "c2y_model": c2y_model,
             "c2y_layers": config.get("c2y_layers", []),
         }
-        if "embeding_activation" in config:
-            # Legacy support for typo in argument
-            extra_params["embedding_activation"] = config["embeding_activation"]
 
+    elif config["architecture"] in [
+        "ResidualMixingConceptEmbeddingModel",
+        "ResidualMixCEM",
+        "MixingConceptEmbeddingModel",
+        "MixCEM",
+    ]:
+        if "Residual" in config["architecture"]:
+            model_cls = models_hcem.ResidualMixingConceptEmbeddingModel
+        else:
+            model_cls = models_hcem.MixingConceptEmbeddingModel
+        extra_params = {
+            "emb_size": config["emb_size"],
+            "n_discovered_concepts": config.get(
+                "n_discovered_concepts",
+                4,
+            ),
+            "contrastive_loss_weight": config.get(
+                "contrastive_loss_weight",
+                0.0,
+            ),
+            "shared_emb_generator": config.get(
+                "shared_emb_generator",
+                False,
+            ),
+            "normalize_embs": config.get(
+                "normalize_embs",
+                False,
+            ),
+            "sample_probs": config.get(
+                "sample_probs",
+                False,
+            ),
+            "cond_discovery": config.get(
+                "cond_discovery",
+                False,
+            ),
+            "intermediate_task_concept_loss": config.get(
+                "intermediate_task_concept_loss",
+                0.0,
+            ),
+            "intervention_task_discount": config.get(
+                "intervention_task_discount",
+                1,
+            ),
+            "mix_ground_truth_embs": config.get(
+                "mix_ground_truth_embs",
+                True,
+            ),
+            "discovered_probs_entropy": config.get(
+                "discovered_probs_entropy",
+                0,
+            ),
+            "intervention_policy": intervention_policy,
+            "training_intervention_prob": config.get(
+                'training_intervention_prob',
+                0.25,
+            ),
+            "dyn_training_intervention_prob": config.get(
+                "dyn_training_intervention_prob",
+                0,
+            ),
+            "embedding_activation": config.get(
+                "embedding_activation",
+                "leakyrelu"
+            ),
+            "c2y_model": c2y_model,
+            "c2y_layers": config.get("c2y_layers", []),
+        }
 
     elif config["architecture"] in [
         "ProbCBM",
