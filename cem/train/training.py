@@ -1,6 +1,5 @@
 import copy
 import joblib
-import logging
 import numpy as np
 import os
 import pytorch_lightning as pl
@@ -18,6 +17,7 @@ from cem.models.construction import (
     construct_model,
     construct_sequential_models,
 )
+import cem.train.evaluate as evaluate
 
 def _make_callbacks(config):
     callbacks = []
@@ -33,73 +33,6 @@ def _make_callbacks(config):
         )
 
     return callbacks
-def _evaluate_cbm(
-    model,
-    trainer,
-    config,
-    run_name,
-    old_results=None,
-    rerun=False,
-    test_dl=None,
-    val_dl=None,
-):
-    eval_results = {}
-    for (current_dl, dl_name) in [(val_dl, "val"), (test_dl, "test")]:
-        if current_dl is None:
-            pass
-        model.freeze()
-        def _inner_call():
-            [eval_results] = trainer.test(model, current_dl)
-            output = [
-                eval_results[f"test_c_accuracy"],
-                eval_results[f"test_y_accuracy"],
-                eval_results[f"test_c_auc"],
-                eval_results[f"test_y_auc"],
-                eval_results[f"test_c_f1"],
-                eval_results[f"test_y_f1"],
-            ]
-            top_k_vals = []
-            for key, val in eval_results.items():
-                if f"test_y_top" in key:
-                    top_k = int(
-                        key[len(f"test_y_top_"):-len("_accuracy")]
-                    )
-                    top_k_vals.append((top_k, val))
-            output += list(map(
-                lambda x: x[1],
-                sorted(top_k_vals, key=lambda x: x[0]),
-            ))
-            return output
-
-        keys = [
-            f"{dl_name}_acc_c",
-            f"{dl_name}_acc_y",
-            f"{dl_name}_auc_c",
-            f"{dl_name}_auc_y",
-            f"{dl_name}_f1_c",
-            f"{dl_name}_f1_y",
-        ]
-        if 'top_k_accuracy' in config:
-            top_k_args = config['top_k_accuracy']
-            if top_k_args is None:
-                top_k_args = []
-            if not isinstance(top_k_args, list):
-                top_k_args = [top_k_args]
-            for top_k in sorted(top_k_args):
-                keys.append(f'{dl_name}_top_{top_k}_acc_y')
-        values, _ = utils.load_call(
-            function=_inner_call,
-            keys=keys,
-            run_name=run_name,
-            old_results=old_results,
-            rerun=rerun,
-            kwargs={},
-        )
-        eval_results.update({
-            key: val
-            for (key, val) in zip(keys, values)
-        })
-    return eval_results
 
 
 ################################################################################
@@ -282,26 +215,31 @@ def train_end_to_end_model(
                 result_dir,
                 f'{run_name}_experiment_config.joblib'
             ))
-        eval_results = _evaluate_cbm(
+        eval_results = evaluate.evaluate_cbm(
             model=model,
             trainer=trainer,
             config=config,
             run_name=run_name,
             old_results=old_results,
             rerun=rerun,
-            test_dl=test_dl,
-            val_dl=val_dl,
+            test_dl=train_dl,
+            dl_name="train",
         )
         eval_results['training_time'] = training_time
         eval_results['num_epochs'] = num_epochs
-        if test_dl is not None:
-            print(
-                f'c_acc: {eval_results["test_acc_c"]*100:.2f}%, '
-                f'y_acc: {eval_results["test_acc_y"]*100:.2f}%, '
-                f'c_auc: {eval_results["test_auc_c"]*100:.2f}%, '
-                f'y_auc: {eval_results["test_auc_y"]*100:.2f}% with '
-                f'{num_epochs} epochs in {training_time:.2f} seconds'
-            )
+        eval_results[f'num_trainable_params'] = sum(
+            p.numel() for p in model.parameters() if p.requires_grad
+        )
+        eval_results[f'num_non_trainable_params'] = sum(
+            p.numel() for p in model.parameters() if not p.requires_grad
+        )
+        print(
+            f'c_acc: {eval_results["train_acc_c"]*100:.2f}%, '
+            f'y_acc: {eval_results["train_acc_y"]*100:.2f}%, '
+            f'c_auc: {eval_results["train_auc_c"]*100:.2f}%, '
+            f'y_auc: {eval_results["train_auc_y"]*100:.2f}% with '
+            f'{num_epochs} epochs in {training_time:.2f} seconds'
+        )
     return model, eval_results
 
 
@@ -628,26 +566,31 @@ def train_sequential_model(
                     np.array([seq_training_time, seq_num_epochs]),
                 )
 
-    eval_results = _evaluate_cbm(
+    eval_results = evaluate.evaluate_cbm(
         model=model,
         trainer=trainer,
         config=config,
         run_name=run_name,
         old_results=old_results,
         rerun=rerun,
-        test_dl=test_dl,
-        val_dl=val_dl,
+        test_dl=train_dl,
+        dl_name="train",
     )
     eval_results['training_time'] = training_time
     eval_results['num_epochs'] = num_epochs
-    if test_dl is not None:
-        print(
-            f'c_acc: {eval_results["test_acc_c"]*100:.2f}%, '
-            f'y_acc: {eval_results["test_acc_y"]*100:.2f}%, '
-            f'c_auc: {eval_results["test_auc_c"]*100:.2f}%, '
-            f'y_auc: {eval_results["test_auc_y"]*100:.2f}% with '
-            f'{num_epochs} epochs in {training_time:.2f} seconds'
-        )
+    eval_results[f'num_trainable_params'] = sum(
+        p.numel() for p in model.parameters() if p.requires_grad
+    )
+    eval_results[f'num_non_trainable_params'] = sum(
+        p.numel() for p in model.parameters() if not p.requires_grad
+    )
+    print(
+        f'c_acc: {eval_results["train_acc_c"]*100:.2f}%, '
+        f'y_acc: {eval_results["train_acc_y"]*100:.2f}%, '
+        f'c_auc: {eval_results["train_auc_c"]*100:.2f}%, '
+        f'y_auc: {eval_results["train_auc_y"]*100:.2f}% with '
+        f'{num_epochs} epochs in {training_time:.2f} seconds'
+    )
     return seq_model, eval_results
 
 
@@ -947,26 +890,31 @@ def train_independent_model(
                     model_saved_path.replace(".pt", "_training_times.npy"),
                     np.array([ind_training_time, ind_num_epochs]),
                 )
-    eval_results = _evaluate_cbm(
+    eval_results = evaluate.evaluate_cbm(
         model=model,
         trainer=trainer,
         config=config,
         run_name=run_name,
         old_results=old_results,
         rerun=rerun,
-        test_dl=test_dl,
-        val_dl=val_dl,
+        test_dl=train_dl,
+        dl_name="train",
     )
     eval_results['training_time'] = training_time
     eval_results['num_epochs'] = num_epochs
-    if test_dl is not None:
-        print(
-            f'c_acc: {eval_results["test_acc_c"]*100:.2f}%, '
-            f'y_acc: {eval_results["test_acc_y"]*100:.2f}%, '
-            f'c_auc: {eval_results["test_auc_c"]*100:.2f}%, '
-            f'y_auc: {eval_results["test_auc_y"]*100:.2f}% with '
-            f'{num_epochs} epochs in {training_time:.2f} seconds'
-        )
+    eval_results[f'num_trainable_params'] = sum(
+        p.numel() for p in model.parameters() if p.requires_grad
+    )
+    eval_results[f'num_non_trainable_params'] = sum(
+        p.numel() for p in model.parameters() if not p.requires_grad
+    )
+    print(
+        f'c_acc: {eval_results["train_acc_c"]*100:.2f}%, '
+        f'y_acc: {eval_results["train_acc_y"]*100:.2f}%, '
+        f'c_auc: {eval_results["train_auc_c"]*100:.2f}%, '
+        f'y_auc: {eval_results["train_auc_y"]*100:.2f}% with '
+        f'{num_epochs} epochs in {training_time:.2f} seconds'
+    )
     return ind_model, eval_results
 
 
@@ -1263,26 +1211,31 @@ def train_prob_cbm(
                     model_saved_path.replace(".pt", "_training_times.npy"),
                     np.array([training_time, num_epochs]),
                 )
-    eval_results = _evaluate_cbm(
+    eval_results = evaluate.evaluate_cbm(
         model=model,
         trainer=task_trainer,
         config=config,
         run_name=run_name,
         old_results=old_results,
         rerun=rerun,
-        test_dl=test_dl,
-        val_dl=val_dl,
+        test_dl=train_dl,
+        dl_name="train",
     )
     eval_results['training_time'] = training_time
     eval_results['num_epochs'] = num_epochs
-    if test_dl is not None:
-        print(
-            f'c_acc: {eval_results["test_acc_c"]*100:.2f}%, '
-            f'y_acc: {eval_results["test_acc_y"]*100:.2f}%, '
-            f'c_auc: {eval_results["test_auc_c"]*100:.2f}%, '
-            f'y_auc: {eval_results["test_auc_y"]*100:.2f}% with '
-            f'{num_epochs} epochs in {training_time:.2f} seconds'
-        )
+    eval_results[f'num_trainable_params'] = sum(
+        p.numel() for p in model.parameters() if p.requires_grad
+    )
+    eval_results[f'num_non_trainable_params'] = sum(
+        p.numel() for p in model.parameters() if not p.requires_grad
+    )
+    print(
+        f'c_acc: {eval_results["train_acc_c"]*100:.2f}%, '
+        f'y_acc: {eval_results["train_acc_y"]*100:.2f}%, '
+        f'c_auc: {eval_results["train_auc_c"]*100:.2f}%, '
+        f'y_auc: {eval_results["train_auc_y"]*100:.2f}% with '
+        f'{num_epochs} epochs in {training_time:.2f} seconds'
+    )
     return model, eval_results
 
 

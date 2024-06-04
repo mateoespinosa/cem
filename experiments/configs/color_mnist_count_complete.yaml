@@ -1,5 +1,5 @@
 trials: 3
-results_dir: results/color_mnist_add/complete
+results_dir: /anfs/bigdisc/me466/mixcem_results/color_mnist_count/complete
 
 model_selection_groups:
   - ["^(CBM_Sigmoid_Noisy_Count_Baseline_).*$", "Joint CBM (Baseline)"]

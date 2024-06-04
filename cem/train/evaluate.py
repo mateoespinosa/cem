@@ -22,6 +22,75 @@ from cem.metrics.cas import concept_alignment_score
 from cem.models.construction import load_trained_model
 
 
+def evaluate_cbm(
+    model,
+    trainer,
+    config,
+    run_name,
+    old_results=None,
+    rerun=False,
+    test_dl=None,
+    dl_name="test",
+):
+    eval_results = {}
+    if test_dl is None:
+        return eval_results
+    model.freeze()
+    def _inner_call():
+        [eval_results] = trainer.test(model, test_dl)
+        output = [
+            eval_results[f"test_c_accuracy"],
+            eval_results[f"test_y_accuracy"],
+            eval_results[f"test_c_auc"],
+            eval_results[f"test_y_auc"],
+            eval_results[f"test_c_f1"],
+            eval_results[f"test_y_f1"],
+        ]
+        top_k_vals = []
+        for key, val in eval_results.items():
+            if f"test_y_top" in key:
+                top_k = int(
+                    key[len(f"test_y_top_"):-len("_accuracy")]
+                )
+                top_k_vals.append((top_k, val))
+        output += list(map(
+            lambda x: x[1],
+            sorted(top_k_vals, key=lambda x: x[0]),
+        ))
+        return output
+
+    keys = [
+        f"{dl_name}_acc_c",
+        f"{dl_name}_acc_y",
+        f"{dl_name}_auc_c",
+        f"{dl_name}_auc_y",
+        f"{dl_name}_f1_c",
+        f"{dl_name}_f1_y",
+    ]
+    if 'top_k_accuracy' in config:
+        top_k_args = config['top_k_accuracy']
+        if top_k_args is None:
+            top_k_args = []
+        if not isinstance(top_k_args, list):
+            top_k_args = [top_k_args]
+        for top_k in sorted(top_k_args):
+            keys.append(f'{dl_name}_top_{top_k}_acc_y')
+
+    values, _ = utils.load_call(
+        function=_inner_call,
+        keys=keys,
+        run_name=run_name,
+        old_results=old_results,
+        rerun=rerun,
+        kwargs={},
+    )
+    eval_results.update({
+        key: val
+        for (key, val) in zip(keys, values)
+    })
+    return eval_results
+
+
 def representation_avg_task_pred(
     c_embs_train,
     c_embs_test,

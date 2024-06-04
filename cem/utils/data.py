@@ -59,6 +59,7 @@ def daloader_to_memory(
             g_data = np.concatenate(g_data, axis=0)
         else:
             g_data = np.ones((x_data.shape[0], 1), dtype=np.int32)
+            g_type = torch.int32
 
         if as_torch:
             x_data = torch.FloatTensor(x_data).type(x_type)

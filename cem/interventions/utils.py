@@ -1223,7 +1223,6 @@ def _evaluate_intervention_auc(
                 f"{real_competence_level} is {int_auc * 100:.2f}%."
             )
 
-
 def test_interventions(
     run_name,
     train_dl,
@@ -1265,20 +1264,9 @@ def test_interventions(
         int(os.environ.get(f"INT_BATCH_SIZE", intervention_batch_size)),
     )
     results = {}
-    if dl_name == 'test':
-        used_dl = test_dl
-    elif dl_name == 'val':
-        used_dl = val_dl
-    elif dl_name == 'train':
-        used_dl = train_dl
-    else:
-        raise ValueError(
-            f'Currently we only support dl_name "test", "train", or "val". '
-            f'Instead we got "{dl_name}".'
-        )
 
     x_test, y_test, c_test, g_test = data_utils.daloader_to_memory(
-        used_dl,
+        test_dl,
         as_torch=True,
         output_groups=True,
     )
@@ -1439,7 +1427,7 @@ def test_interventions(
                     accelerator=accelerator,
                     devices=devices,
                     config=config,
-                    test_dl=used_dl,
+                    test_dl=test_dl,
                     train_dl=train_dl,
                     n_tasks=n_tasks,
                     n_concepts=n_concepts,

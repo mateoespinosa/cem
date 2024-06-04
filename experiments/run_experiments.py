@@ -92,6 +92,7 @@ import cem.train.evaluate as evaluation
 import cem.train.training as training
 import cem.train.utils as utils
 
+import evaluate_models
 import experiment_utils
 
 ################################################################################
@@ -367,6 +368,7 @@ def _multiprocess_run_trial(
     single_frequency_epochs,
     activation_freq,
 ):
+    config = copy.deepcopy(run_config)
     (
         train_dl,
         val_dl,
@@ -377,28 +379,24 @@ def _multiprocess_run_trial(
         task_class_weights,
         acquisition_costs
     ) = _generate_dataset_and_update_config(
-        run_config,
+        config,
     )
-    experiment_utils.evaluate_expressions(run_config)
-
-    now = datetime.now()
+    experiment_utils.evaluate_expressions(config)
 
     # Get the appropiate training function
-    if run_config["architecture"] == \
+    if config["architecture"] == \
             "IndependentConceptBottleneckModel":
         # Special case for now for independent CBMs
-        config = copy.deepcopy(run_config)
         # config["architecture"] = "ConceptBottleneckModel"
         config["sigmoidal_prob"] = True
         train_fn = training.train_independent_model
-    elif run_config["architecture"] == \
+    elif config["architecture"] == \
             "SequentialConceptBottleneckModel":
         # Special case for now for sequential CBMs
-        config = copy.deepcopy(run_config)
         # config["architecture"] = "ConceptBottleneckModel"
         config["sigmoidal_prob"] = True
         train_fn = training.train_sequential_model
-    elif run_config["architecture"] in [
+    elif config["architecture"] in [
         "ProbCBM",
         "ProbabilisticCBM",
         "ProbabilisticConceptBottleneckModel",
@@ -413,9 +411,9 @@ def _multiprocess_run_trial(
         task_class_weights=task_class_weights,
         accelerator=accelerator,
         devices=devices,
-        n_concepts=run_config['n_concepts'],
-        n_tasks=run_config['n_tasks'],
-        config=run_config,
+        n_concepts=config['n_concepts'],
+        n_tasks=config['n_tasks'],
+        config=config,
         train_dl=train_dl,
         val_dl=val_dl,
         test_dl=test_dl,
@@ -426,168 +424,97 @@ def _multiprocess_run_trial(
         seed=(42 + split),
         imbalance=imbalance,
         old_results=old_results,
-        gradient_clip_val=run_config.get(
+        gradient_clip_val=config.get(
             'gradient_clip_val',
             0,
         ),
         single_frequency_epochs=single_frequency_epochs,
         activation_freq=activation_freq,
     )
-    model_results[f'num_trainable_params'] = sum(
-        p.numel() for p in model.parameters() if p.requires_grad
-    )
-    model_results[f'num_non_trainable_params'] = sum(
-        p.numel() for p in model.parameters() if not p.requires_grad
-    )
-
     training.update_statistics(
         aggregate_results=trial_results,
-        run_config=run_config,
+        run_config=config,
         model=model,
         test_results=model_results,
         run_name=run_name,
         prefix="",
     )
-
-    # Evaluate interventions
-    if 'intervention_config' in run_config:
-        intervention_config = run_config['intervention_config']
-        test_int_args = dict(
-            task_class_weights=task_class_weights,
-            run_name=run_name,
-            train_dl=train_dl,
-            val_dl=val_dl,
-            test_dl=test_dl,
-            imbalance=imbalance,
-            config=run_config,
-            n_tasks=run_config['n_tasks'],
-            n_concepts=run_config['n_concepts'],
-            acquisition_costs=acquisition_costs,
-            result_dir=result_dir,
-            concept_map=concept_map,
-            intervened_groups=intervened_groups,
-            accelerator=accelerator,
-            devices=devices,
-            split=split,
-            rerun=current_rerun,
-            old_results=old_results,
-            group_level_competencies=intervention_config.get(
-                "group_level_competencies",
-                False,
-            ),
-            competence_levels=intervention_config.get(
-                'competence_levels',
-                [1],
-            ),
-        )
-        if "real_competencies" in intervention_config:
-            for real_comp in \
-                    intervention_config['real_competencies']:
-                def _real_competence_generator(x):
-                    if real_comp == "same":
-                        return x
-                    if real_comp == "complement":
-                        return 1 - x
-                    if test_int_args['group_level_competencies']:
-                        if real_comp == "unif":
-                            batch_group_level_competencies = np.zeros(
-                                (x.shape[0], len(concept_map))
-                            )
-                            for batch_idx in range(x.shape[0]):
-                                for group_idx, (_, concept_members) in enumerate(
-                                    concept_map.items()
-                                ):
-                                    batch_group_level_competencies[
-                                        batch_idx,
-                                        group_idx,
-                                    ] = np.random.uniform(
-                                        1/len(concept_members),
-                                        1,
-                                    )
-                        else:
-                            batch_group_level_competencies = np.ones(
-                                (x.shape[0], len(concept_map))
-                            ) * real_comp
-                        return batch_group_level_competencies
-
-                    if real_comp == "unif":
-                        return np.random.uniform(
-                            0.5,
-                            1,
-                            size=x.shape,
-                        )
-                    return np.ones(x.shape) * real_comp
-                if real_comp == "same":
-                    # Then we will just run what we normally run
-                    # as the provided competency matches the level
-                    # of competency of the user
-                    test_int_args.pop(
-                        "real_competence_generator",
-                        None,
-                    )
-                    test_int_args.pop(
-                        "extra_suffix",
-                        None,
-                    )
-                    test_int_args.pop(
-                        "real_competence_level",
-                        None,
-                    )
-                else:
-                    test_int_args['real_competence_generator'] = \
-                            _real_competence_generator
-                    test_int_args['extra_suffix'] = \
-                        f"_real_comp_{real_comp}_"
-                    test_int_args["real_competence_level"] = \
-                        real_comp
-
-        training.update_statistics(
-            aggregate_results=trial_results,
-            run_config=run_config,
-            model=model,
-            test_results=intervention_utils.test_interventions(
-                dl_name="val",
-                **test_int_args
-            ),
-            run_name=run_name,
-            prefix="",
-        )
-        training.update_statistics(
-            aggregate_results=trial_results,
-            run_config=run_config,
-            model=model,
-            test_results=intervention_utils.test_interventions(
-                dl_name="test",
-                **test_int_args
-            ),
-            run_name=run_name,
-            prefix="",
-        )
-
-    # Finally, evaluate various representation metrics
+    test_datasets = [
+        (val_dl, "val"),
+        (test_dl, "test"),
+    ]
+    eval_results = evaluate_models.evaluate_model(
+        model,
+        config,
+        test_datasets,
+        train_dl,
+        val_dl=val_dl,
+        run_name=run_name,
+        task_class_weights=task_class_weights,
+        imbalance=imbalance,
+        acquisition_costs=acquisition_costs,
+        result_dir=result_dir,
+        concept_map=concept_map,
+        intervened_groups=intervened_groups,
+        accelerator=accelerator,
+        devices=devices,
+        split=split,
+        rerun=current_rerun,
+        old_results=old_results,
+    )
     training.update_statistics(
         aggregate_results=trial_results,
-        run_config=run_config,
+        run_config=config,
         model=model,
-        test_results=evaluation.evaluate_representation_metrics(
-            config=run_config,
-            n_concepts=run_config['n_concepts'],
-            n_tasks=run_config['n_tasks'],
-            test_dl=test_dl,
-            run_name=run_name,
-            split=split,
-            imbalance=imbalance,
-            result_dir=result_dir,
-            task_class_weights=task_class_weights,
-            accelerator=accelerator,
-            devices=devices,
-            rerun=current_rerun,
-            seed=42,
-            old_results=old_results,
-        ),
+        test_results=eval_results,
         run_name=run_name,
         prefix="",
     )
+
+    eval_config = config.get('eval_config', {})
+    for new_test_dl_configs in eval_config.get('additional_test_sets'):
+        config_copy = copy.deepcopy(config)
+        config_copy['dataset_config'] = new_test_dl_configs['dataset_config']
+        (
+            _,
+            _,
+            new_test_dl,
+            new_imbalance,
+            new_concept_map,
+            new_intervened_groups,
+            new_task_class_weights,
+            new_acquisition_costs
+        ) = _generate_dataset_and_update_config(
+            config_copy,
+        )
+        eval_results = evaluate_models.evaluate_model(
+            model,
+            config_copy,
+            test_datasets,
+            train_dl,
+            val_dl=val_dl,
+            run_name=run_name,
+            task_class_weights=new_task_class_weights,
+            imbalance=new_imbalance,
+            acquisition_costs=new_acquisition_costs,
+            result_dir=result_dir,
+            concept_map=new_concept_map,
+            intervened_groups=new_intervened_groups,
+            accelerator=accelerator,
+            devices=devices,
+            split=split,
+            rerun=current_rerun,
+            old_results=old_results,
+        )
+        training.update_statistics(
+            aggregate_results=trial_results,
+            run_config=config,
+            model=model,
+            test_results=eval_results,
+            run_name=run_name,
+            prefix=(new_test_dl_configs.name + "_"),
+        )
+
 
 ################################################################################
 ## MAIN FUNCTION
