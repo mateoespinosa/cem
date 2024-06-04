@@ -612,6 +612,7 @@ def main(
     model_selection_metrics=None,
     model_selection_groups=None,
     fast_run=False,
+    no_new_runs=False,
 ):
     seed_everything(42)
     # parameters for data, model, and training
@@ -736,6 +737,24 @@ def main(
                     )
                     results[f'{split}'][run_name].update(old_results)
                     continue
+                if no_new_runs:
+                    if old_results is not None:
+                        logging.info(
+                            f'\t\t[IMPORTANT] We found previous results for '
+                            f'run {run_name} at trial {split + 1} and WILL '
+                            f'use them without verifying all expected evaluation '
+                            f'keys are present as we are running in NO NEW RUNS mode.'
+                        )
+                        results[f'{split}'][run_name].update(old_results)
+                        continue
+                    else:
+                        logging.info(
+                            f'\t\t[IMPORTANT] Skipping '
+                            f'run {run_name} at trial {split + 1} as no '
+                            f'previous results were found and we are running '
+                            f'in NO NEW RUNS mode.'
+                        )
+                        continue
 
                 if int(os.environ.get("MULTIPROCESS", "0")):
                     manager = multiprocessing.Manager()
@@ -1051,6 +1070,15 @@ def _build_arg_parser():
              "stale and are complete!"
          ),
      )
+    parser.add_argument(
+        '--no_new_runs',
+        action="store_true",
+         default=False,
+         help=(
+             "does excecute any new runs whose results were not previously "
+             "computed/cached."
+         ),
+    )
     return parser
 
 
@@ -1148,4 +1176,5 @@ if __name__ == '__main__':
         model_selection_groups=model_selection_groups,
         summary_table_metrics=summary_table_metrics,
         fast_run=args.fast_run,
+        no_new_runs=args.no_new_runs,
     )

@@ -124,15 +124,15 @@ runs:
       root_dir: data/
       num_workers: 8
       batch_size: 2048
-      num_operands: [20]
-      selected_digits: [0, 1, 2, 3, 4, 5]
+      num_operands: [10]
+      selected_digits: [0, 1, 2, 3]
       count_labels: False
       low_noise_level: 1
       noise_level: 0.25
       test_low_noise_level: 1
       test_noise_level: 0.25
-      train_dataset_size: 20000
-      test_dataset_size: 10000
+      train_dataset_size: 5000
+      test_dataset_size: 5000
       sampling_percent: 0.75
       sampling_groups: True
       test_subsampling: 1
@@ -181,15 +181,15 @@ runs:
       root_dir: data/
       num_workers: 8
       batch_size: 2048
-      num_operands: [20]
-      selected_digits: [0, 1, 2, 3, 4, 5]
+      num_operands: [10]
+      selected_digits: [0, 1, 2, 3]
       count_labels: False
       low_noise_level: 1
       noise_level: 0.25
       test_low_noise_level: 1
       test_noise_level: 0.25
-      train_dataset_size: 20000
-      test_dataset_size: 10000
+      train_dataset_size: 5000
+      test_dataset_size: 5000
       sampling_percent: 0.75
       sampling_groups: True
       test_subsampling: 1
@@ -239,15 +239,15 @@ runs:
       root_dir: data/
       num_workers: 8
       batch_size: 2048
-      num_operands: [20]
-      selected_digits: [0, 1, 2, 3, 4, 5]
+      num_operands: [10]
+      selected_digits: [0, 1, 2, 3]
       count_labels: False
       low_noise_level: 1
       noise_level: 0.25
       test_low_noise_level: 1
       test_noise_level: 0.25
-      train_dataset_size: 20000
-      test_dataset_size: 10000
+      train_dataset_size: 5000
+      test_dataset_size: 5000
       sampling_percent: 0.75
       sampling_groups: True
       test_subsampling: 1
@@ -300,15 +300,15 @@ runs:
       root_dir: data/
       num_workers: 8
       batch_size: 2048
-      num_operands: [20]
-      selected_digits: [0, 1, 2, 3, 4, 5]
+      num_operands: [10]
+      selected_digits: [0, 1, 2, 3]
       count_labels: False
       low_noise_level: 1
       noise_level: 0.25
       test_low_noise_level: 1
       test_noise_level: 0.25
-      train_dataset_size: 20000
-      test_dataset_size: 10000
+      train_dataset_size: 5000
+      test_dataset_size: 5000
       sampling_percent: 0.75
       sampling_groups: True
       test_subsampling: 1
@@ -359,15 +359,15 @@ runs:
       root_dir: data/
       num_workers: 8
       batch_size: 2048
-      num_operands: [20]
-      selected_digits: [0, 1, 2, 3, 4, 5]
+      num_operands: [10]
+      selected_digits: [0, 1, 2, 3]
       count_labels: False
       low_noise_level: 1
       noise_level: 0.25
       test_low_noise_level: 1
       test_noise_level: 0.25
-      train_dataset_size: 20000
-      test_dataset_size: 10000
+      train_dataset_size: 5000
+      test_dataset_size: 5000
       sampling_percent: 0.75
       sampling_groups: True
       test_subsampling: 1
@@ -419,15 +419,15 @@ runs:
       root_dir: data/
       num_workers: 8
       batch_size: 2048
-      num_operands: [20]
-      selected_digits: [0, 1, 2, 3, 4, 5]
+      num_operands: [10]
+      selected_digits: [0, 1, 2, 3]
       count_labels: False
       low_noise_level: 1
       noise_level: 0.25
       test_low_noise_level: 1
       test_noise_level: 0.25
-      train_dataset_size: 20000
-      test_dataset_size: 10000
+      train_dataset_size: 5000
+      test_dataset_size: 5000
       sampling_percent: 0.75
       sampling_groups: True
       test_subsampling: 1
@@ -482,15 +482,15 @@ runs:
       root_dir: data/
       num_workers: 8
       batch_size: 2048
-      num_operands: [20]
-      selected_digits: [0, 1, 2, 3, 4, 5]
+      num_operands: [10]
+      selected_digits: [0, 1, 2, 3]
       count_labels: False
       low_noise_level: 1
       noise_level: 0.25
       test_low_noise_level: 1
       test_noise_level: 0.25
-      train_dataset_size: 20000
-      test_dataset_size: 10000
+      train_dataset_size: 5000
+      test_dataset_size: 5000
       sampling_percent: 0.75
       sampling_groups: True
       test_subsampling: 1
@@ -540,15 +540,15 @@ runs:
       root_dir: data/
       num_workers: 8
       batch_size: 2048
-      num_operands: [20]
-      selected_digits: [0, 1, 2, 3, 4, 5]
+      num_operands: [10]
+      selected_digits: [0, 1, 2, 3]
       count_labels: False
       low_noise_level: 1
       noise_level: 0.25
       test_low_noise_level: 1
       test_noise_level: 0.25
-      train_dataset_size: 20000
-      test_dataset_size: 10000
+      train_dataset_size: 5000
+      test_dataset_size: 5000
       sampling_percent: 0.75
       sampling_groups: True
       test_subsampling: 1
@@ -599,15 +599,15 @@ runs:
       root_dir: data/
       num_workers: 8
       batch_size: 2048
-      num_operands: [20]
-      selected_digits: [0, 1, 2, 3, 4, 5]
+      num_operands: [10]
+      selected_digits: [0, 1, 2, 3]
       count_labels: False
       low_noise_level: 1
       noise_level: 0.25
       test_low_noise_level: 1
       test_noise_level: 0.25
-      train_dataset_size: 20000
-      test_dataset_size: 10000
+      train_dataset_size: 5000
+      test_dataset_size: 5000
       sampling_percent: 0.75
       sampling_groups: True
       test_subsampling: 1
@@ -676,15 +676,15 @@ runs:
       root_dir: data/
       num_workers: 8
       batch_size: 2048
-      num_operands: [20]
-      selected_digits: [0, 1, 2, 3, 4, 5]
+      num_operands: [10]
+      selected_digits: [0, 1, 2, 3]
       count_labels: False
       low_noise_level: 1
       noise_level: 0.25
       test_low_noise_level: 1
       test_noise_level: 0.25
-      train_dataset_size: 20000
-      test_dataset_size: 10000
+      train_dataset_size: 5000
+      test_dataset_size: 5000
       sampling_percent: 0.75
       sampling_groups: True
       test_subsampling: 1
@@ -742,15 +742,15 @@ runs:
       root_dir: data/
       num_workers: 8
       batch_size: 2048
-      num_operands: [20]
-      selected_digits: [0, 1, 2, 3, 4, 5]
+      num_operands: [10]
+      selected_digits: [0, 1, 2, 3]
       count_labels: False
       low_noise_level: 1
       noise_level: 0.25
       test_low_noise_level: 1
       test_noise_level: 0.25
-      train_dataset_size: 20000
-      test_dataset_size: 10000
+      train_dataset_size: 5000
+      test_dataset_size: 5000
       sampling_percent: 0.75
       sampling_groups: True
       test_subsampling: 1
@@ -809,15 +809,15 @@ runs:
       root_dir: data/
       num_workers: 8
       batch_size: 2048
-      num_operands: [20]
-      selected_digits: [0, 1, 2, 3, 4, 5]
+      num_operands: [10]
+      selected_digits: [0, 1, 2, 3]
       count_labels: False
       low_noise_level: 1
       noise_level: 0.25
       test_low_noise_level: 1
       test_noise_level: 0.25
-      train_dataset_size: 20000
-      test_dataset_size: 10000
+      train_dataset_size: 5000
+      test_dataset_size: 5000
       sampling_percent: 0.75
       sampling_groups: True
       test_subsampling: 1
@@ -860,8 +860,8 @@ runs:
 
   - architecture: 'MixingConceptEmbeddingModel'
     run_name: "Mixing-CEM_n_extra_{n_discovered_concepts}_entr_{discovered_probs_entropy}_dis_{intervention_task_discount}_ip_{training_intervention_prob}_dip_{dyn_training_intervention_prob}_cl_{contrastive_loss_weight}_mix_{mix_ground_truth_embs}_shared_{shared_emb_generator}_emb_size_{emb_size}_ml_{intermediate_task_concept_loss}_Baseline_{dataset_config[num_operands]}_cwl_{concept_loss_weight}"
-    training_intervention_prob: [0.25, [0.25, 0.5]] #[0.25, [0.25, 0.5]]
-    emb_size: [256]
+    training_intervention_prob: [[0.25, 0.5, 0.75, 1]] #[0.25, [0.25, 0.5], [0.25, 0.5, 0.75, 1]] #[0.25, [0.25, 0.5]]
+    emb_size: [128, 256]
     embedding_activation: null
     n_discovered_concepts: [5, 10]
     concept_loss_weight: [10]
@@ -883,15 +883,15 @@ runs:
       root_dir: data/
       num_workers: 8
       batch_size: 2048
-      num_operands: [20]
-      selected_digits: [0, 1, 2, 3, 4, 5]
+      num_operands: [10]
+      selected_digits: [0, 1, 2, 3]
       count_labels: False
       low_noise_level: 1
       noise_level: 0.25
       test_low_noise_level: 1
       test_noise_level: 0.25
-      train_dataset_size: 20000
-      test_dataset_size: 10000
+      train_dataset_size: 5000
+      test_dataset_size: 5000
       sampling_percent: 0.75
       sampling_groups: True
       test_subsampling: 1
@@ -939,10 +939,10 @@ runs:
 
   - architecture: 'MixingConceptEmbeddingModel'
     run_name: "ResidualMixing-CEM_n_extra_{n_discovered_concepts}_entr_{discovered_probs_entropy}_dis_{intervention_task_discount}_ip_{training_intervention_prob}_dip_{dyn_training_intervention_prob}_cl_{contrastive_loss_weight}_mix_{mix_ground_truth_embs}_shared_{shared_emb_generator}_emb_size_{emb_size}_ml_{intermediate_task_concept_loss}_Downstream_Spurious_{dataset_config[num_operands]}_cwl_{concept_loss_weight}"
-    training_intervention_prob: [0.25, [0.25, 0.5]]
-    emb_size: [256]
+    training_intervention_prob: [[0.25, 0.5, 0.75, 1]] #[0.25, [0.25, 0.5], [0.25, 0.5, 0.75, 1]] #[0.25, [0.25, 0.5]]
+    emb_size: [128, 256]
     embedding_activation: null
-    n_discovered_concepts: [10]
+    n_discovered_concepts: [5, 10]
     concept_loss_weight: [10]
     contrastive_loss_weight: [0]
     mix_ground_truth_embs: True
@@ -962,15 +962,15 @@ runs:
       root_dir: data/
       num_workers: 8
       batch_size: 2048
-      num_operands: [20]
-      selected_digits: [0, 1, 2, 3, 4, 5]
+      num_operands: [10]
+      selected_digits: [0, 1, 2, 3]
       count_labels: False
       low_noise_level: 1
       noise_level: 0.25
       test_low_noise_level: 1
       test_noise_level: 0.25
-      train_dataset_size: 20000
-      test_dataset_size: 10000
+      train_dataset_size: 5000
+      test_dataset_size: 5000
       sampling_percent: 0.75
       sampling_groups: True
       test_subsampling: 1
@@ -1018,10 +1018,10 @@ runs:
 
   - architecture: 'MixingConceptEmbeddingModel'
     run_name: "ResidualMixing-CEM_n_extra_{n_discovered_concepts}_entr_{discovered_probs_entropy}_dis_{intervention_task_discount}_ip_{training_intervention_prob}_dip_{dyn_training_intervention_prob}_cl_{contrastive_loss_weight}_mix_{mix_ground_truth_embs}_shared_{shared_emb_generator}_emb_size_{emb_size}_ml_{intermediate_task_concept_loss}_Concept_Spurious_{dataset_config[num_operands]}_cwl_{concept_loss_weight}"
-    training_intervention_prob: [0.25, [0.25, 0.5]]
-    emb_size: [256]
+    training_intervention_prob: [[0.25, 0.5, 0.75, 1]] #[0.25, [0.25, 0.5], [0.25, 0.5, 0.75, 1]] #[0.25, [0.25, 0.5]]
+    emb_size: [128, 256]
     embedding_activation: null
-    n_discovered_concepts: [10]
+    n_discovered_concepts: [5, 10]
     concept_loss_weight: [10]
     contrastive_loss_weight: [0]
     mix_ground_truth_embs: True
@@ -1041,15 +1041,15 @@ runs:
       root_dir: data/
       num_workers: 8
       batch_size: 2048
-      num_operands: [20]
-      selected_digits: [0, 1, 2, 3, 4, 5]
+      num_operands: [10]
+      selected_digits: [0, 1, 2, 3]
       count_labels: False
       low_noise_level: 1
       noise_level: 0.25
       test_low_noise_level: 1
       test_noise_level: 0.25
-      train_dataset_size: 20000
-      test_dataset_size: 10000
+      train_dataset_size: 5000
+      test_dataset_size: 5000
       sampling_percent: 0.75
       sampling_groups: True
       test_subsampling: 1
