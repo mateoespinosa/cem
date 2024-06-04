@@ -72,6 +72,7 @@ import os
 import re
 import sys
 import torch
+import torchvision.transforms as v2
 import yaml
 
 torch.multiprocessing.set_sharing_strategy('file_system')
@@ -96,37 +97,172 @@ import evaluate_models
 import experiment_utils
 
 ################################################################################
-## HELPER FUNCTIONS
+## DATASET MANIPULATION
 ################################################################################
 
 
-def _debug_ds(train_dl, n_tasks, n_concepts):
+def gauss_noise_tensor(img, sigma):
+    assert isinstance(img, torch.Tensor)
+    dtype = img.dtype
+    if not img.is_floating_point():
+        img = img.to(torch.float32)
 
-    real_sample = []
-    for x in sample:
-        if isinstance(x, list):
-            real_sample += x
+    out = img + sigma * torch.randn_like(img)
+
+    if out.dtype != dtype:
+        out = out.to(dtype)
+
+    return out
+
+def salt_and_pepper_noise_tensor(img, s_vs_p=0.5, amount=0.05):
+    assert isinstance(img, torch.Tensor)
+    dtype = img.dtype
+    if not img.is_floating_point():
+        img = img.to(torch.float32)
+
+    out = img + 0.0
+
+    # Salt mode
+    num_salt = np.ceil(amount * np.prod(tuple(img.shape)) * s_vs_p)
+    coords = [
+        np.random.randint(0, i - 1, int(num_salt))
+        for i in tuple(img.shape)
+    ]
+    out[coords] = 1
+
+    # Pepper mode
+    num_pepper = np.ceil(amount* np.prod(tuple(img.shape)) * (1. - s_vs_p))
+    coords = [
+        np.random.randint(0, i - 1, int(num_pepper))
+        for i in tuple(img.shape)
+    ]
+    out[coords] = 0
+    return out
+
+class LambdaDataset(torch.utils.data.Dataset):
+    def __init__(self, subset, transform=None):
+        self.subset = subset
+        self.transform = transform
+
+    def __getitem__(self, index):
+        outputs = self.subset[index]
+        if isinstance(outputs, (list, tuple)):
+            x = outputs[0]
         else:
-            real_sample.append(x)
-    sample = real_sample
-    logging.info(
-        f"Training sample shape is: {sample[0].shape} with "
-        f"type {sample[0].type()}"
+            x = outputs
+        if self.transform:
+            x = self.transform(x)
+        if isinstance(outputs, (list, tuple)):
+            return (x, *outputs[1:])
+        return x
+
+    def __len__(self):
+        return len(self.subset)
+
+
+def transform_from_config(transform):
+    """
+    Simple function to generate a torchvision transform from its dictionary
+    representation as provided by the `transform` input config.
+    """
+    if isinstance(transform, list):
+        return v2.Compose([
+            transform_from_config(x) for x in transform
+        ])
+    if transform is None:
+        return lambda x: x
+    transform_name = transform["name"].lower().strip()
+    if transform_name == "identity":
+        return lambda x: x
+
+    if transform_name in ["gaussian_noise", "gaussiannoise"]:
+        return lambda x: gauss_noise_tensor(x, sigma=transform.get('sigma', 1))
+
+    if transform_name in ["salt_and_pepper", "s&p", "saltandpepper"]:
+        return lambda x: salt_and_pepper_noise_tensor(
+            x,
+            s_vs_p=transform.get('s_vs_p', 0.5),
+            amount=transform.get('amount', 0.01),
+        )
+    if transform_name == "random_noise":
+        if transform['noise_level'] > 0.0:
+            def _trans(x):
+                mask = np.random.choice(
+                    [0, 1],
+                    size=x.shape,
+                    p=[1 - transform['noise_level'], transform['noise_level']],
+                )
+                mask = torch.tensor(mask).to(x.device).type(
+                    x.type()
+                )
+                substitutes = np.random.uniform(
+                    low=0,
+                    high=transform['low_noise_level'],
+                    size=x.shape,
+                )
+                substitutes = torch.tensor(substitutes).to(x.device).type(
+                    x.type()
+                )
+                return mask * substitutes + (1 - mask) * x
+        return _trans
+
+    if transform_name == "randomapply":
+        return v2.RandomApply(
+            transforms=list(map(
+                transform_from_config,
+                transform['transforms'],
+            )),
+            p=transform['p'],
+        )
+    if transform_name == "randomadjustsharpness":
+        return v2.RandomAdjustSharpness(
+            sharpness_factor=transform.get('sharpness_factor', 2),
+        )
+    if transform_name == "gaussianblur":
+        return v2.GaussianBlur(
+            kernel_size=transform.get('kernel_size', (5, 5)),
+            sigma=transform.get('sigma', (0.1, 2.)),
+        )
+    if transform_name == "randomaffine":
+        return v2.RandomAffine(
+            degrees=transform.get('degrees', 0),
+            translate=transform.get('translate', None),
+            scale=transform.get('scale', None),
+        )
+    if transform_name == "randaugment":
+        return v2.RandAugment(
+            num_ops=transform.get('num_ops', 2),
+            magnitude=transform.get('magnitude', 9),
+            num_magnitude_bins=transform.get('num_magnitude_bins', 31),
+        )
+    if transform_name == "convertimagedtype":
+        return v2.ConvertImageDtype(
+            dtype=getattr(torch, transform['dtype']),
+        )
+    if transform_name == "normalize":
+        return v2.Normalize(
+            mean=transform['mean'],
+            std=transform['std'],
+        )
+    raise ValueError(
+        f'Unsupported transformation {transform_name}'
     )
-    logging.info(
-        f"Training label shape is: {sample[1].shape} with "
-        f"type {sample[1].type()}"
+
+def _apply_transformation(dl, transformation_config):
+    new_ds = LambdaDataset(
+        dl.dataset,
+        transform_from_config(transformation_config)
     )
-    logging.info(
-        f"\tNumber of output classes: {n_tasks}"
+    return torch.utils.data.DataLoader(
+        new_ds,
+        batch_size=dl.batch_size,
+        num_workers=dl.num_workers,
     )
-    logging.info(
-        f"Training concept shape is: {sample[2].shape} with "
-        f"type {sample[2].type()}"
-    )
-    logging.info(
-        f"\tNumber of training concepts: {n_concepts}"
-    )
+
+
+################################################################################
+## HELPER FUNCTIONS
+################################################################################
 
 def _update_config_with_dataset(
     config,
@@ -257,6 +393,30 @@ def _generate_dataset_and_update_config(
             output_dataset_vars=True,
             root_dir=dataset_config.get('root_dir', None),
         )
+    transformation_config = dataset_config.get("transformation_config", None)
+    train_dl = _apply_transformation(
+        train_dl,
+        transformation_config=dataset_config.get(
+            "train_transformation_config",
+            transformation_config,
+        )
+    )
+    test_dl = _apply_transformation(
+        test_dl,
+        transformation_config=dataset_config.get(
+            "test_transformation_config",
+            transformation_config,
+        )
+    )
+    if not (val_dl is None):
+        val_dl = _apply_transformation(
+            val_dl,
+            transformation_config=dataset_config.get(
+                "val_transformation_config",
+                transformation_config,
+            )
+        )
+
     # For now, we assume that all concepts have the same
     # aquisition cost
     acquisition_costs = None
@@ -472,9 +632,16 @@ def _multiprocess_run_trial(
     )
 
     eval_config = config.get('eval_config', {})
-    for new_test_dl_configs in eval_config.get('additional_test_sets'):
+    for new_test_dl_configs in eval_config.get('additional_test_sets', []):
         config_copy = copy.deepcopy(config)
-        config_copy['dataset_config'] = new_test_dl_configs['dataset_config']
+        if new_test_dl_configs.get('update_previous', False):
+            config_copy['dataset_config'].update(
+                new_test_dl_configs['dataset_config']
+            )
+        else:
+            config_copy['dataset_config'] = (
+                new_test_dl_configs['dataset_config']
+            )
         (
             _,
             _,
@@ -490,7 +657,7 @@ def _multiprocess_run_trial(
         eval_results = evaluate_models.evaluate_model(
             model,
             config_copy,
-            test_datasets,
+            [(new_test_dl, (new_test_dl_configs['name'] + "_test"))],
             train_dl,
             val_dl=val_dl,
             run_name=run_name,
@@ -512,7 +679,7 @@ def _multiprocess_run_trial(
             model=model,
             test_results=eval_results,
             run_name=run_name,
-            prefix=(new_test_dl_configs.name + "_"),
+            prefix="",
         )
 
 

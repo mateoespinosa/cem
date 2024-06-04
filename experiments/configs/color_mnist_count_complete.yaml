@@ -70,7 +70,7 @@ shared_params:
   intervention_config:
     competence_levels: [1]
     intervention_freq: 1
-    intervention_batch_size: 2048
+    intervention_batch_size: 1024 #2048
     val_intervention_policies:
       - policy: "random"
         group_level: True
@@ -123,7 +123,7 @@ runs:
       dataset: color_mnist_add
       root_dir: data/
       num_workers: 8
-      batch_size: 2048
+      batch_size: 1024 #2048
       num_operands: [20] #[10, 20]
       selected_digits: [3, 8]
       count_labels: True
@@ -180,7 +180,7 @@ runs:
       dataset: color_mnist_add
       root_dir: data/
       num_workers: 8
-      batch_size: 2048
+      batch_size: 1024 #2048
       num_operands: [20] #[10, 20]
       selected_digits: [3, 8]
       count_labels: True
@@ -238,7 +238,7 @@ runs:
       dataset: color_mnist_add
       root_dir: data/
       num_workers: 8
-      batch_size: 2048
+      batch_size: 1024 #2048
       num_operands: [20] #[10, 20]
       selected_digits: [3, 8]
       count_labels: True
@@ -287,19 +287,22 @@ runs:
 
 
 
+
+
   - architecture: 'ConceptBottleneckModel'
-    run_name: "Hybrid-CBM_extra_dims_{extra_dims}_Sigmoid_Noisy_Count_Baseline_{dataset_config[num_operands]}_cwl_{concept_loss_weight}"
-    extra_dims: [5, 10]
+    run_name: "DNN_extra_dims_{extra_dims}_sigmoidal_prob_{sigmoidal_prob}_Noisy_Count_Baseline_{dataset_config[num_operands]}"
     training_intervention_prob: 0
     embedding_activation: "leakyrelu"
     sigmoidal_prob: True
+    concept_loss_weight: [0]
+    extra_dims: [160, 2560]
 
     # Dataset Configuration
     dataset_config:
       dataset: color_mnist_add
       root_dir: data/
       num_workers: 8
-      batch_size: 2048
+      batch_size: 1024 #2048
       num_operands: [20] #[10, 20]
       selected_digits: [3, 8]
       count_labels: True
@@ -347,6 +350,188 @@ runs:
     grid_search_mode: exhaustive
 
   - architecture: 'ConceptBottleneckModel'
+    run_name: "DNN_Noisy_Count_Downstream_Spurious_{dataset_config[num_operands]}"
+    training_intervention_prob: 0
+    embedding_activation: "leakyrelu"
+    sigmoidal_prob: True
+    concept_loss_weight: [0]
+
+    # Dataset Configuration
+    dataset_config:
+      dataset: color_mnist_add
+      root_dir: data/
+      num_workers: 8
+      batch_size: 1024 #2048
+      num_operands: [20] #[10, 20]
+      selected_digits: [3, 8]
+      count_labels: True
+      low_noise_level: 1
+      noise_level: 0.25
+      test_low_noise_level: 1
+      test_noise_level: 0.25
+      train_dataset_size: 5000
+      test_dataset_size: 5000
+      sampling_percent: 1
+      sampling_groups: True
+      test_subsampling: 1
+      weight_loss: False
+
+      spurious_strength: 0.95
+      color_by_label: True    # So that the spurious correlation is label-based!
+      colors: ["random_1", "random_2", "random_3", "random_4", "random_5", "random_6", "random_7", "random_8", "random_9", "random_10"]
+      digit_color_distribution:
+        0: ["spurious", null, null, null, null, null, null, null, null, null]
+        1: [null, "spurious", null, null, null, null, null, null, null, null]
+        2: [null, null, "spurious", null, null, null, null, null, null, null]
+        3: [null, null, null, "spurious", null, null, null, null, null, null]
+        4: [null, null, null, null, "spurious", null, null, null, null, null]
+        5: [null, null, null, null, null, "spurious", null, null, null, null]
+        6: [null, null, null, null, null, null, "spurious", null, null, null]
+        7: [null, null, null, null, null, null, null, "spurious", null, null]
+        8: [null, null, null, null, null, null, null, null, "spurious", null]
+        9: [null, null, null, null, null, null, null, null, null, "spurious"]
+
+      test_digit_color_distribution:
+        0: [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
+        1: [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
+        2: [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
+        3: [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
+        4: [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
+        5: [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
+        6: [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
+        7: [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
+        8: [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
+        9: [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
+    grid_variables:
+      - concept_loss_weight
+      - dataset_config.num_operands
+    grid_search_mode: exhaustive
+
+
+  - architecture: 'ConceptBottleneckModel'
+    run_name: "DNN_Noisy_Count_Concept_Spurious_{dataset_config[num_operands]}"
+    training_intervention_prob: 0
+    embedding_activation: "leakyrelu"
+    sigmoidal_prob: True
+    concept_loss_weight: [0]
+
+    # Dataset Configuration
+    dataset_config:
+      dataset: color_mnist_add
+      root_dir: data/
+      num_workers: 8
+      batch_size: 1024 #2048
+      num_operands: [20] #[10, 20]
+      selected_digits: [3, 8]
+      count_labels: True
+      low_noise_level: 1
+      noise_level: 0.25
+      test_low_noise_level: 1
+      test_noise_level: 0.25
+      train_dataset_size: 5000
+      test_dataset_size: 5000
+      sampling_percent: 1
+      sampling_groups: True
+      test_subsampling: 1
+      weight_loss: False
+
+      spurious_strength: 0.95
+      color_by_label: False    # So that the spurious correlation is concept-based!
+      colors: ["random_1", "random_2", "random_3", "random_4", "random_5", "random_6", "random_7", "random_8", "random_9", "random_10"]
+      digit_color_distribution:
+        0: ["spurious", null, null, null, null, null, null, null, null, null]
+        1: [null, "spurious", null, null, null, null, null, null, null, null]
+        2: [null, null, "spurious", null, null, null, null, null, null, null]
+        3: [null, null, null, "spurious", null, null, null, null, null, null]
+        4: [null, null, null, null, "spurious", null, null, null, null, null]
+        5: [null, null, null, null, null, "spurious", null, null, null, null]
+        6: [null, null, null, null, null, null, "spurious", null, null, null]
+        7: [null, null, null, null, null, null, null, "spurious", null, null]
+        8: [null, null, null, null, null, null, null, null, "spurious", null]
+        9: [null, null, null, null, null, null, null, null, null, "spurious"]
+
+      test_digit_color_distribution:
+        0: [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
+        1: [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
+        2: [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
+        3: [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
+        4: [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
+        5: [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
+        6: [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
+        7: [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
+        8: [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
+        9: [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
+    grid_variables:
+      - concept_loss_weight
+      - dataset_config.num_operands
+    grid_search_mode: exhaustive
+
+
+
+
+
+
+  - architecture: 'ConceptBottleneckModel'
+    run_name: "Hybrid-CBM_extra_dims_{extra_dims}_Sigmoid_Noisy_Count_Baseline_{dataset_config[num_operands]}_cwl_{concept_loss_weight}"
+    extra_dims: [5, 10]
+    training_intervention_prob: 0
+    embedding_activation: "leakyrelu"
+    sigmoidal_prob: True
+
+    # Dataset Configuration
+    dataset_config:
+      dataset: color_mnist_add
+      root_dir: data/
+      num_workers: 8
+      batch_size: 1024 #2048
+      num_operands: [20] #[10, 20]
+      selected_digits: [3, 8]
+      count_labels: True
+      low_noise_level: 1
+      noise_level: 0.25
+      test_low_noise_level: 1
+      test_noise_level: 0.25
+      train_dataset_size: 5000
+      test_dataset_size: 5000
+      sampling_percent: 1
+      sampling_groups: True
+      test_subsampling: 1
+      weight_loss: False
+
+      spurious_strength: 0.1
+      color_by_label: False
+      colors: ["random_1", "random_2", "random_3", "random_4", "random_5", "random_6", "random_7", "random_8", "random_9", "random_10"]
+      digit_color_distribution:
+        0: ["spurious", null, null, null, null, null, null, null, null, null]
+        1: [null, "spurious", null, null, null, null, null, null, null, null]
+        2: [null, null, "spurious", null, null, null, null, null, null, null]
+        3: [null, null, null, "spurious", null, null, null, null, null, null]
+        4: [null, null, null, null, "spurious", null, null, null, null, null]
+        5: [null, null, null, null, null, "spurious", null, null, null, null]
+        6: [null, null, null, null, null, null, "spurious", null, null, null]
+        7: [null, null, null, null, null, null, null, "spurious", null, null]
+        8: [null, null, null, null, null, null, null, null, "spurious", null]
+        9: [null, null, null, null, null, null, null, null, null, "spurious"]
+
+      test_digit_color_distribution:
+        0: [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
+        1: [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
+        2: [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
+        3: [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
+        4: [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
+        5: [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
+        6: [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
+        7: [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
+        8: [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
+        9: [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
+    grid_variables:
+      - concept_loss_weight
+      - dataset_config.num_operands
+      - extra_dims
+    grid_search_mode: exhaustive
+
+
+  - architecture: 'ConceptBottleneckModel'
     run_name: "Hybrid-CBM_extra_dims_{extra_dims}_Sigmoid_Noisy_Count_Downstream_Spurious_{dataset_config[num_operands]}_cwl_{concept_loss_weight}"
     extra_dims: [5, 10]
     training_intervention_prob: 0
@@ -358,7 +543,7 @@ runs:
       dataset: color_mnist_add
       root_dir: data/
       num_workers: 8
-      batch_size: 2048
+      batch_size: 1024 #2048
       num_operands: [20] #[10, 20]
       selected_digits: [3, 8]
       count_labels: True
@@ -418,7 +603,7 @@ runs:
       dataset: color_mnist_add
       root_dir: data/
       num_workers: 8
-      batch_size: 2048
+      batch_size: 1024 #2048
       num_operands: [20] #[10, 20]
       selected_digits: [3, 8]
       count_labels: True
@@ -481,7 +666,7 @@ runs:
       dataset: color_mnist_add
       root_dir: data/
       num_workers: 8
-      batch_size: 2048
+      batch_size: 1024 #2048
       num_operands: [20] #[10, 20]
       selected_digits: [3, 8]
       count_labels: True
@@ -539,7 +724,7 @@ runs:
       dataset: color_mnist_add
       root_dir: data/
       num_workers: 8
-      batch_size: 2048
+      batch_size: 1024 #2048
       num_operands: [20] #[10, 20]
       selected_digits: [3, 8]
       count_labels: True
@@ -598,7 +783,7 @@ runs:
       dataset: color_mnist_add
       root_dir: data/
       num_workers: 8
-      batch_size: 2048
+      batch_size: 1024 #2048
       num_operands: [20] #[10, 20]
       selected_digits: [3, 8]
       count_labels: True
@@ -660,7 +845,7 @@ runs:
       dataset: color_mnist_add
       root_dir: data/
       num_workers: 8
-      batch_size: 2048
+      batch_size: 1024 #2048
       num_operands: [20] #[10, 20]
       selected_digits: [3, 8]
       count_labels: True
@@ -718,7 +903,7 @@ runs:
       dataset: color_mnist_add
       root_dir: data/
       num_workers: 8
-      batch_size: 2048
+      batch_size: 1024 #2048
       num_operands: [20] #[10, 20]
       selected_digits: [3, 8]
       count_labels: True
@@ -777,7 +962,7 @@ runs:
       dataset: color_mnist_add
       root_dir: data/
       num_workers: 8
-      batch_size: 2048
+      batch_size: 1024 #2048
       num_operands: [20] #[10, 20]
       selected_digits: [3, 8]
       count_labels: True
@@ -853,7 +1038,7 @@ runs:
       dataset: color_mnist_add
       root_dir: data/
       num_workers: 8
-      batch_size: 2048
+      batch_size: 1024 #2048
       num_operands: [20] #[10, 20]
       selected_digits: [3, 8]
       count_labels: True
@@ -919,7 +1104,7 @@ runs:
       dataset: color_mnist_add
       root_dir: data/
       num_workers: 8
-      batch_size: 2048
+      batch_size: 1024 #2048
       num_operands: [20] #[10, 20]
       selected_digits: [3, 8]
       count_labels: True
@@ -986,7 +1171,7 @@ runs:
       dataset: color_mnist_add
       root_dir: data/
       num_workers: 8
-      batch_size: 2048
+      batch_size: 1024 #2048
       num_operands: [20] #[10, 20]
       selected_digits: [3, 8]
       count_labels: True
@@ -1045,7 +1230,7 @@ runs:
   #     dataset: color_mnist_add
   #     root_dir: data/
   #     num_workers: 8
-  #     batch_size: 2048
+  #     batch_size: 1024 #2048
   #     num_operands: [20] #[10, 20]
   #     selected_digits: [3, 8]
   #     count_labels: True
@@ -1107,7 +1292,7 @@ runs:
   #     dataset: color_mnist_add
   #     root_dir: data/
   #     num_workers: 8
-  #     batch_size: 2048
+  #     batch_size: 1024 #2048
   #     num_operands: [20] #[10, 20]
   #     selected_digits: [3, 8]
   #     count_labels: True
@@ -1168,7 +1353,7 @@ runs:
   #     dataset: color_mnist_add
   #     root_dir: data/
   #     num_workers: 8
-  #     batch_size: 2048
+  #     batch_size: 1024 #2048
   #     num_operands: [20] #[10, 20]
   #     selected_digits: [3, 8]
   #     count_labels: True
@@ -1235,7 +1420,7 @@ runs:
   #     dataset: color_mnist_add
   #     root_dir: data/
   #     num_workers: 8
-  #     batch_size: 2048
+  #     batch_size: 1024 #2048
   #     num_operands: [20] #[10, 20]
   #     selected_digits: [3, 8]
   #     count_labels: True
@@ -1296,7 +1481,7 @@ runs:
   #     dataset: color_mnist_add
   #     root_dir: data/
   #     num_workers: 8
-  #     batch_size: 2048
+  #     batch_size: 1024 #2048
   #     num_operands: [20] #[10, 20]
   #     selected_digits: [3, 8]
   #     count_labels: True
@@ -1356,7 +1541,7 @@ runs:
   #     dataset: color_mnist_add
   #     root_dir: data/
   #     num_workers: 8
-  #     batch_size: 2048
+  #     batch_size: 1024 #2048
   #     num_operands: [20] #[10, 20]
   #     selected_digits: [3, 8]
   #     count_labels: True
@@ -1429,7 +1614,7 @@ runs:
   #     dataset: color_mnist_add
   #     root_dir: data/
   #     num_workers: 8
-  #     batch_size: 2048
+  #     batch_size: 1024 #2048
   #     num_operands: [20] #[10, 20]
   #     selected_digits: [3, 8]
   #     count_labels: True
@@ -1493,7 +1678,7 @@ runs:
   #     dataset: color_mnist_add
   #     root_dir: data/
   #     num_workers: 8
-  #     batch_size: 2048
+  #     batch_size: 1024 #2048
   #     num_operands: [20] #[10, 20]
   #     selected_digits: [3, 8]
   #     count_labels: True
@@ -1557,7 +1742,7 @@ runs:
   #     dataset: color_mnist_add
   #     root_dir: data/
   #     num_workers: 8
-  #     batch_size: 2048
+  #     batch_size: 1024 #2048
   #     num_operands: [20] #[10, 20]
   #     selected_digits: [3, 8]
   #     count_labels: True
@@ -1627,7 +1812,7 @@ runs:
       dataset: color_mnist_add
       root_dir: data/
       num_workers: 8
-      batch_size: 2048
+      batch_size: 1024 #2048
       num_operands: [20] #[10, 20]
       selected_digits: [3, 8]
       count_labels: True
@@ -1684,7 +1869,7 @@ runs:
     emb_size: [256, 128]
     embedding_activation: null
     n_discovered_concepts: [0, 10] #[0, 2, 4]
-    concept_loss_weight: [10]
+    concept_loss_weight: [10, 0]  # Adding 0 here as an option to see what happens when we do not provide ANY concept supervision. Is the model still much better at dealing with spurious correlations?
     contrastive_loss_weight: [0] #[0, 0.5, 1]
     mix_ground_truth_embs: True
     shared_emb_generator: [True] #, False]
@@ -1694,7 +1879,7 @@ runs:
       dataset: color_mnist_add
       root_dir: data/
       num_workers: 8
-      batch_size: 2048
+      batch_size: 1024 #2048
       num_operands: [20] #[10, 20]
       selected_digits: [3, 8]
       count_labels: True
@@ -1744,6 +1929,7 @@ runs:
       - emb_size
     grid_search_mode: exhaustive
 
+
   - architecture: 'MixingConceptEmbeddingModel'
     run_name: "Mixing-CEM_n_discovered_concepts_{n_discovered_concepts}_contr_loss_{contrastive_loss_weight}_mix_{mix_ground_truth_embs}_shared_{shared_emb_generator}_emb_size_{emb_size}_Noisy_Count_Concept_Spurious_{dataset_config[num_operands]}_cwl_{concept_loss_weight}"
     training_intervention_prob: 0.25
@@ -1761,7 +1947,7 @@ runs:
       dataset: color_mnist_add
       root_dir: data/
       num_workers: 8
-      batch_size: 2048
+      batch_size: 1024 #2048
       num_operands: [20] #[10, 20]
       selected_digits: [3, 8]
       count_labels: True
@@ -1838,7 +2024,7 @@ runs:
       dataset: color_mnist_add
       root_dir: data/
       num_workers: 8
-      batch_size: 2048
+      batch_size: 1024 #2048
       num_operands: [20] #[10, 20]
       selected_digits: [3, 8]
       count_labels: True
@@ -1912,7 +2098,7 @@ runs:
       dataset: color_mnist_add
       root_dir: data/
       num_workers: 8
-      batch_size: 2048
+      batch_size: 1024 #2048
       num_operands: [20] #[10, 20]
       selected_digits: [3, 8]
       count_labels: True
@@ -1986,7 +2172,7 @@ runs:
       dataset: color_mnist_add
       root_dir: data/
       num_workers: 8
-      batch_size: 2048
+      batch_size: 1024 #2048
       num_operands: [20] #[10, 20]
       selected_digits: [3, 8]
       count_labels: True
@@ -2064,7 +2250,7 @@ runs:
       dataset: color_mnist_add
       root_dir: data/
       num_workers: 8
-      batch_size: 2048
+      batch_size: 1024 #2048
       num_operands: [20] #[10, 20]
       selected_digits: [3, 8]
       count_labels: True
@@ -2138,7 +2324,7 @@ runs:
       dataset: color_mnist_add
       root_dir: data/
       num_workers: 8
-      batch_size: 2048
+      batch_size: 1024 #2048
       num_operands: [20] #[10, 20]
       selected_digits: [3, 8]
       count_labels: True
@@ -2212,7 +2398,7 @@ runs:
       dataset: color_mnist_add
       root_dir: data/
       num_workers: 8
-      batch_size: 2048
+      batch_size: 1024 #2048
       num_operands: [20] #[10, 20]
       selected_digits: [3, 8]
       count_labels: True
@@ -2269,7 +2455,7 @@ runs:
 
   - architecture: 'MixingConceptEmbeddingModel'
     run_name: "ResidualMixing-CEM_n_extra_{n_discovered_concepts}_entr_{discovered_probs_entropy}_dis_{intervention_task_discount}_ip_{training_intervention_prob}_dip_{dyn_training_intervention_prob}_cl_{contrastive_loss_weight}_mix_{mix_ground_truth_embs}_shared_{shared_emb_generator}_emb_size_{emb_size}_ml_{intermediate_task_concept_loss}_Noisy_Count_Baseline_{dataset_config[num_operands]}_cwl_{concept_loss_weight}"
-    training_intervention_prob: [0.25, [0.25, 0.5]] #[0.25, [0.25, 0.5]]
+    training_intervention_prob: [[0.25, 0.5, 0.75, 1]] #[0.25, [0.25, 0.5]] #[0.25, [0.25, 0.5]]
     emb_size: [256, 128]
     embedding_activation: null
     n_discovered_concepts: [10, 5, 0]
@@ -2291,7 +2477,7 @@ runs:
       dataset: color_mnist_add
       root_dir: data/
       num_workers: 8
-      batch_size: 2048
+      batch_size: 1024 #2048
       num_operands: [20] #[10, 20]
       selected_digits: [3, 8]
       count_labels: True
@@ -2348,7 +2534,7 @@ runs:
 
   - architecture: 'MixingConceptEmbeddingModel'
     run_name: "ResidualMixing-CEM_n_extra_{n_discovered_concepts}_entr_{discovered_probs_entropy}_dis_{intervention_task_discount}_ip_{training_intervention_prob}_dip_{dyn_training_intervention_prob}_cl_{contrastive_loss_weight}_mix_{mix_ground_truth_embs}_shared_{shared_emb_generator}_emb_size_{emb_size}_ml_{intermediate_task_concept_loss}_Noisy_Count_Downstream_Spurious_{dataset_config[num_operands]}_cwl_{concept_loss_weight}"
-    training_intervention_prob: [0.25, [0.25, 0.5]] #[0.25, [0.25, 0.5]]
+    training_intervention_prob: [[0.25, 0.5, 0.75, 1]] #[0.25, [0.25, 0.5]] #[0.25, [0.25, 0.5]]
     emb_size: [256, 128]
     embedding_activation: null
     n_discovered_concepts: [10, 5, 0]
@@ -2370,7 +2556,7 @@ runs:
       dataset: color_mnist_add
       root_dir: data/
       num_workers: 8
-      batch_size: 2048
+      batch_size: 1024 #2048
       num_operands: [20] #[10, 20]
       selected_digits: [3, 8]
       count_labels: True
@@ -2427,7 +2613,7 @@ runs:
 
   - architecture: 'MixingConceptEmbeddingModel'
     run_name: "ResidualMixing-CEM_n_extra_{n_discovered_concepts}_entr_{discovered_probs_entropy}_dis_{intervention_task_discount}_ip_{training_intervention_prob}_dip_{dyn_training_intervention_prob}_cl_{contrastive_loss_weight}_mix_{mix_ground_truth_embs}_shared_{shared_emb_generator}_emb_size_{emb_size}_ml_{intermediate_task_concept_loss}_Noisy_Count_Concept_Spurious_{dataset_config[num_operands]}_cwl_{concept_loss_weight}"
-    training_intervention_prob: [0.25, [0.25, 0.5]] #[0.25, [0.25, 0.5]]
+    training_intervention_prob: [[0.25, 0.5, 0.75, 1]] #[0.25, [0.25, 0.5]] #[0.25, [0.25, 0.5]]
     emb_size: [256, 128]
     embedding_activation: null
     n_discovered_concepts: [10, 5, 0]
@@ -2449,7 +2635,7 @@ runs:
       dataset: color_mnist_add
       root_dir: data/
       num_workers: 8
-      batch_size: 2048
+      batch_size: 1024 #2048
       num_operands: [20] #[10, 20]
       selected_digits: [3, 8]
       count_labels: True
@@ -2530,7 +2716,7 @@ runs:
       dataset: color_mnist_add
       root_dir: data/
       num_workers: 8
-      batch_size: 2048
+      batch_size: 1024 #2048
       num_operands: [20] #[10, 20]
       selected_digits: [3, 8]
       count_labels: True
@@ -2590,7 +2776,7 @@ runs:
       dataset: color_mnist_add
       root_dir: data/
       num_workers: 8
-      batch_size: 2048
+      batch_size: 1024 #2048
       num_operands: [20] #[10, 20]
       selected_digits: [3, 8]
       count_labels: True
@@ -2651,7 +2837,7 @@ runs:
       dataset: color_mnist_add
       root_dir: data/
       num_workers: 8
-      batch_size: 2048
+      batch_size: 1024 #2048
       num_operands: [20] #[10, 20]
       selected_digits: [3, 8]
       count_labels: True
@@ -2710,7 +2896,7 @@ runs:
       dataset: color_mnist_add
       root_dir: data/
       num_workers: 8
-      batch_size: 2048
+      batch_size: 1024 #2048
       num_operands: [20] #[10, 20]
       selected_digits: [3, 8]
       count_labels: True
@@ -2782,7 +2968,7 @@ runs:
       dataset: color_mnist_add
       root_dir: data/
       num_workers: 8
-      batch_size: 2048
+      batch_size: 1024 #2048
       num_operands: [20] #[10, 20]
       selected_digits: [3, 8]
       count_labels: True
@@ -2842,7 +3028,7 @@ runs:
       dataset: color_mnist_add
       root_dir: data/
       num_workers: 8
-      batch_size: 2048
+      batch_size: 1024 #2048
       num_operands: [20] #[10, 20]
       selected_digits: [3, 8]
       count_labels: True
@@ -2912,7 +3098,7 @@ runs:
       dataset: color_mnist_add
       root_dir: data/
       num_workers: 8
-      batch_size: 2048
+      batch_size: 1024 #2048
       num_operands: [20] #[10, 20]
       selected_digits: [3, 8]
       count_labels: True
@@ -2983,7 +3169,7 @@ runs:
       dataset: color_mnist_add
       root_dir: data/
       num_workers: 8
-      batch_size: 2048
+      batch_size: 1024 #2048
       num_operands: [20] #[10, 20]
       selected_digits: [3, 8]
       count_labels: True
@@ -3054,7 +3240,7 @@ runs:
       dataset: color_mnist_add
       root_dir: data/
       num_workers: 8
-      batch_size: 2048
+      batch_size: 1024 #2048
       num_operands: [20] #[10, 20]
       selected_digits: [3, 8]
       count_labels: True
@@ -3122,7 +3308,7 @@ runs:
   #     dataset: color_mnist_add
   #     root_dir: data/
   #     num_workers: 8
-  #     batch_size: 2048
+  #     batch_size: 1024 #2048
   #     num_operands: [20] #[10, 20]
   #     selected_digits: [3, 8]
   #     count_labels: True
@@ -3175,7 +3361,7 @@ runs:
 
   - architecture: 'MixingConceptEmbeddingModel'
     run_name: "OOD_ResidualMixing-CEM_n_extra_{n_discovered_concepts}_entr_{discovered_probs_entropy}_dis_{intervention_task_discount}_ip_{training_intervention_prob}_dip_{dyn_training_intervention_prob}_cl_{contrastive_loss_weight}_mix_{mix_ground_truth_embs}_shared_{shared_emb_generator}_emb_size_{emb_size}_ml_{intermediate_task_concept_loss}_Noisy_Count_Baseline_{dataset_config[num_operands]}_cwl_{concept_loss_weight}"
-    training_intervention_prob: [0.25, [0.25, 0.5]]
+    training_intervention_prob: [[0.25, 0.5, 0.75, 1]] #[0.25, [0.25, 0.5]]
     emb_size: [256, 128]
     embedding_activation: null
     n_discovered_concepts: [10, 5, 0]
@@ -3197,7 +3383,7 @@ runs:
       dataset: color_mnist_add
       root_dir: data/
       num_workers: 8
-      batch_size: 2048
+      batch_size: 1024 #2048
       num_operands: [20] #[10, 20]
       selected_digits: [3, 8]
       count_labels: True
