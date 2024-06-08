@@ -1796,7 +1796,7 @@ class MixingConceptEmbeddingModel(ConceptEmbeddingModel):
                 loss_weights * norm_constant,
                 dim=-1,
             )
-        return torch.sum(loss_weights * losses, dim=-1) / torch.sum(loss_weights, dim=-1)
+        return torch.sum(losses, dim=-1) / torch.sum(loss_weights, dim=-1)
 
     def _run_step(
         self,
@@ -2642,7 +2642,7 @@ class ResidualMixingConceptEmbeddingModel(ConceptEmbeddingModel):
                 loss_weights * norm_constant,
                 dim=-1,
             )
-        return torch.sum(loss_weights * losses, dim=-1) / torch.sum(loss_weights, dim=-1)
+        return torch.sum(losses, dim=-1) / torch.sum(loss_weights, dim=-1)
 
     def _forward(
         self,
