@@ -279,7 +279,7 @@ def print_table(
             for metric_name, vals in metric_vals.items():
                 for desired_metric in result_table_fields_keys:
                     real_name = desired_metric
-                    if desired_metric.startswith("test_acc_y_") and (
+                    if ("_acc_y_" in desired_metric) and (
                         ("_ints_" in desired_metric) and
                         (desired_metric[-1] == "%")
                     ):
