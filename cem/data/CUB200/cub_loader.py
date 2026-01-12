@@ -673,6 +673,321 @@ CONCEPT_SEMANTICS = [
     "has_wing_pattern::multi-colored",
 ]
 
+CONCEPT_SEMANTICS_SENTENCE = [
+    "a bird with a curved bill",
+    "a bird with a dagger bill",
+    "a bird with a hooked bill",
+    "a bird with a needle bill",
+    "a seabird with a hooked bill",
+    "a bird with a spatulate bill",
+    "a bird with a all-purpose bill",
+    "a bird with a cone bill",
+    "a bird with a specialized bill",
+    "a bird with blue wings",
+    "a bird with brown wings",
+    "a bird with iridescent wings",
+    "a bird with purple wings",
+    "a bird with rufous wings",
+    "a bird with grey wings",
+    "a bird with yellow wings",
+    "a bird with olive wings",
+    "a bird with green wings",
+    "a bird with pink wings",
+    "a bird with orange wings",
+    "a bird with black wings",
+    "a bird with white wings",
+    "a bird with red wings",
+    "a bird with buff wings",
+    "a bird with a blue upperpart",
+    "a bird with a brown upperpart",
+    "a bird with an iridescent upperpart",
+    "a bird with a purple upperpart",
+    "a bird with a rufous upperpart",
+    "a bird with a grey upperpart",
+    "a bird with a yellow upperpart",
+    "a bird with an olive upperpart",
+    "a bird with a green upperpart",
+    "a bird with a pink upperpart",
+    "a bird with an orange upperpart",
+    "a bird with a black upperpart",
+    "a bird with a white upperpart",
+    "a bird with a red upperpart",
+    "a bird with a buff upperpart",
+    "a bird with a blue underpart",
+    "a bird with a brown underpart",
+    "a bird with an iridescent underpart",
+    "a bird with a purple underpart",
+    "a bird with a rufous underpart",
+    "a bird with a grey underpart",
+    "a bird with a yellow underpart",
+    "a bird with an olive underpart",
+    "a bird with a green underpart",
+    "a bird with a pink underpart",
+    "a bird with an orange underpart",
+    "a bird with a black underpart",
+    "a bird with a white underpart",
+    "a bird with a red underpart",
+    "a bird with a buff underpart",
+    "a bird with a solid breast pattern",
+    "a bird with a spotted breast pattern",
+    "a bird with a striped breast pattern",
+    "a bird with a multi-colored breast pattern",
+    "a bird with a blue back",
+    "a bird with a brown back",
+    "a bird with an iridescent back",
+    "a bird with a purple back",
+    "a bird with a rufous back",
+    "a bird with a grey back",
+    "a bird with a yellow back",
+    "a bird with an olive back",
+    "a bird with a green back",
+    "a bird with a pink back",
+    "a bird with an orange back",
+    "a bird with a black back",
+    "a bird with a white back",
+    "a bird with a red back",
+    "a bird with a buff back",
+    "a bird with a forked tail",
+    "a bird with a rounded tail",
+    "a bird with a notched tail",
+    "a bird with a fan-shaped tail",
+    "a bird with a pointed tail",
+    "a bird with a squared tail",
+    "a bird with a blue upper tail",
+    "a bird with a brown upper tail",
+    "a bird with an iridescent upper tail",
+    "a bird with a purple upper tail",
+    "a bird with a rufous upper tail",
+    "a bird with a grey upper tail",
+    "a bird with a yellow upper tail",
+    "a bird with an olive upper tail",
+    "a bird with a green upper tail",
+    "a bird with a pink upper tail",
+    "a bird with an orange upper tail",
+    "a bird with a black upper tail",
+    "a bird with a white upper tail",
+    "a bird with a red upper tail",
+    "a bird with a buff upper tail",
+    "a bird with a spotted head",
+    "a bird with a malar head",
+    "a bird with a crested head",
+    "a bird with a masked head",
+    "a bird with a unique head",
+    "a bird with an eyebrow head",
+    "a bird with an eyering head",
+    "a bird with a plain head",
+    "a bird with an eyeline head",
+    "a bird with a striped head",
+    "a bird with a capped head",
+    "a bird with a blue breast",
+    "a bird with a brown breast",
+    "a bird with an iridescent breast",
+    "a bird with a purple breast",
+    "a bird with a rufous breast",
+    "a bird with a grey breast",
+    "a bird with a yellow breast",
+    "a bird with an olive breast",
+    "a bird with a green breast",
+    "a bird with a pink breast",
+    "a bird with an orange breast",
+    "a bird with a black breast",
+    "a bird with a white breast",
+    "a bird with a red breast",
+    "a bird with a buff breast",
+    "a bird with a blue throat",
+    "a bird with a brown throat",
+    "a bird with an iridescent throat",
+    "a bird with a purple throat",
+    "a bird with a rufous throat",
+    "a bird with a grey throat",
+    "a bird with a yellow throat",
+    "a bird with an olive throat",
+    "a bird with a green throat",
+    "a bird with a pink throat",
+    "a bird with an orange throat",
+    "a bird with a black throat",
+    "a bird with a white throat",
+    "a bird with a red throat",
+    "a bird with a buff throat",
+    "a bird with blue eyes",
+    "a bird with brown eyes",
+    "a bird with purple eyes",
+    "a bird with rufous eyes",
+    "a bird with grey eyes",
+    "a bird with yellow eyes",
+    "a bird with olive eyes",
+    "a bird with green eyes",
+    "a bird with pink eyes",
+    "a bird with orange eyes",
+    "a bird with black eyes",
+    "a bird with white eyes",
+    "a bird with red eyes",
+    "a bird with buff eyes",
+    "a bird with a bill about the same length as its head",
+    "a bird with a bill longer than its head",
+    "a bird with a bill shorter than its head",
+    "a bird with a blue forehead",
+    "a bird with a brown forehead",
+    "a bird with an iridescent forehead",
+    "a bird with a purple forehead",
+    "a bird with a rufous forehead",
+    "a bird with a grey forehead",
+    "a bird with a yellow forehead",
+    "a bird with an olive forehead",
+    "a bird with a green forehead",
+    "a bird with a pink forehead",
+    "a bird with an orange forehead",
+    "a bird with a black forehead",
+    "a bird with a white forehead",
+    "a bird with a red forehead",
+    "a bird with a buff forehead",
+    "a bird with a blue undertail",
+    "a bird with a brown undertail",
+    "a bird with an iridescent undertail",
+    "a bird with a purple undertail",
+    "a bird with a rufous undertail",
+    "a bird with a grey undertail",
+    "a bird with a yellow undertail",
+    "a bird with an olive undertail",
+    "a bird with a green undertail",
+    "a bird with a pink undertail",
+    "a bird with an orange undertail",
+    "a bird with a black undertail",
+    "a bird with a white undertail",
+    "a bird with a red undertail",
+    "a bird with a buff undertail",
+    "a bird with a blue nape",
+    "a bird with a brown nape",
+    "a bird with an iridescent nape",
+    "a bird with a purple nape",
+    "a bird with a rufous nape",
+    "a bird with a grey nape",
+    "a bird with a yellow nape",
+    "a bird with an olive nape",
+    "a bird with a green nape",
+    "a bird with a pink nape",
+    "a bird with an orange nape",
+    "a bird with a black nape",
+    "a bird with a white nape",
+    "a bird with a red nape",
+    "a bird with a buff nape",
+    "a bird with a blue belly",
+    "a bird with a brown belly",
+    "a bird with an iridescent belly",
+    "a bird with a purple belly",
+    "a bird with a rufous belly",
+    "a bird with a grey belly",
+    "a bird with a yellow belly",
+    "a bird with an olive belly",
+    "a bird with a green belly",
+    "a bird with a pink belly",
+    "a bird with an orange belly",
+    "a bird with a black belly",
+    "a bird with a white belly",
+    "a bird with a red belly",
+    "a bird with a buff belly",
+    "a bird with rounded wings",
+    "a bird with pointed wings",
+    "a bird with broad wings",
+    "a bird with tapered wings",
+    "a bird with long wings",
+    "a large bird (between 16 to 32 inches)",
+    "a small bird (between 5 to 9 inches)",
+    "a very large bird (between 32 to 72 inches)",
+    "a medium-sized bird (between 9 to 16 inches)",
+    "a very small bird (between 3 to 5 inches)",
+    "an upright-perching-like waterbird",
+    "a chicken-like bird",
+    "a long-legged bird",
+    "a duck-like bird",
+    "an owl-like bird",
+    "a gull-like bird",
+    "a hummingbird-like bird",
+    "a pigeon-like bird",
+    "a tree-clinging bird",
+    "a hawk-like bird",
+    "a sandpiper-like bird",
+    "an upland-ground-like bird",
+    "a swallow-like bird",
+    "a perching-like bird",
+    "a bird with a solid back pattern",
+    "a bird with a spotted back pattern",
+    "a bird with a striped back pattern",
+    "a bird with a multi-colored back pattern",
+    "a bird with a solid tail pattern",
+    "a bird with a spotted tail pattern",
+    "a bird with a striped tail pattern",
+    "a bird with a multi-colored tail pattern",
+    "a bird with a solid belly pattern",
+    "a bird with a spotted belly pattern",
+    "a bird with a striped belly pattern",
+    "a bird with a multi-colored belly pattern",
+    "a primarily blue bird",
+    "a primarily brown bird",
+    "a primarily iridescent bird",
+    "a primarily purple bird",
+    "a primarily rufous bird",
+    "a primarily grey bird",
+    "a primarily yellow bird",
+    "a primarily olive bird",
+    "a primarily green bird",
+    "a primarily pink bird",
+    "a primarily orange bird",
+    "a primarily black bird",
+    "a primarily white bird",
+    "a primarily red bird",
+    "a primarily buff bird",
+    "a bird with blue legs",
+    "a bird with brown legs",
+    "a bird with iridescent legs",
+    "a bird with purple legs",
+    "a bird with rufous legs",
+    "a bird with grey legs",
+    "a bird with yellow legs",
+    "a bird with olive legs",
+    "a bird with green legs",
+    "a bird with pink legs",
+    "a bird with orange legs",
+    "a bird with black legs",
+    "a bird with white legs",
+    "a bird with red legs",
+    "a bird with buff legs",
+    "a bird with a blue bill",
+    "a bird with a brown bill",
+    "a bird with an iridescent bill",
+    "a bird with a purple bill",
+    "a bird with a rufous bill",
+    "a bird with a grey bill",
+    "a bird with a yellow bill",
+    "a bird with an olive bill",
+    "a bird with a green bill",
+    "a bird with a pink bill",
+    "a bird with an orange bill",
+    "a bird with a black bill",
+    "a bird with a white bill",
+    "a bird with a red bill",
+    "a bird with a buff bill",
+    "a bird with a blue crown",
+    "a bird with a brown crown",
+    "a bird with an iridescent crown",
+    "a bird with a purple crown",
+    "a bird with a rufous crown",
+    "a bird with a grey crown",
+    "a bird with a yellow crown",
+    "a bird with an olive crown",
+    "a bird with a green crown",
+    "a bird with a pink crown",
+    "a bird with an orange crown",
+    "a bird with a black crown",
+    "a bird with a white crown",
+    "a bird with a red crown",
+    "a bird with a buff crown",
+    "a bird with a solid wing pattern",
+    "a bird with a spotted wing pattern",
+    "a bird with a striped wing pattern",
+    "a bird with a multi-colored wing pattern",
+]
+
 # Generate a mapping containing all concept groups in CUB generated
 # using a simple prefix tree
 CONCEPT_GROUP_MAP = defaultdict(list)
@@ -1094,6 +1409,79 @@ def find_class_imbalance(pkl_file, multiple_attr=False, attr_idx=-1):
 ## SIMPLIFIED LOADER FUNCTION FOR STANDARDIZATION
 ##########################################################
 
+def get_concept_descriptions(
+    config,
+    root_dir=DATASET_DIR,
+    seed=42,
+    rerun=False,
+):
+    if root_dir is None:
+        root_dir = DATASET_DIR
+    seed_everything(seed)
+
+    sampling_percent = config.get("sampling_percent", 1)
+    sampling_groups = config.get("sampling_groups", False)
+
+    concept_group_map = CONCEPT_GROUP_MAP.copy()
+    n_concepts = len(SELECTED_CONCEPTS)
+    selected_concepts = SELECTED_CONCEPTS
+    if sampling_percent != 1:
+        # Do the subsampling
+        if sampling_groups:
+            new_n_groups = int(np.ceil(len(concept_group_map) * sampling_percent))
+            selected_groups_file = os.path.join(
+                root_dir,
+                f"selected_groups_sampling_{sampling_percent}.npy",
+            )
+            if (not rerun) and os.path.exists(selected_groups_file):
+                selected_groups = np.load(selected_groups_file)
+            else:
+                selected_groups = sorted(
+                    np.random.permutation(len(concept_group_map))[:new_n_groups]
+                )
+                np.save(selected_groups_file, selected_groups)
+            selected_concepts = []
+            group_concepts = [x[1] for x in concept_group_map.items()]
+            for group_idx in selected_groups:
+                selected_concepts.extend(group_concepts[group_idx])
+            selected_concepts = sorted(set(selected_concepts))
+        else:
+            new_n_concepts = int(np.ceil(n_concepts * sampling_percent))
+            selected_concepts_file = os.path.join(
+                root_dir,
+                f"selected_concepts_sampling_{sampling_percent}.npy",
+            )
+            if (not rerun) and os.path.exists(selected_concepts_file):
+                selected_concepts = np.load(selected_concepts_file)
+            else:
+                selected_concepts = sorted(
+                    np.random.permutation(n_concepts)[:new_n_concepts]
+                )
+                np.save(selected_concepts_file, selected_concepts)
+        # Then we also have to update the concept group map so that
+        # selected concepts that were previously in the same concept
+        # group are maintained in the same concept group
+        new_concept_group = {}
+        remap = dict((y, x) for (x, y) in enumerate(selected_concepts))
+        selected_concepts_set = set(selected_concepts)
+        for selected_concept in selected_concepts:
+            for concept_group_name, group_concepts in concept_group_map.items():
+                if selected_concept in group_concepts:
+                    if concept_group_name in new_concept_group:
+                        # Then we have already added this group
+                        continue
+                    # Then time to add this group!
+                    new_concept_group[concept_group_name] = []
+                    for other_concept in group_concepts:
+                        if other_concept in selected_concepts_set:
+                            # Add the remapped version of this concept
+                            # into the concept group
+                            new_concept_group[concept_group_name].append(
+                                remap[other_concept]
+                            )
+        # And update the concept group map accordingly
+        concept_group_map = new_concept_group
+    return list(np.array(CONCEPT_SEMANTICS_SENTENCE)[selected_concepts])
 
 def generate_data(
     config,

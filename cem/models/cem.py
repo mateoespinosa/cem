@@ -40,6 +40,15 @@ class ConceptEmbeddingModel(ConceptBottleneckModel):
         weight_loss=None,
         task_class_weights=None,
 
+        # New changes
+        sim_penalty=0.0,
+        l2_penalty=0.0,
+        emb_pred_loss=0.0,
+        prob_training_thresholding=0,
+        prior_loss_term=0.0,
+        cbm_mode=False,
+        ##################### end ##########################
+
         active_intervention_values=None,
         inactive_intervention_values=None,
         intervention_policy=None,
@@ -128,13 +137,33 @@ class ConceptEmbeddingModel(ConceptBottleneckModel):
             for during training/testing when the number of tasks is high.
         """
         pl.LightningModule.__init__(self)
+        self.cbm_mode = cbm_mode
+        if self.cbm_mode:
+            emb_size = 1
+            embedding_activation = None
+        else:
+            context_gen_out_size = context_gen_out_size or (2 * emb_size)
         self.n_concepts = n_concepts
         self.output_interventions = output_interventions
         self.intervention_policy = intervention_policy
         self.training_intervention_prob = training_intervention_prob
         self.output_latent = output_latent
-        context_gen_out_size = context_gen_out_size or (2 * emb_size)
         self.pre_concept_model = c_extractor_arch(output_dim=None)
+        self.sim_penalty = sim_penalty
+        self.l2_penalty = l2_penalty
+
+        self.emb_pred_loss = emb_pred_loss
+        self._neg_embs = None
+        self._pos_embs = None
+        if self.emb_pred_loss > 0.0:
+            # Then we will instantiate a linear layer that predicts the concept
+            # label from the positive or negartive embeddings
+            self.emb_pred_layer = torch.nn.Linear(
+                emb_size,
+                1
+            )
+        self.prior_loss_term = prior_loss_term
+        self.prob_training_thresholding = prob_training_thresholding
         self._intervention_idxs = None
         if self.training_intervention_prob != 0:
             self.ones = torch.ones(n_concepts)
@@ -169,33 +198,49 @@ class ConceptEmbeddingModel(ConceptBottleneckModel):
                 raise ValueError(
                     f'Unsupported embedding activation "{embedding_activation}"'
                 )
-            self.concept_context_generators.append(
-                torch.nn.Sequential(*([
+            if self.cbm_mode:
+                # We simply output a single value per concept representing the
+                # logit of the concept
+                self.concept_context_generators.append(
                     torch.nn.Linear(
                         list(
                             self.pre_concept_model.modules()
                         )[-1].out_features,
-                        # Two as each concept will have a positive and a
-                        # negative embedding portion which are later mixed
-                        context_gen_out_size,
-                    ),
-                ] + act_to_use))
-            )
-            if self.shared_prob_gen and (
-                len(self.concept_prob_generators) == 0
-            ):
-                # Then we will use one and only one probability generator which
-                # will be shared among all concepts. This will force concept
-                # embedding vectors to be pushed into the same latent space
-                self.concept_prob_generators.append(torch.nn.Linear(
-                    2 * emb_size,
-                    1,
-                ))
-            elif not self.shared_prob_gen:
-                self.concept_prob_generators.append(torch.nn.Linear(
-                    2 * emb_size,
-                    1,
-                ))
+                        1,
+                    )
+                )
+                # This will simply be the identity function
+                self.concept_prob_generators.append(
+                    lambda x: x
+                )
+            else:
+                self.concept_context_generators.append(
+                    torch.nn.Sequential(*([
+                        torch.nn.Linear(
+                            list(
+                                self.pre_concept_model.modules()
+                            )[-1].out_features,
+                            # Two as each concept will have a positive and a
+                            # negative embedding portion which are later mixed
+                            context_gen_out_size,
+                        ),
+                    ] + act_to_use))
+                )
+                if self.shared_prob_gen and (
+                    len(self.concept_prob_generators) == 0
+                ):
+                    # Then we will use one and only one probability generator which
+                    # will be shared among all concepts. This will force concept
+                    # embedding vectors to be pushed into the same latent space
+                    self.concept_prob_generators.append(torch.nn.Linear(
+                        2 * emb_size,
+                        1,
+                    ))
+                elif not self.shared_prob_gen:
+                    self.concept_prob_generators.append(torch.nn.Linear(
+                        2 * emb_size,
+                        1,
+                    ))
         if getattr(self, '_construct_c2y_model', True):
             if c2y_model is None:
                 # Else we construct it here directly
@@ -283,6 +328,14 @@ class ConceptEmbeddingModel(ConceptBottleneckModel):
         probs,
         **task_loss_kwargs,
     ):
+        if self.prob_training_thresholding > 0 and self.training:
+            # Threshold the values in probs with probability
+            # self.prob_training_thresholding
+            random_tensor = torch.rand(probs.shape).to(probs.device)
+            threshold_mask = (random_tensor < self.prob_training_thresholding).float()
+            probs = probs * (1 - threshold_mask) + (
+                threshold_mask * (probs > 0.5).float()
+            )
         bottleneck = (
             pos_embeddings * torch.unsqueeze(probs, dim=-1) + (
                 neg_embeddings * (
@@ -365,6 +418,9 @@ class ConceptEmbeddingModel(ConceptBottleneckModel):
             latent=latent,
             training=train,
         )
+        self._pos_embs = pos_embs
+        self._neg_embs = neg_embs
+
 
         # Now include any interventions that we may want to perform!
         if (intervention_idxs is None) and (c is not None) and (
@@ -447,6 +503,88 @@ class ConceptEmbeddingModel(ConceptBottleneckModel):
         )
         return tuple([c_sem, bottleneck, y_pred] + tail_results)
 
+
+    def _extra_losses(
+        self,
+        x,
+        y,
+        c,
+        y_pred,
+        c_sem,
+        c_pred,
+        competencies=None,
+        prev_interventions=None,
+    ):
+        loss = 0.0
+        if self.l2_penalty > 0.0:
+            # Then maximize the l2 distance between positive and negative
+            # embeddings for each concept
+            l2_loss = 0.0
+            for i in range(self.n_concepts):
+                l2_loss += torch.mean(
+                    torch.square(
+                        torch.nn.functional.pairwise_distance(
+                            self._pos_embs[:, i, :],
+                            self._neg_embs[:, i, :],
+                            p=2,
+                        )
+                    )
+                )
+            l2_loss = l2_loss / self.n_concepts
+            loss += self.l2_penalty * l2_loss
+
+        if self.sim_penalty > 0.0:
+            # Then we compute the similarity penalty
+            sim_loss = 0.0
+            for i in range(self.n_concepts):
+                sim_loss += torch.mean(
+                    torch.abs(
+                        torch.nn.functional.cosine_similarity(
+                            self._pos_embs[:, i, :],
+                            self._neg_embs[:, i, :],
+                            dim=-1,
+                        )
+                    )
+                )
+            sim_loss = sim_loss / self.n_concepts
+            loss += self.sim_penalty * sim_loss
+
+        if self.emb_pred_loss > 0.0:
+            # Then we compute the embedding prediction loss
+            emb_pred_loss = 0.0
+            for i in range(self.n_concepts):
+                c_true = c[:, i].unsqueeze(-1)
+                pos_pred = self.emb_pred_layer(self._pos_embs[:, i, :])
+                neg_pred = self.emb_pred_layer(self._neg_embs[:, i, :])
+                emb_pred_loss += torch.mean(
+                    torch.nn.functional.binary_cross_entropy_with_logits(
+                        pos_pred,
+                        c_true,
+                    )
+                )
+                emb_pred_loss += torch.mean(
+                    torch.nn.functional.binary_cross_entropy_with_logits(
+                        neg_pred,
+                        c_true,
+                    )
+                )
+            emb_pred_loss = emb_pred_loss / (2 * self.n_concepts)
+            loss += self.emb_pred_loss * emb_pred_loss
+        if self.prior_loss_term > 0.0:
+            # Then we add the task classification loss when the bottleneck
+            # is constructed using only the ground-truth concept embeddings
+            bottleneck_gt = self._construct_c2y_input(
+                pos_embeddings=self._pos_embs,
+                neg_embeddings=self._neg_embs,
+                probs=c,
+            )
+            y_pred_gt = self._predict_labels(bottleneck=bottleneck_gt)
+            loss += self.prior_loss_term * self.loss_task(
+                y_pred_gt,
+                y,
+            )
+
+        return loss
 
 
 ################################################################################

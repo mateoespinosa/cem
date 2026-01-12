@@ -79,8 +79,6 @@ def _restore_checkpoint(
         trainer.current_epoch != max_epochs
     ):
         # Then restore the best validation model
-        print("ckpt_call.best_model_path =", ckpt_call.best_model_path)   # prints path to the best model's checkpoint
-        print("ckpt_call.best_model_score =", ckpt_call.best_model_score) # and prints it score
         chkpoint = torch.load(ckpt_call.best_model_path)
         model.load_state_dict(chkpoint["state_dict"])
 
@@ -196,7 +194,7 @@ def train_end_to_end_model(
         )
         if (not rerun) and os.path.exists(model_saved_path):
             # Then we simply load the model and proceed
-            print("\tFound cached model... loading it")
+            print(f"\tFound cached model at {model_saved_path}... loading it")
             model.load_state_dict(torch.load(model_saved_path))
             if os.path.exists(
                 model_saved_path.replace(".pt", "_training_times.npy")
@@ -450,7 +448,7 @@ def train_sequential_model(
         x2c_trainer = trainer
         if (not rerun) and chpt_exists:
             # Then we simply load the model and proceed
-            print("\tFound cached model... loading it")
+            print(f"\tFound cached model at {model_saved_path}... loading it")
             seq_model = construct_model(
                 n_concepts=n_concepts,
                 n_tasks=n_tasks,
@@ -597,8 +595,6 @@ def train_sequential_model(
                 seq_c2y_trainer.current_epoch != config['max_epochs']
             ):
                 # Then restore the best validation model
-                print("ckpt_call.best_model_path =", ckpt_call.best_model_path)   # prints path to the best model's checkpoint
-                print("ckpt_call.best_model_score =", ckpt_call.best_model_score) # and prints it score
                 chkpoint = torch.load(ckpt_call.best_model_path)
                 seq_c2y_model.load_state_dict(chkpoint["state_dict"])
             if seq_c2y_val_dl is not None:
@@ -798,7 +794,7 @@ def train_independent_model(
 
         if (not rerun) and chpt_exists:
             # Then we simply load the model and proceed
-            print("\tFound cached model... loading it")
+            print(f"\tFound cached model at {model_saved_path}... loading it")
             ind_model = construct_model(
                 n_concepts=n_concepts,
                 n_tasks=n_tasks,
@@ -835,8 +831,6 @@ def train_independent_model(
                 x2c_trainer.current_epoch != config['max_epochs']
             ):
                 # Then restore the best validation model
-                print("ckpt_call.best_model_path =", ckpt_call.best_model_path)   # prints path to the best model's checkpoint
-                print("ckpt_call.best_model_score =", ckpt_call.best_model_score) # and prints it score
                 chkpoint = torch.load(ckpt_call.best_model_path)
                 model.load_state_dict(chkpoint["state_dict"])
             if val_dl is not None:
@@ -916,8 +910,6 @@ def train_independent_model(
                 ind_c2y_trainer.current_epoch != config['max_epochs']
             ):
                 # Then restore the best validation model
-                print("ckpt_call.best_model_path =", ckpt_call.best_model_path)   # prints path to the best model's checkpoint
-                print("ckpt_call.best_model_score =", ckpt_call.best_model_score) # and prints it score
                 chkpoint = torch.load(ckpt_call.best_model_path)
                 ind_c2y_model.load_state_dict(chkpoint["state_dict"])
             if ind_c2y_val_dl is not None:

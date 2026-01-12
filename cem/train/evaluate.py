@@ -20,6 +20,7 @@ import cem.utils.data as data_utils
 import cem.metrics.accs as accs
 
 from cem.metrics.cas import concept_alignment_score
+from cem.models.cbm import ConceptBottleneckModel
 from cem.models.construction import load_trained_model
 
 
@@ -340,11 +341,15 @@ def evaluate_representation_metrics(
     seed=None,
     old_results=None,
     test_subsampling=1,
+    dl_name="test",
+    skip_datasets=None,
 ):
     result_dict = {}
     if config.get("rerun_repr_evaluation", False):
         rerun = True
-    if config.get("skip_repr_evaluation", False):
+    if config.get("skip_repr_evaluation", False) or (
+        dl_name in (skip_datasets or [])
+    ):
         return {}
     test_subsampling = config.get(
         'test_repr_subsampling',
@@ -359,6 +364,7 @@ def evaluate_representation_metrics(
         num_workers=config.get('num_load_workers', config.get('num_workers', 1)),
     )
     c_test_np = None
+    y_test_np = None
 
     # Now include the competence that we will assume
     # for all concepts
@@ -404,16 +410,190 @@ def evaluate_representation_metrics(
         list(map(lambda x: x[1].detach().cpu().numpy(), batch_results)),
         axis=0,
     )
-    if config.get('extra_dims', 0) != 0:
-        # Then we will only use the extra dims as the embedding as those
-        # correspond to the learnt embeddings only
-        c_pred = c_pred[:, -config.get('extra_dims', 0):]
+    # if config.get('extra_dims', 0) != 0:
+    #     # Then we will only use the extra dims as the embedding as those
+    #     # correspond to the learnt embeddings only
+    #     c_pred = c_pred[:, -config.get('extra_dims', 0):]
 
-    c_pred = np.reshape(c_pred, (c_test.shape[0], n_concepts, -1))
+    if getattr(cbm, 'extra_dims', 0) > 0:
+        # Then we will copy the shared extra capacity dimensions into the
+        # representations of all concepts to generate a (B, n_concepts, extra_dims + 1)
+        # tensor
+        c_pred_expanded = np.zeros(
+            (c_pred.shape[0], n_concepts, cbm.extra_dims + 1),
+        )
+        for concept_idx in range(n_concepts):
+            c_pred_expanded[:, concept_idx, 0] = c_pred[:, concept_idx]
+            c_pred_expanded[:, concept_idx, 1:] = c_pred[:, -cbm.extra_dims:]
+        c_pred = c_pred_expanded
+    else:
+        c_pred = np.reshape(c_pred, (c_test.shape[0], n_concepts, -1))
+    c_soft_train = None
+    y_train_np = None
+    c_train = None
+    if config.get("run_repr_task_matrix", False):
+        repr_task_key = f'{dl_name}_repr_task_matrix'
+        logging.info(f"Computing Representation-to-task Matrix...")
+        if y_test_np is None:
+            y_test_np = y_test.detach().cpu().numpy()
+        if train_dl is not None:
+            y_train, c_train = data_utils.daloader_to_memory(
+                train_dl,
+                as_torch=True,
+                num_workers=config.get(
+                    'num_load_workers',
+                    config.get('num_workers', 1),
+                ),
+                only_labels=True,
+            )
+            train_batch_results = trainer.predict(cbm, train_dl)
+            c_train_pred = np.concatenate(
+                list(map(
+                    lambda x: x[1].detach().cpu().numpy(),
+                    train_batch_results,
+                )),
+                axis=0,
+            )
+            if getattr(cbm, 'extra_dims', 0) > 0:
+                # Then we will copy the shared extra capacity dimensions into the
+                # representations of all concepts to generate a
+                # (B, n_concepts, extra_dims + 1) tensor
+                c_train_pred_expanded = np.zeros(
+                    (c_train_pred.shape[0], n_concepts, cbm.extra_dims + 1),
+                )
+                for concept_idx in range(n_concepts):
+                    c_train_pred_expanded[:, concept_idx, 0] = \
+                        c_train_pred[:, concept_idx]
+                    c_train_pred_expanded[:, concept_idx, 1:] = \
+                        c_train_pred[:, -cbm.extra_dims:]
+                c_train_pred = c_train_pred_expanded
+            else:
+                c_train_pred = np.reshape(
+                    c_train_pred,
+                    (y_train.shape[0], n_concepts, -1),
+                )
+            c_soft_train = np.transpose(c_train_pred, (0, 2, 1))
+            y_train_np = y_train.detach().cpu().numpy()
+        else:
+            c_soft_train = None
+            y_train_np = None
+
+        repr_task_matrix, loaded = utils.execute_and_save(
+            fun=utils.load_call,
+            kwargs=dict(
+                keys=[repr_task_key],
+                old_results=old_results,
+                rerun=rerun,
+                function=oracle.task_purity_matrix,
+                run_name=run_name,
+                kwargs=dict(
+                    c_soft=np.transpose(c_pred, (0, 2, 1)),
+                    y_true=y_test_np,
+                    c_soft_train=c_soft_train,
+                    y_true_train=y_train_np,
+                    predictor_train_kwags={
+                        'epochs': config.get("ois_epochs", 50),
+                        'batch_size': min(
+                            512,
+                            (
+                                y_test_np.shape[0] if y_train_np is None
+                                else y_train_np.shape[0]
+                            ),
+                        ),
+                        'verbose': 0,
+                    },
+                    test_size=0.2,
+                ),
+            ),
+            result_dir=result_dir,
+            filename=f'{repr_task_key}_{run_name}_split_{split}.joblib',
+            rerun=rerun,
+        )
+        logging.info(f"\tDone.... mean repr task matrix score is {np.mean(repr_task_matrix)*100:.2f}%")
+        logging.info(f"\t........ repr task matrix is {repr_task_matrix}")
+        result_dict[repr_task_key] = repr_task_matrix
+        result_dict["mean_" + repr_task_key] = np.mean(repr_task_matrix)
 
     oracle_matrix = None
+    purity_matrix = None
+    if config.get("run_purity_matrix", False):
+        purity_key = f'{dl_name}_purity_matrix'
+        logging.info(f"Computing Purity Matrix...")
+        if c_test_np is None:
+            c_test_np = c_test.detach().cpu().numpy()
+
+        if ((c_soft_train is None) or (c_train is None)) and (
+            train_dl is not None
+        ):
+            _, c_train = data_utils.daloader_to_memory(
+                train_dl,
+                as_torch=True,
+                num_workers=config.get('num_load_workers', config.get('num_workers', 1)),
+                only_labels=True,
+            )
+            train_batch_results = trainer.predict(cbm, train_dl)
+            c_train_pred = np.concatenate(
+                list(map(lambda x: x[1].detach().cpu().numpy(), train_batch_results)),
+                axis=0,
+            )
+            if getattr(cbm, 'extra_dims', 0) > 0:
+                # Then we will copy the shared extra capacity dimensions into the
+                # representations of all concepts to generate a
+                # (B, n_concepts, extra_dims + 1) tensor
+                c_train_pred_expanded = np.zeros(
+                    (c_train_pred.shape[0], n_concepts, cbm.extra_dims + 1),
+                )
+                for concept_idx in range(n_concepts):
+                    c_train_pred_expanded[:, concept_idx, 0] = \
+                        c_train_pred[:, concept_idx]
+                    c_train_pred_expanded[:, concept_idx, 1:] = \
+                        c_train_pred[:, -cbm.extra_dims:]
+                c_train_pred = c_train_pred_expanded
+            else:
+                c_train_pred = np.reshape(
+                    c_train_pred,
+                    (y_train.shape[0], n_concepts, -1),
+                )
+            c_soft_train = np.transpose(c_train_pred, (0, 2, 1))
+        if c_train is not None:
+            c_train_np = c_train.detach().cpu().numpy()
+        purity_matrix, loaded = utils.execute_and_save(
+            fun=utils.load_call,
+            kwargs=dict(
+                keys=[purity_key],
+                old_results=old_results,
+                rerun=rerun,
+                function=oracle.concept_purity_matrix,
+                run_name=run_name,
+                kwargs=dict(
+                    c_soft=np.transpose(c_pred, (0, 2, 1)),
+                    c_true=c_test_np,
+                    c_soft_train=c_soft_train,
+                    c_true_train=c_train_np,
+                    predictor_train_kwags={
+                        'epochs': config.get("ois_epochs", 50),
+                        'batch_size': min(2048, c_test_np.shape[0]),
+                        'verbose': 0,
+                    },
+                    test_size=0.2,
+                    jointly_learnt=True,
+                ),
+            ),
+            result_dir=result_dir,
+            filename=f'{purity_key}_{run_name}_split_{split}.joblib',
+            rerun=rerun,
+        )
+        logging.info(f"\tDone.... mean purity matrix score is {np.mean(purity_matrix)*100:.2f}%")
+        logging.info(f"\tDone.... mean diag purity matrix score is {np.mean(np.diag(purity_matrix))*100:.2f}%")
+        logging.info(f"\tDone.... mean off-diag purity matrix score is {np.sum(purity_matrix - np.diag(np.diag(purity_matrix)))*100/(n_concepts*(n_concepts-1)):.2f}%")
+        logging.info(f"\t........ diagonal of purity matrix is {np.diag(purity_matrix)}")
+        result_dict[purity_key] = purity_matrix
+        result_dict["mean_" + purity_key] = np.mean(purity_matrix)
+        result_dict["mean_diag_" + purity_key] = np.mean(np.diag(purity_matrix))
+        result_dict["mean_offdiag_" + purity_key] = np.sum(purity_matrix - np.diag(np.diag(purity_matrix)))/(n_concepts*(n_concepts-1))
+
     if config.get("run_ois", True):
-        ois_key = f'test_ois'
+        ois_key = f'{dl_name}_ois'
         logging.info(f"Computing OIS score...")
         if os.path.exists(
             os.path.join(result_dir, f'oracle_matrix.npy')
@@ -443,6 +623,7 @@ def evaluate_representation_metrics(
                     oracle_matrix=oracle_matrix,
                     jointly_learnt=True,
                     output_matrices=True,
+                    purity_matrix=purity_matrix,
                 ),
             ),
             result_dir=result_dir,
@@ -500,7 +681,7 @@ def evaluate_representation_metrics(
             (c_pred_train.shape[0], n_concepts, -1),
         )
 
-        repr_task_pred_key = f'test_repr_task_pred'
+        repr_task_pred_key = f'{dl_name}_repr_task_pred'
         logging.info(
             f"Computing avg task predictibility from learnt concept reprs..."
         )
@@ -533,7 +714,7 @@ def evaluate_representation_metrics(
 
     if config.get("run_nis", True):
         # Niche impurity score now
-        nis_key = f'test_nis'
+        nis_key = f'{dl_name}_nis'
         logging.info(f"Computing NIS score...")
         if c_test_np is None:
             c_test_np = c_test.detach().cpu().numpy()
@@ -562,7 +743,7 @@ def evaluate_representation_metrics(
         result_dict[nis_key] = nis
 
     if config.get("run_cas", True):
-        cas_key = f'test_cas'
+        cas_key = f'{dl_name}_cas'
         logging.info(
             f"Computing entire representation CAS score..."
         )

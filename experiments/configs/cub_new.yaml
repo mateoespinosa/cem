@@ -1,0 +1,521 @@
+model_selection_groups:
+  - ["DNN_new", "DNN"]
+  - ["Joint CBM", "Joint CBM"]
+  - ["Joint Logit CBM", "Joint Logit CBM"]
+  - ["Sequential CBM", "Sequential CBM"]
+  - ["Independent CBM", "Independent CBM"]
+  - ["CEM", "CEM"]
+  - ["^(CEM_NoRandInt).*$", "CEM (No RandInt)"]
+  - ["^(CEM_prior_loss_term).*$", "CEM (Prior Loss)"]
+  - ["IntCEM", "IntCEM"]
+  - ["ProbCBM", "ProbCBM"]
+  - ["Posthoc CBM", "Posthoc CBM"]
+  - ["Posthoc Hybrid CBM", "Posthoc Hybrid CBM"]
+  - ["MixCEM", "MixCEM"]
+  - [".*(MixCEM_pint_0_).*$", "MixCEM (No RandInt)"]
+  - ["MixCEM_pint_{training_intervention_prob}_lambda_{concept_loss_weight}", "MixCEM (RandInt)"]
+  - ["^(Hybrid-CBM_dims_).*", "Hybrid-CBM"]
+  - ["^(Hybrid-CBM_dims_).*(_pint_.*)", "Hybrid-CBM (RandInt)"]
+  - ["^(Hybrid-CBM_dims_).*(_prior_loss_term_).*", "Hybrid-CBM (Prior Loss)"]
+
+
+shared_params:
+  results_dir: /anfs/bigdisc/me466/mixcem_results/cub_complete/
+  trials: 3
+  model_selection_trials: 3
+  results_fname: new_results
+  dataset_config:
+    dataset: "cub"
+    num_workers: 8
+    batch_size: 64
+    root_dir: /homes/me466/data/CUB200/
+    sampling_percent: 1
+    sampling_groups: true
+    test_subsampling: 1
+    weight_loss: true
+
+  intervention_config:
+    competence_levels: [1]
+    intervention_freq: 1
+    intervention_batch_size: 64 #512
+    val_intervention_policies:
+      - policy: "random"
+        group_level: true
+        use_prior: false
+    intervention_policies:
+      - policy: "random"
+        group_level: true
+        use_prior: false
+      # # Remove the following if you are only interested in random interventions
+      # - policy: "random"
+      #   group_level: true
+      #   use_prior: true
+      #   include_run_names: [".*(IntCEM).*"]
+      # - policy: "coop"
+      #   group_level: true
+      #   use_prior: false
+      # - policy: "behavioural_cloning"
+      #   group_level: true
+      #   use_prior: false
+      # - policy: "optimal_greedy"
+      #   group_level: true
+      #   use_prior: false
+      # - policy: "global_val_error"
+      #   group_level: true
+      #   use_prior: false
+      # - policy: "global_val_improvement"
+      #   group_level: true
+      #   use_prior: false
+      #########################################################################
+  eval_config:
+    additional_metrics:
+      - name: "mixcem_sel"
+        include_list: [".*(MixCEM).*"]
+    additional_test_sets:
+      # - name: "OOD_sap_0.01"
+      #   update_previous: true
+      #   dataset_config:
+      #     test_transformation_config:
+      #       post_generation: false
+      #       name: "salt_and_pepper"
+      #       amount: 0.01
+      #       s_vs_p: 0.5
+      # - name: "OOD_sap_0.05"
+      #   update_previous: true
+      #   dataset_config:
+      #     test_transformation_config:
+      #       post_generation: false
+      #       name: "salt_and_pepper"
+      #       amount: 0.05
+      #       s_vs_p: 0.5
+      - name: "OOD_sap_0.1"
+        update_previous: true
+        dataset_config:
+          test_transformation_config:
+            post_generation: false
+            name: "salt_and_pepper"
+            amount: 0.1
+            s_vs_p: 0.5
+      # - name: "OOD_sap_0.25"
+      #   update_previous: true
+      #   dataset_config:
+      #     test_transformation_config:
+      #       post_generation: false
+      #       name: "salt_and_pepper"
+      #       amount: 0.25
+      #       s_vs_p: 0.5
+      # - name: "OOD_sap_0.5"
+      #   update_previous: true
+      #   dataset_config:
+      #     test_transformation_config:
+      #       post_generation: false
+      #       name: "salt_and_pepper"
+      #       amount: 0.5
+      #       s_vs_p: 0.5
+      # - name: "OOD_sap_0.75"
+      #   update_previous: true
+      #   dataset_config:
+      #     test_transformation_config:
+      #       post_generation: false
+      #       name: "salt_and_pepper"
+      #       amount: 0.75
+      #       s_vs_p: 0.5
+      # - name: "OOD_sap_0.9"
+      #   update_previous: true
+      #   dataset_config:
+      #     test_transformation_config:
+      #       post_generation: false
+      #       name: "salt_and_pepper"
+      #       amount: 0.9
+      #       s_vs_p: 0.5
+      # - name: "OOD_sap_0.99"
+      #   update_previous: true
+      #   dataset_config:
+      #     test_transformation_config:
+      #       post_generation: false
+      #       name: "salt_and_pepper"
+      #       amount: 0.99
+      #       s_vs_p: 0.5
+
+  skip_repr_evaluation: true
+  max_epochs: 100
+  top_k_accuracy: null
+  save_model: true
+  patience: 15
+  emb_size: 16
+  extra_dims: 0
+  concept_loss_weight: [1, 5, 10]
+  learning_rate: 0.01
+  weight_decay: 4.0e-06
+  weight_loss: true
+  c_extractor_arch: "resnet18"
+  optimizer: "sgd"
+  bool: false
+  early_stopping_monitor: "val_loss"
+  early_stopping_mode: "min"
+  early_stopping_delta: 0.0
+  momentum: 0.9
+  sigmoidal_prob: false
+  training_intervention_prob: 0
+  num_load_workers: 0
+runs:
+
+  - architecture: "ConceptBottleneckModel"
+    run_name: "DNN_new"
+    extra_dims: 500
+    concept_loss_weight: 0
+    sigmoidal_prob: true
+    embedding_activation: "leakyrelu"
+
+  - architecture: "ConceptBottleneckModel"
+    run_name: "Joint CBM"
+    concept_loss_weight: 10
+    sigmoidal_prob: true
+    embedding_activation: "leakyrelu"
+    sigmoidal_extra_capacity: false
+
+  - architecture: "ConceptBottleneckModel"
+    run_name: "Joint Logit CBM"
+    concept_loss_weight: 10
+    embedding_activation: "leakyrelu"
+    sigmoidal_extra_capacity: false
+
+  - architecture: "SequentialConceptBottleneckModel"
+    run_name: "Sequential CBM"
+    concept_loss_weight: 1
+    sigmoidal_prob: true
+    embedding_activation: "leakyrelu"
+    sigmoidal_extra_capacity: false
+
+  - architecture: "IndependentConceptBottleneckModel"
+    run_name: "Independent CBM"
+    concept_loss_weight: 1
+    sigmoidal_prob: true
+    embedding_activation: "leakyrelu"
+    sigmoidal_extra_capacity: false
+
+  - architecture: "ConceptBottleneckModel"
+    run_name: "Hybrid-CBM"
+    extra_dims: 50
+    concept_loss_weight: 5
+    sigmoidal_prob: true
+    embedding_activation: "leakyrelu"
+
+  - architecture: "ConceptEmbeddingModel"
+    run_name: "CEM"
+    concept_loss_weight: 1
+    sigmoidal_prob: true
+    training_intervention_prob: 0.25
+    embedding_activation: "leakyrelu"
+
+  - architecture: "ConceptEmbeddingModel"
+    run_name: "CEM_NoRandInt"
+    concept_loss_weight: 1
+    sigmoidal_prob: true
+    training_intervention_prob: 0
+    embedding_activation: "leakyrelu"
+
+  - architecture: "ConceptEmbeddingModel"
+    run_name: "CEM_pint_{training_intervention_prob}"
+    concept_loss_weight: 1
+    sigmoidal_prob: true
+    training_intervention_prob: [1, 0.9, 0.5]
+    embedding_activation: "leakyrelu"
+    grid_variables:
+      - training_intervention_prob
+    grid_search_mode: exhaustive
+
+  # - architecture: "MixCEM"
+  #   run_name: "MixCEM_pint_{training_intervention_prob}"
+  #   concept_loss_weight: 1
+  #   training_intervention_prob: [0, 0.25, 1]
+  #   all_intervened_loss_weight: 1
+  #   ood_dropout_prob: 0.9
+  #   calibration_epochs: 30
+  #   grid_variables:
+  #     - training_intervention_prob
+  #   grid_search_mode: exhaustive
+
+  - architecture: "ConceptEmbeddingModel"
+    run_name: "CEM_prior_loss_term_{prior_loss_term}"
+    concept_loss_weight: 1
+    sigmoidal_prob: true
+    training_intervention_prob: 0
+    prior_loss_term: [10, 1, 0.1]
+    embedding_activation: "leakyrelu"
+    grid_variables:
+      - prior_loss_term
+    grid_search_mode: exhaustive
+
+  # - architecture: "ConceptEmbeddingModel"
+  #   run_name: "CEM_emb_pred_loss_{emb_pred_loss}"
+  #   concept_loss_weight: 1
+  #   sigmoidal_prob: true
+  #   training_intervention_prob: 0
+  #   emb_pred_loss: [10, 1, 0.1]
+  #   embedding_activation: "leakyrelu"
+  #   grid_variables:
+  #     - emb_pred_loss
+  #   grid_search_mode: exhaustive
+
+  # - architecture: "ConceptEmbeddingModel"
+  #   run_name: "CEM_Dis_p_{sim_penalty}_thresh_{prob_training_thresholding}"
+  #   concept_loss_weight: 1
+  #   sigmoidal_prob: true
+  #   training_intervention_prob: 0
+  #   sim_penalty: [10, 0.1]
+  #   prob_training_thresholding: [0, 0.25]
+  #   embedding_activation: "leakyrelu"
+  #   grid_variables:
+  #     - sim_penalty
+  #     - prob_training_thresholding
+  #   grid_search_mode: exhaustive
+
+
+
+  # - architecture: "MixCEM"
+  #   run_name: "MixCEM_pint_{training_intervention_prob}_lambda_{concept_loss_weight}"
+  #   concept_loss_weight: [0.1, 1, 10]
+  #   training_intervention_prob: [0]
+  #   all_intervened_loss_weight: 1
+  #   ood_dropout_prob: 0.9
+  #   calibration_epochs: 30
+  #   grid_variables:
+  #     - training_intervention_prob
+  #     - concept_loss_weight
+  #   grid_search_mode: exhaustive
+
+
+
+
+  # - architecture: "ConceptEmbeddingModel"
+  #   run_name: "CEM_lamb_{concept_loss_weight}"
+  #   concept_loss_weight: [20, 10]
+  #   sigmoidal_prob: true
+  #   training_intervention_prob: 0
+  #   embedding_activation: "leakyrelu"
+  #   grid_variables:
+  #     - concept_loss_weight
+  #   grid_search_mode: exhaustive
+
+  # - architecture: "ConceptEmbeddingModel"
+  #   run_name: "CEM_Contrastive_p_{l2_penalty}_thresh_{prob_training_thresholding}"
+  #   concept_loss_weight: 1
+  #   sigmoidal_prob: true
+  #   training_intervention_prob: 0
+  #   l2_penalty: [0.1, 1, 10]
+  #   prob_training_thresholding: [0, 0.25]
+  #   embedding_activation: "leakyrelu"
+  #   grid_variables:
+  #     - l2_penalty
+  #     - prob_training_thresholding
+  #   grid_search_mode: exhaustive
+
+  - architecture: "IntAwareConceptEmbeddingModel"
+    run_name: "IntCEM"
+    concept_loss_weight: 1
+    training_intervention_prob: 0.25
+    intervention_weight: 1
+    intervention_task_discount: 1.5
+    use_concept_groups: true
+    int_model_use_bn: true
+    int_model_layers: [128, 128, 64, 64]
+    embedding_activation: "leakyrelu"
+    max_horizon: 6
+    horizon_rate: 1.005
+    gradient_clip_val: 100
+
+  - architecture: "ProbabilisticConceptBottleneckModel"
+    run_name: "ProbCBM"
+    concept_loss_weight: 1
+    learning_rate: 0.001
+    weight_decay: 0
+    weight_loss: false
+    optimizer: "adam"
+    n_samples_inference: 50
+    use_neg_concept: true
+    pred_class: true
+    init_negative_scale: 5
+    init_shift: 5
+    pretrained: true
+    hidden_dim: 32
+    class_hidden_dim: 128
+    intervention_prob: 0.5
+    gradient_clip_val: 2.0
+    max_concept_epochs: 50
+    warmup_epochs: 5
+    max_task_epochs: 50
+    vib_beta: 5.0e-05
+    lr_ratio: 10
+
+  - architecture: "PosthocConceptBottleneckModel"
+    run_name: "Posthoc CBM"
+    emb_size: null
+    residual: false
+    reg_strength: 1.0e-06
+    l1_ratio: 0.99
+    freeze_pretrained_model: true
+    freeze_concept_embeddings: true
+    svd_penalty: 1
+    active_top_percentile: 95
+    active_bottom_percentile: 5
+    blackbox_model_config:
+      name: "resnet18"
+      imagenet_pretrained: true
+      add_linear_layers: [112]
+    blackbox_training_epochs: 100
+    max_residual_epochs: 100
+    blackbox_path: "PCBM_BlackBox_Model_resnet18_pre_True_fold_2_layers_[112]"
+
+  - architecture: "PosthocConceptBottleneckModel"
+    run_name: "Posthoc Hybrid CBM"
+    emb_size: null
+    residual: true
+    reg_strength: 1.0e-06
+    l1_ratio: 0.99
+    freeze_pretrained_model: true
+    freeze_concept_embeddings: true
+    svd_penalty: 1
+    blackbox_model_config:
+      name: "resnet18"
+      imagenet_pretrained: true
+      add_linear_layers: [112]
+    blackbox_training_epochs: 100
+    max_residual_epochs: 100
+    blackbox_path: "PCBM_BlackBox_Model_resnet18_pre_True_fold_2_layers_[112]"
+
+  # - architecture: "ConceptToLabelModel"
+  #   run_name: "Bayes MLP"
+  #   max_epochs: 75
+  #   c2y_layers: [128, 64, 32]
+  #   feature_drop_out: 0.25
+
+  - architecture: "MixCEM"
+    run_name: "MixCEM"
+    concept_loss_weight: 1
+    training_intervention_prob: 0.25
+    load_path_name: "MixCEM_r_1_g_ood_0.9_cwl_1_ce_0"
+    all_intervened_loss_weight: 1
+    ood_dropout_prob: 0.9
+    calibration_epochs: 30
+
+  - architecture: "MixCEM"
+    run_name: "MixCEM_pint_{training_intervention_prob}_lambda_{concept_loss_weight}"
+    training_intervention_prob: [0, 0.25, 0.5, 1]
+    concept_loss_weight: 1
+    all_intervened_loss_weight: 1
+    ood_dropout_prob: 0.9
+    calibration_epochs: 30
+    grid_variables:
+      - training_intervention_prob
+    grid_search_mode: exhaustive
+
+
+
+
+  - architecture: "ConceptBottleneckModel"
+    run_name: "Hybrid-CBM_dims_{extra_dims}"
+    extra_dims: [500, 100, 50, 10]
+    sigmoidal_prob: true
+    concept_loss_weight: 5
+    embedding_activation: "leakyrelu"
+    grid_variables:
+      - extra_dims
+    grid_search_mode: exhaustive
+
+  - architecture: "ConceptBottleneckModel"
+    run_name: "Hybrid-CBM_dims_{extra_dims}_pint_{training_intervention_prob}"
+    extra_dims: 500
+    training_intervention_prob: [1, 0.5, 0.25]
+    sigmoidal_prob: true
+    concept_loss_weight: 5
+    embedding_activation: "leakyrelu"
+    grid_variables:
+      - training_intervention_prob
+    grid_search_mode: exhaustive
+
+  - architecture: "ConceptBottleneckModel"
+    run_name: "Hybrid-CBM_dims_{extra_dims}_prior_loss_term_{prior_loss_term}_only_con_{prior_only_concepts}"
+    extra_dims: 500
+    prior_loss_term: [10, 5, 1, 0.1]
+    sigmoidal_prob: true
+    concept_loss_weight: 5
+    embedding_activation: "leakyrelu"
+    prior_only_concepts: [True, False]
+    grid_variables:
+      - prior_loss_term
+      - prior_only_concepts
+    grid_search_mode: exhaustive
+
+  - architecture: "ConceptBottleneckModel"
+    run_name: "Hybrid-CBM_dims_{extra_dims}_prior_loss_term_{prior_loss_term}_only_con_{prior_only_concepts}"
+    extra_dims: [1000, 500, 250, 125, 50, 25]
+    prior_loss_term: [5]
+    sigmoidal_prob: true
+    concept_loss_weight: 5
+    embedding_activation: "leakyrelu"
+    prior_only_concepts: [False]
+    grid_variables:
+      - extra_dims
+      - prior_loss_term
+      - prior_only_concepts
+    grid_search_mode: exhaustive
+
+
+
+
+
+
+
+
+  # - architecture: BertCBM
+  #   run_name: "BertCBM_d_model_{d_model}_heads_{n_heads}_layers_{n_layers}_mask_prob_{mask_prob}_ts_{train_steps}_cw_{concept_loss_weight}"
+  #   concept_loss_weight: [1]
+  #   d_model: [32]
+  #   n_heads: [1]
+  #   n_layers: [1]
+
+  #   task_loss_weight: 0 # REMOVE!!!!!!!!!!!!!!!!!!!
+  #   mask_prob: [0.95]
+  #   task_mask_prob: 1
+  #   mask_rate: 1
+  #   max_prob: 1
+
+  #   # mask_prob: [0.01]
+  #   # task_mask_prob: 0.8
+  #   # mask_rate: 1.1
+  #   # max_prob: 0.95
+
+  #   train_steps: 1
+  #   infer_steps: 1
+  #   unmasked_loss_weight: 0.1
+  #   concept_head: linear
+
+
+  #   c_extractor_arch: resnet18
+  #   pretrained_clip: null
+  #   clip_weights: null
+  #   freeze_backbone: False
+
+  #   # mask_prob: [0.05] #[1, 0.9, 0.75, 0.5, 0.25, 0.1, 0]
+
+  #   # pretrained_clip: "ViT-B-32"
+  #   # clip_weights: "laion2b_s34b_b79k"
+  #   # c_extractor_arch: clip
+  #   # freeze_backbone: true
+
+
+  #   # learning_rate: 0.001 #0.01
+  #   # weight_decay: 4.0e-06
+  #   # weight_loss: true
+  #   # optimizer: adam
+
+
+  #   mask_id: -1
+  #   grid_variables:
+  #     - concept_loss_weight
+  #     - mask_prob
+  #     - d_model
+  #     - n_heads
+  #     - n_layers
+  #   grid_search_mode: exhaustive

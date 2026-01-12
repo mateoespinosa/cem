@@ -7,6 +7,7 @@ import torch
 from torchvision.models import resnet18, resnet34, resnet50, densenet121
 
 import cem.models.cbm as models_cbm
+import cem.models.cbm_bert as models_cbm_bert
 import cem.models.cem as models_cem
 import cem.models.concept_to_label as models_c2l
 import cem.models.glancenet as models_glancenet
@@ -51,6 +52,27 @@ def construct_model(
     train=False,
 ):
     task_loss_weight = config.get('task_loss_weight', 1.0)
+
+    if isinstance(config["c_extractor_arch"], str):
+        if config["c_extractor_arch"] == "resnet18":
+            c_extractor_arch = resnet18
+        elif config["c_extractor_arch"] == "resnet34":
+            c_extractor_arch = resnet34
+        elif config["c_extractor_arch"] == "resnet50":
+            c_extractor_arch = resnet50
+        elif config["c_extractor_arch"] == "densenet121":
+            c_extractor_arch = densenet121
+        elif  config["c_extractor_arch"] == "identity":
+            c_extractor_arch = "identity"
+        elif  config["c_extractor_arch"] == "clip":
+            c_extractor_arch = "clip"
+        else:
+            raise ValueError(f'Invalid model_to_use "{config["model_to_use"]}"')
+    else:
+        c_extractor_arch = config["c_extractor_arch"]
+    if c_extractor_arch != "clip":
+        c_extractor_arch = utils.wrap_pretrained_model(c_extractor_arch)
+
     if config["architecture"] in ["ConceptEmbeddingModel", "CEM"]:
         model_cls = models_cem.ConceptEmbeddingModel
         extra_params = {
@@ -67,10 +89,38 @@ def construct_model(
             ),
             "c2y_model": c2y_model,
             "c2y_layers": config.get("c2y_layers", []),
+            "sim_penalty": config.get("sim_penalty", 0.0),
+            "prob_training_thresholding": config.get("prob_training_thresholding", 0),
+            "l2_penalty": config.get("l2_penalty", 0.0),
+            "emb_pred_loss": config.get("emb_pred_loss", 0.0),
+            "cbm_mode": config.get("cbm_mode", False),
         }
         if "embeding_activation" in config:
             # Legacy support for typo in argument
             extra_params["embedding_activation"] = config["embeding_activation"]
+
+    elif config["architecture"] in ["EntangledHybridCBM", "EHCBM"]:
+        model_cls = models_cbm.EntangledHybridCBM
+        extra_params = {
+            "bool": config.get("bool", False),
+            "extra_dims": config.get("extra_dims", 0),
+            "sigmoidal_prob": config.get("sigmoidal_prob", True),
+            "intervention_policy": intervention_policy,
+            "bottleneck_nonlinear": config.get("bottleneck_nonlinear", None),
+            "active_intervention_values": active_intervention_values,
+            "inactive_intervention_values": inactive_intervention_values,
+            "x2c_model": x2c_model,
+            "c2y_model": c2y_model,
+            "c2y_layers": config.get("c2y_layers", []),
+            "training_intervention_prob": config.get(
+                "training_intervention_prob",
+                0.0,
+            ),
+            "entanglement_mode": config.get("entanglement_mode", "additive"),
+            "l2_reg_residual_weights": config.get("l2_reg_residual_weights", 0.0),
+            "prior_loss_term": config.get("prior_loss_term", 0.0),
+            "prior_only_concepts": config.get("prior_only_concepts", False),
+        }
 
     elif config["architecture"] in [
         "ProbCBM",
@@ -467,6 +517,32 @@ def construct_model(
         )
 
     elif (
+        "BertCBM" in config["architecture"]
+    ):
+        model_cls = models_cbm_bert.BertCBM
+        extra_params = {
+            "intervention_policy": intervention_policy,
+            "active_intervention_values": active_intervention_values,
+            "inactive_intervention_values": inactive_intervention_values,
+            "concept_descriptions": config.pop("concept_descriptions", None),
+            "d_model": config.get("d_model", 512),
+            "n_heads": config.get("n_heads", 4),
+            "n_layers": config.get("n_layers", 2),
+            "mask_prob": config.get("mask_prob", 0.3),
+            "train_steps": config.get("train_steps", 2),
+            "infer_steps": config.get("infer_steps", 3),
+            "pretrained_clip": config.get("pretrained_clip", "ViT-B-32"),
+            "clip_weights": config.get("clip_weights", "laion2b_s34b_b79k"),
+            "mask_id": config.get("mask_id", -1),
+            "task_mask_prob": config.get('task_mask_prob', None),
+            "freeze_backbone": config.get("freeze_backbone", True),
+            "unmasked_loss_weight": config.get("unmasked_loss_weight", 0.1),
+            "concept_head": config.get("concept_head", "linear"),
+            "mask_rate": config.get("mask_rate", None),
+            "max_prob": config.get("max_prob", 1),
+        }
+
+    elif (
         "ConceptBottleneckModel" in config["architecture"] or
         "CBM" in config["architecture"]
     ):
@@ -486,6 +562,12 @@ def construct_model(
             "x2c_model": x2c_model,
             "c2y_model": c2y_model,
             "c2y_layers": config.get("c2y_layers", []),
+            "training_intervention_prob": config.get(
+                "training_intervention_prob",
+                0.0,
+            ),
+            "prior_loss_term": config.get("prior_loss_term", 0.0),
+            "prior_only_concepts": config.get("prior_only_concepts", False),
         }
 
     elif (
@@ -568,22 +650,6 @@ def construct_model(
     else:
         raise ValueError(f'Invalid architecture "{config["architecture"]}"')
 
-    if isinstance(config["c_extractor_arch"], str):
-        if config["c_extractor_arch"] == "resnet18":
-            c_extractor_arch = resnet18
-        elif config["c_extractor_arch"] == "resnet34":
-            c_extractor_arch = resnet34
-        elif config["c_extractor_arch"] == "resnet50":
-            c_extractor_arch = resnet50
-        elif config["c_extractor_arch"] == "densenet121":
-            c_extractor_arch = densenet121
-        elif  config["c_extractor_arch"] == "identity":
-            c_extractor_arch = "identity"
-        else:
-            raise ValueError(f'Invalid model_to_use "{config["model_to_use"]}"')
-    else:
-        c_extractor_arch = config["c_extractor_arch"]
-
     # Create model
     return model_cls(
         n_concepts=n_concepts,
@@ -602,7 +668,7 @@ def construct_model(
         task_loss_weight=task_loss_weight,
         learning_rate=config.get('learning_rate', 1e-3),
         weight_decay=config.get('weight_decay', 0),
-        c_extractor_arch=utils.wrap_pretrained_model(c_extractor_arch),
+        c_extractor_arch=c_extractor_arch,
         optimizer=config.get('optimizer', 'sgd'),
         lr_scheduler_factor=config.get('lr_scheduler_factor', 0.1),
         lr_scheduler_patience=config.get('lr_scheduler_patience', 10),

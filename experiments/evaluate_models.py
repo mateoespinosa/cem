@@ -195,6 +195,9 @@ def evaluate_model(
                 rerun=rerun,
                 seed=42,
                 old_results=old_results,
+                dl_name=dl_name,
+                skip_datasets=config.get('skip_repr_eval_datasets', []),
+                train_dl=train_dl,
             )
         )
 

@@ -539,6 +539,15 @@ def _generate_dataset_and_update_config(
                 config=experiment_config,
                 root_dir=dataset_config.get('root_dir', None),
             )
+    if (data_module is not None) and hasattr(
+        data_module,
+        'get_concept_descriptions',
+    ):
+        experiment_config['concept_descriptions'] = \
+            data_module.get_concept_descriptions(
+                config=experiment_config,
+                root_dir=dataset_config.get('root_dir', None),
+            )
 
     return (
         train_dl,
@@ -871,6 +880,7 @@ def main(
     use_dataset_cache=False,
     extra_datasets_filter_in_file=None,
     reverse_experiments=False,
+    results_fname=None,
 ):
     seed_everything(42)
     # parameters for data, model, and training
@@ -904,6 +914,7 @@ def main(
     )
     models_selected_to_continue = None
     included_models = None
+    results_fname = shared_params.get('results_fname', 'results')
 
     os.makedirs(result_dir, exist_ok=True)
     results = {}
@@ -994,7 +1005,7 @@ def main(
                 # Determine training rerun or not
                 current_results_path = os.path.join(
                     result_dir,
-                    f'{run_name}_split_{split}_results.joblib'
+                    f'{run_name}_split_{split}_{results_fname}.joblib'
                 )
                 current_rerun = experiment_utils.determine_rerun(
                     config=run_config,
@@ -1123,7 +1134,7 @@ def main(
                 while attempt < 5:
                     try:
                         with open(
-                            os.path.join(result_dir, f'results.joblib'),
+                            os.path.join(result_dir, f'{results_fname}.joblib'),
                             'wb',
                         ) as f:
                             joblib.dump(results, f)
@@ -1132,13 +1143,13 @@ def main(
                         print(e)
                         print(
                             "FAILED TO SERIALIZE RESULTS TO",
-                            os.path.join(result_dir, f'results.joblib')
+                            os.path.join(result_dir, f'{results_fname}.joblib')
                         )
                         attempt += 1
                 if attempt == 5:
                     raise ValueError(
                         "Could not serialize " +
-                        os.path.join(result_dir, f'results.joblib') +
+                        os.path.join(result_dir, f'{results_fname}.joblib') +
                         " to disk"
                     )
                 then = datetime.now()
@@ -1490,8 +1501,12 @@ if __name__ == '__main__':
         loaded_config['results_dir'] = args.output_dir
     if args.debug:
         print(json.dumps(loaded_config, sort_keys=True, indent=4))
-    logging.info(f"Results will be dumped in {loaded_config['results_dir']}")
-    Path(loaded_config['results_dir']).mkdir(parents=True, exist_ok=True)
+    results_dir = loaded_config.get(
+        'results_dir',
+        loaded_config.get('shared_params', {}).get('results_dir', 'results')
+    )
+    logging.info(f"Results will be dumped in {results_dir}")
+    Path(results_dir).mkdir(parents=True, exist_ok=True)
     # Write down the actual command executed
     # And the configuration file
     now = datetime.now()
@@ -1499,7 +1514,7 @@ if __name__ == '__main__':
     dt_string = now.strftime("%Y_%m_%d_%H_%M")
     loaded_config["time_last_called"] = now.strftime("%Y/%m/%d at %H:%M:%S")
     with open(
-        os.path.join(loaded_config['results_dir'], f"command_{dt_string}.txt"),
+        os.path.join(results_dir, f"command_{dt_string}.txt"),
         "w",
     ) as f:
         command_args = [
@@ -1508,7 +1523,7 @@ if __name__ == '__main__':
         command = "python " + " ".join(command_args) + "\n"
         f.write(command)
     with open(
-        os.path.join(loaded_config['results_dir'], f"last_run_command.txt"),
+        os.path.join(results_dir, f"last_run_command.txt"),
         "w",
     ) as f:
         f.write(command)
@@ -1516,7 +1531,7 @@ if __name__ == '__main__':
     # Also save the current experiment configuration
     with open(
         os.path.join(
-            loaded_config['results_dir'],
+            results_dir,
             f"experiment_{dt_string}_config.yaml")
         ,
         "w"
@@ -1525,7 +1540,7 @@ if __name__ == '__main__':
 
     with open(
         os.path.join(
-            loaded_config['results_dir'],
+            results_dir,
             f"last_run_experiment_config.yaml")
         ,
         "w"
@@ -1545,11 +1560,6 @@ if __name__ == '__main__':
     if args.model_selection_metrics:
         model_selection_metrics = args.model_selection_metrics
 
-    result_dir = (
-        args.output_dir if args.output_dir
-        else loaded_config.get('results_dir', 'results')
-    )
-
     given_filter_in_file = args.filter_in_file
     if args.only_previously_selected and model_selection_metrics:
         if given_filter_in_file is None:
@@ -1557,7 +1567,7 @@ if __name__ == '__main__':
         for model_selection_metric in model_selection_metrics:
             given_filter_in_file.append(
                 os.path.join(
-                    result_dir,
+                    results_dir,
                     f'selected_models_{model_selection_metric}.joblib'
                 )
             )
@@ -1590,7 +1600,7 @@ if __name__ == '__main__':
                 extra_datasets_filter_in_file.append(method_name)
     main(
         rerun=args.rerun,
-        result_dir=result_dir,
+        result_dir=results_dir,
         project_name=args.project_name,
         num_workers=args.num_workers,
         global_params=args.param,

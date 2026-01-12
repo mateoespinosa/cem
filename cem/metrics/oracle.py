@@ -153,6 +153,8 @@ def max_alignment_matrix(matrix):
 def concept_purity_matrix(
     c_soft,
     c_true,
+    c_soft_train=None,
+    c_true_train=None,
     concept_label_cardinality=None,
     predictor_model_fn=None,
     predictor_train_kwags=None,
@@ -277,6 +279,20 @@ def concept_purity_matrix(
                     f"{soft_labels.shape[0]} samples."
                 )
 
+    if (c_soft_train is not None) and isinstance(c_soft_train, np.ndarray):
+        # And for simplicity and consistency, we will rewrite c_soft as a
+        # list such that i-th entry contains an array with shape
+        # (n_samples, repr_size) indicating the representation of the i-th
+        # concept for all samples
+        new_c_soft_train = [None for _ in range(n_soft_concepts)]
+        for i in range(n_soft_concepts):
+            if len(c_soft_train.shape) == 1:
+                # If it is a scalar representation, then let's make it explicit
+                new_c_soft_train[i] = np.expand_dims(c_soft_train[..., i], axis=-1)
+            else:
+                new_c_soft_train[i] = c_soft_train[..., i]
+        c_soft_train = new_c_soft_train
+
     # Handle the default parameters for both the generating function and
     # the concept label cardinality
     if predictor_model_fn is None:
@@ -331,16 +347,22 @@ def concept_purity_matrix(
     # Split our test data into two subsets as we will need to train
     # a classifier and then use that trained classifier in the remainder of the
     # data for computing our scores
-    train_indexes, test_indexes = train_test_split(
-        list(range(n_samples)),
-        test_size=test_size,
-    )
+    if (c_soft_train is None) or (c_true_train is None):
+        train_indexes, test_indexes = train_test_split(
+            list(range(n_samples)),
+            test_size=test_size,
+        )
+        c_soft_train = [x[train_indexes, ...] for x in c_soft_train]
+        c_true_train = c_true[train_indexes, ...]
+        c_soft = [x[test_indexes, ...] for x in c_soft]
+        c_true = c_true[test_indexes, ...]
+
 
     for src_soft_concept in tqdm(range(n_soft_concepts)):
 
         # Construct a test and training set of features for this concept
-        concept_soft_train_x = c_soft[src_soft_concept][train_indexes, ...]
-        concept_soft_test_x = c_soft[src_soft_concept][test_indexes, ...]
+        concept_soft_train_x = c_soft_train[src_soft_concept]
+        concept_soft_test_x = c_soft[src_soft_concept]
         if len(concept_soft_train_x.shape) == 1:
             concept_soft_train_x = tf.expand_dims(
                 concept_soft_train_x,
@@ -363,13 +385,13 @@ def concept_purity_matrix(
             # Train it
             estimator.fit(
                 concept_soft_train_x,
-                c_true[train_indexes, :],
+                c_true_train,
                 **predictor_train_kwags,
             )
             # Compute the AUC of this classifier on the test data
             preds = estimator.predict(concept_soft_test_x)
             for tgt_true_concept in range(n_true_concepts):
-                true_concepts = c_true[test_indexes, tgt_true_concept]
+                true_concepts = c_true[:, tgt_true_concept]
                 used_preds = preds[:, tgt_true_concept]
                 if concept_label_cardinality[tgt_true_concept] > 2:
                     # Then lets apply a softmax activation over all the probability
@@ -426,13 +448,13 @@ def concept_purity_matrix(
                 # Train it
                 estimator.fit(
                     concept_soft_train_x,
-                    c_true[train_indexes, tgt_true_concept:(tgt_true_concept + 1)],
+                    c_true_train[:, tgt_true_concept:(tgt_true_concept + 1)],
                     **predictor_train_kwags,
                 )
 
                 # Compute the AUC of this classifier on the test data
                 preds = estimator.predict(concept_soft_test_x)
-                true_concepts = c_true[test_indexes, tgt_true_concept]
+                true_concepts = c_true[:, tgt_true_concept]
                 if concept_label_cardinality[tgt_true_concept] > 2:
                     # Then lets apply a softmax activation over all the
                     # probability classes
@@ -461,6 +483,180 @@ def concept_purity_matrix(
 
     # And that's all folks
     return result
+
+def task_purity_matrix(
+    c_soft,
+    y_true,
+    c_soft_train=None,
+    y_true_train=None,
+    predictor_model_fn=None,
+    predictor_train_kwags=None,
+    test_size=0.2,
+):
+    """
+    Computes a matrix of task purity scores for a set of soft concepts and a set
+    of true tasks.
+    Each entry in the resulting matrix corresponds to the accuracy of a
+    classifier trained to use the soft labels of a given concept to predict
+    the ground truth labels of a given task.
+    :param Or[np.ndarray, List[np.ndarray]] c_soft: Predicted set of "soft"
+        concept representations by a concept encoder model applied to the
+        testing data. This argument must be an np.ndarray with shape
+        (n_samples, ..., n_concepts) where the concept representation may be
+        of any rank as long as the last dimension is the dimension used to
+        separate distinct concept representations. If concepts have distinct
+        array shapes for their representations, then this argument is expected
+        to be a list of `n_concepts` np.ndarrays where the i-th element in the
+        list is an array with shape (n_samples, ...) containing the tensor
+        representation of the i-th concept.
+        Note that in either case we only require that the first dimension.
+    :param np.ndarray y_true: Ground truth task values in one-to-one
+        correspondence with samples in c_soft. Shape must be
+        (n_samples, n_tasks).
+    :param Function[(int, int), sklearn-like Estimator] predictor_model_fn: A
+        function generator that takes as an argument two values, the number of
+        the input concept and the number of classes for the output target task,
+        respectively, and produces an sklearn-like Estimator which one can
+        train for predicting a task given a concept's soft concept values. If
+        not given then we will use a 3-layer ReLU MLP as our predictor.
+    :param Dict[Any, Any] predictor_train_kwags: optional arguments to pass
+        the estimator being when calling its `fit` method.
+    :param float test_size: A value in [0, 1] indicating the fraction of the
+        given data that will be used to evaluate the trained concept-based
+        classifier. The rest of the data will be used for training said
+        classifier.
+    :return np.ndarray: a matrix with shape (n_concepts, n_tasks)
+        where the (i,j)-th entry specifies the testing accuracy of using the i-th
+        concept soft representations to predict the j-th task.
+    """
+    # Start by handling default arguments
+    predictor_train_kwags = predictor_train_kwags or {}
+
+    # Construct a list concept_label_cardinality that maps a concept to the
+    # cardinality of its label set as specified by the testing data
+    if isinstance(c_soft, np.ndarray):
+        n_soft_concepts = c_soft.shape[-1]
+    else:
+        assert isinstance(c_soft, list), (
+            f'c_soft must be passed as either a list or a np.ndarray. '
+            f'Instead we got an instance of "{type(c_soft).__name__}".'
+        )
+        n_soft_concepts = len(c_soft)
+
+    n_samples = y_true.shape[0]
+    if isinstance(c_soft, np.ndarray):
+        # And for simplicity and consistency, we will rewrite c_soft as a
+        # list such that i-th entry contains an array with shape
+        # (n_samples, repr_size) indicating the representation of the i-th
+        # concept for all samples
+        new_c_soft = [None for _ in range(n_soft_concepts)]
+        for i in range(n_soft_concepts):
+            if len(c_soft.shape) == 1:
+                # If it is a scalar representation, then let's make it explicit
+                new_c_soft[i] = np.expand_dims(c_soft[..., i], axis=-1)
+            else:
+                new_c_soft[i] = c_soft[..., i]
+        c_soft = new_c_soft
+
+    if (c_soft_train is not None) and isinstance(c_soft_train, np.ndarray):
+        # And for simplicity and consistency, we will rewrite c_soft as a
+        # list such that i-th entry contains an array with shape
+        # (n_samples, repr_size) indicating the representation of the i-th
+        # concept for all samples
+        new_c_soft_train = [None for _ in range(n_soft_concepts)]
+        for i in range(n_soft_concepts):
+            if len(c_soft_train.shape) == 1:
+                # If it is a scalar representation, then let's make it explicit
+                new_c_soft_train[i] = np.expand_dims(c_soft_train[..., i], axis=-1)
+            else:
+                new_c_soft_train[i] = c_soft_train[..., i]
+        c_soft_train = new_c_soft_train
+
+    # Handle the default parameters for both the generating function and
+    # the concept label cardinality
+    if predictor_model_fn is None:
+        # Then by default we will use a simple MLP classifier with one hidden
+        # ReLU layer with 32 units in it
+        def predictor_model_fn(
+            output_concept_classes=2,
+        ):
+            estimator = tf.keras.models.Sequential([
+                tf.keras.layers.Dense(
+                    32,
+                    activation='relu',
+                    name="predictor_fc_1",
+                ),
+                tf.keras.layers.Dense(
+                    output_concept_classes if output_concept_classes > 2 else 1,
+                    # We will merge the activation into the loss for numerical
+                    # stability
+                    activation=None,
+                    name="predictor_fc_out",
+                ),
+            ])
+            loss = tf.nn.softmax_cross_entropy_with_logits
+            estimator.compile(
+                # Use ADAM optimizer by default
+                optimizer='adam',
+                loss=loss,
+            )
+            return estimator
+
+    predictor_train_kwags = predictor_train_kwags or {
+        'epochs': 25,
+        'batch_size': min(512, n_samples),
+        'verbose': 0,
+    }
+
+    # Time to start formulating our resulting matrix
+    num_tasks = len(np.unique(y_true))
+    result = np.zeros((n_soft_concepts,), dtype=np.float32)
+
+    # Split our test data into two subsets as we will need to train
+    # a classifier and then use that trained classifier in the remainder of the
+    # data for computing our scores
+    if (c_soft_train is None) or (y_true_train is None):
+        train_indexes, test_indexes = train_test_split(
+            list(range(n_samples)),
+            test_size=test_size,
+        )
+        c_soft_train = [x[train_indexes, ...] for x in c_soft_train]
+        y_true_train = y_true[train_indexes, ...]
+        c_soft = [x[test_indexes, ...] for x in c_soft]
+        y_true = y_true[test_indexes, ...]
+
+    for src_soft_concept in tqdm(range(n_soft_concepts)):
+        # Construct a test and training set of features for this concept
+        concept_soft_train_x = c_soft_train[src_soft_concept]
+        concept_soft_test_x = c_soft[src_soft_concept]
+        if len(concept_soft_train_x.shape) == 1:
+            concept_soft_train_x = tf.expand_dims(
+                concept_soft_train_x,
+                axis=-1,
+            )
+            concept_soft_test_x = tf.expand_dims(
+                concept_soft_test_x,
+                axis=-1,
+            )
+
+        # Construct a new estimator for performing this prediction
+        estimator = predictor_model_fn(num_tasks)
+        # Train it
+        estimator.fit(
+            concept_soft_train_x,
+            tf.one_hot(y_true_train, depth=num_tasks),
+            **predictor_train_kwags,
+        )
+        # Compute the AUC of this classifier on the test data
+        preds = estimator.predict(concept_soft_test_x)
+        result[src_soft_concept] = sklearn.metrics.accuracy_score(
+            y_true,
+            np.argmax(preds, axis=-1),
+        )
+
+    # And that's all folks
+    return result
+
 
 
 def encoder_concept_purity_matrix(

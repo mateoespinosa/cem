@@ -47,6 +47,11 @@ class ConceptBottleneckModel(pl.LightningModule):
         output_interventions=False,
         use_concept_groups=False,
 
+        # New additions
+        training_intervention_prob=0.0,
+        prior_loss_term=0.0,
+        prior_only_concepts=False,
+
         top_k_accuracy=None,
     ):
         """
@@ -243,6 +248,9 @@ class ConceptBottleneckModel(pl.LightningModule):
         self.sigmoidal_prob = sigmoidal_prob
         self.sigmoidal_extra_capacity = sigmoidal_extra_capacity
         self.use_concept_groups = use_concept_groups
+        self.training_intervention_prob = training_intervention_prob
+        self.prior_loss_term = prior_loss_term
+        self.prior_only_concepts = prior_only_concepts
 
     def _unpack_batch(self, batch):
         x = batch[0]
@@ -346,7 +354,30 @@ class ConceptBottleneckModel(pl.LightningModule):
         competencies=None,
         prev_interventions=None,
     ):
-        return 0
+        loss = 0.0
+        if getattr(self, 'prior_loss_term', 0.0) > 0.0:
+            # Then construct a bottleneck where all concepts are intervened
+            bottleneck_gt = self._concept_intervention(
+                c_pred=c_pred,
+                intervention_idxs=torch.ones(
+                    (c_pred.shape[0], self.n_concepts)
+                ).to(c_pred.device),
+                c_true=c,
+            )
+            if self.prior_only_concepts and (self.extra_dims > 0):
+                # Then we will block all information from the extra capacity
+                # that is not concept specific.
+                bottleneck_gt[:, self.n_concepts:] = 0.0
+            # Make a label prediction based on this fully intervened bottleneck
+            y_pred_gt = self.c2y_model(
+                bottleneck_gt if not self.bool else
+                (bottleneck_gt > 0.5).float()
+            )
+            loss += self.prior_loss_term * self.loss_task(
+                y_pred_gt,
+                y,
+            )
+        return loss
 
     def _prior_int_distribution(
         self,
@@ -410,8 +441,8 @@ class ConceptBottleneckModel(pl.LightningModule):
                     batched_active_intervention_values[intervention_idxs]
                 ) +
                 (
-                    (c_true[intervention_idxs] - 1) *
-                    -batched_inactive_intervention_values[intervention_idxs]
+                    (1 - c_true[intervention_idxs]) *
+                    batched_inactive_intervention_values[intervention_idxs]
                 )
             )
         return c_pred_copy
@@ -524,6 +555,13 @@ class ConceptBottleneckModel(pl.LightningModule):
             )
         else:
             c_int = c
+        if train and (self.training_intervention_prob > 0.0) and (
+            intervention_idxs is None
+        ):
+            intervention_idxs = torch.rand(
+                (c_pred.shape[0], self.n_concepts)
+            ).to(x.device) < self.training_intervention_prob
+
         c_pred = self._concept_intervention(
             c_pred=c_pred,
             intervention_idxs=intervention_idxs,
@@ -650,7 +688,6 @@ class ConceptBottleneckModel(pl.LightningModule):
             # values are fully given
             concept_loss = self.loss_concept(c_sem, c)
             concept_loss_scalar = concept_loss.detach()
-            # print("concept_loss_scalar =", concept_loss_scalar)
             loss = self.concept_loss_weight * concept_loss + task_loss + \
                 self._extra_losses(
                     x=x,
@@ -804,3 +841,511 @@ class ConceptBottleneckModel(pl.LightningModule):
             "optimizer": optimizer,
             "monitor": "loss",
         }
+
+
+class EntangledHybridCBM(ConceptBottleneckModel):
+    """A joint hybrid Concept Bottleneck Model (CBM) (a CBM with extra
+    unsupervised capacity in its bottleneck) whose unsupervised capacity
+    is a function of the concepts themselves (so they it is entangled with
+    the concepts and is affected by concept interventions).
+    """
+    def __init__(
+        self,
+        n_concepts,
+        n_tasks,
+        concept_loss_weight=0.01,
+        task_loss_weight=1,
+
+        extra_dims=0,
+        bool=False,
+        sigmoidal_prob=True,
+        bottleneck_nonlinear=None,
+        output_latent=False,
+        latent_dim=None,
+
+        x2c_model=None,
+        c_extractor_arch=utils.wrap_pretrained_model(resnet50),
+        c2y_model=None,
+        c2y_layers=None,
+
+        optimizer="adam",
+        momentum=0.9,
+        learning_rate=0.01,
+        weight_decay=4e-05,
+        lr_scheduler_factor=0.1,
+        lr_scheduler_patience=10,
+        weight_loss=None,
+        task_class_weights=None,
+
+        active_intervention_values=None,
+        inactive_intervention_values=None,
+        intervention_policy=None,
+        output_interventions=False,
+        use_concept_groups=False,
+
+        # New additions
+        training_intervention_prob=0.0,
+        prior_loss_term=0.0,
+        prior_only_concepts=False,
+        entanglement_mode='additive',
+        l2_reg_residual_weights=0.0,
+
+        top_k_accuracy=None,
+    ):
+        """Initializes a EntangledHybridCBM instance.
+
+        :param int n_concepts: Number of concepts in the CBM's bottleneck.
+        :param int n_tasks: Number of tasks (i.e., output classes) to predict.
+        :param float concept_loss_weight: Weight assigned to the concept loss
+            during training. Default is 0.01.
+        :param float task_loss_weight: Weight assigned to the task loss during
+            training. Default is 1.
+
+
+        :param int extra_dims: Number of extra unsupervised dimensions to add
+            to the CBM's bottleneck (i.e., the bottleneck will have size
+            `n_concepts + extra_dims`). Default is 0.
+        :param bool bool: Whether the concept predictions should be treated
+            as binary values rather than probabilistic values. Default is False.
+        :param bool sigmoidal_prob: Whether the concept predictions should be
+            produced by applying a sigmoid non-linearity to the bottleneck
+            activations. If False, then the concept predictions will be the
+            raw bottleneck activations. Default is True.
+        :param str bottleneck_nonlinear: The non-linearity to apply to the
+            bottleneck activations. Must be one of `sigmoid`, `leakyrelu`,
+            `relu`, `identity` or None. Default is None.
+        :param bool output_latent: Whether to output the latent
+            representations when doing a forward pass. Default is False.
+        :param torch.nn.Module x2c_model: An optional model mapping inputs
+            to concepts. If not given, then we will use c_extractor_arch to
+            construct a concept extractor model.
+        :param Callable[[], torch.nn.Module] c_extractor_arch: A callable
+            that produces a concept extractor model when called. This is only
+            used when x2c_model is not given. Default is a ResNet-50 based
+            model.
+        :param torch.nn.Module c2y_model: An optional model mapping concepts
+            to task labels. If not given, then we will construct a
+            fully-connected network based on c2y_layers.
+        :param List[int] c2y_layers: Either None or a list indicating the
+            number of units in each hidden layer of the concept-to-labels
+            model. For example, [100, 50] would indicate a model with two
+            hidden layers, with 100 units in the first layer and 50 units in
+            the second layer. If None, then no hidden layers will be used.
+        :param str optimizer: The name of the optimizer to use. Either
+            `adam` or `sgd`. Default is `adam`.
+        :param float momentum: The momentum to use when using SGD. Default is
+            0.9.
+        :param float learning_rate: The learning rate to use during training.
+            Default is 0.01.
+        :param float weight_decay: The weight decay (L2 penalty) to use
+            during training. Default is 4e-05.
+        :param float lr_scheduler_factor: The factor by which to reduce
+            the learning rate when using a learning rate scheduler. Default is
+            0.1.
+        :param int lr_scheduler_patience: The number of epochs with no
+            improvement after which the learning rate will be reduced when
+            using a learning rate scheduler. Default is 10. If set to 0,
+            then no learning rate scheduler will be used.
+        :param torch.Tensor weight_loss: An optional tensor of shape
+            (n_concepts,) indicating the weight to assign to each concept
+            during concept loss computation. If None, then all concepts
+            will be equally weighted.
+        :param torch.Tensor task_class_weights: An optional tensor of shape
+            (n_tasks,) indicating the weight to assign to each task class
+            during task loss computation. If None, then all classes will be
+            equally weighted.
+        :param List[float] active_intervention_values: An optional list of
+            length n_concepts indicating the values to set intervened concepts
+            to when performing an intervention to set a concept to be active
+            (i.e., concept value 1). If None, then a default value of 5.0
+            (or 1.0 if sigmoidal_prob is True) will be used for all concepts.
+        :param List[float] inactive_intervention_values: An optional list of
+            length n_concepts indicating the values to set intervened concepts
+            to when performing an intervention to set a concept to be inactive
+            (i.e., concept value 0). If None, then a default value of -5.0
+            (or 0.0 if sigmoidal_prob is True) will be used for all concepts.
+        :param intervention_policy: An optional intervention policy
+            (an instance of cem.policies.InterventionPolicy) that will be used
+            to select interventions during training and evaluation when
+            intervention indices are not provided. If None, then no interventions
+            will be performed unless intervention indices are provided during
+            training/evaluation.
+        :param bool output_interventions: Whether to output the intervention
+            indices when doing a forward pass. Default is False.
+        :param bool use_concept_groups: Whether to use concept groups
+            (cem.models.concept_groups.ConceptGroups) when performing
+            interventions. Default is False.
+        :param float training_intervention_prob: The probability of randomly
+            intervening on each concept during training. Default is 0.0.
+        :param float prior_loss_term: The weight assigned to an auxiliary
+            loss term that encourages the model to make correct predictions
+            when all concepts are intervened upon. Default is 0.0.
+        :param top_k_accuracy: Either None or an integer k indicating that
+            top-k accuracy should be computed during evaluation. If a list
+            of integers is given, then top-k accuracy will be computed for
+            each k in the list.
+        """
+        pl.LightningModule.__init__(self)
+        self.n_concepts = n_concepts
+        self.intervention_policy = intervention_policy
+        self.output_latent = output_latent
+        self.output_interventions = output_interventions
+        self.lr_scheduler_patience = lr_scheduler_patience
+        self.lr_scheduler_factor = lr_scheduler_factor
+        self.latent_code_generator = None
+        latent_dim = latent_dim or n_concepts
+        if x2c_model is not None:
+            # Then this is assumed to be a module already provided as
+            # the input to concepts method
+            self.latent_code_generator = x2c_model
+        else:
+            self.latent_code_generator = c_extractor_arch(
+                output_dim=(latent_dim)
+            )
+        # The x2c model will take the latent code as an input and produce the
+        # concept predictions after applying the appropriate non-linearities
+        self.x2c_model = torch.nn.Sequential(
+            torch.nn.LeakyReLU(),
+            torch.nn.Linear(latent_dim, n_concepts),
+        )
+
+        # Now construct the label prediction model
+        if c2y_model is not None:
+            # Then this method has been provided to us already
+            self.c2y_model = c2y_model
+        else:
+            # Else we construct it here directly
+            units = [n_concepts + extra_dims] + (c2y_layers or []) + [n_tasks]
+            layers = []
+            for i in range(1, len(units)):
+                layers.append(torch.nn.Linear(units[i-1], units[i]))
+                if i != len(units) - 1:
+                    layers.append(torch.nn.LeakyReLU())
+            self.c2y_model = torch.nn.Sequential(*layers)
+        # Intervention-specific fields/handlers:
+        if active_intervention_values is not None:
+            self.active_intervention_values = torch.FloatTensor(
+                active_intervention_values
+            )
+        else:
+            # Setting to 5 for prob = 1 (as that would result in its sigmoid
+            # value being very close to 1) and -5 if prob=0 (as that will
+            # go to zero when applied a sigmoid)
+            self.active_intervention_values = torch.FloatTensor(
+                [1 for _ in range(n_concepts)]
+            ) * (
+                5.0 if not sigmoidal_prob else 1.0
+            )
+        if inactive_intervention_values is not None:
+            self.inactive_intervention_values = torch.FloatTensor(
+                inactive_intervention_values
+            )
+        else:
+            # Setting to 5 for prob = 1 (as that would result in its sigmoid
+            # value being very close to 1) and -5 if prob=0 (as that will
+            # go to zero when applied a sigmoid)
+            self.inactive_intervention_values = torch.FloatTensor(
+                [1 for _ in range(n_concepts)]
+            ) * (
+                -5.0 if not sigmoidal_prob else 0.0
+            )
+
+        # For legacy purposes, we wrap the model around a torch.nn.Sequential
+        # module
+        self.sig = torch.nn.Sigmoid()
+        if bottleneck_nonlinear == "sigmoid":
+            self.bottleneck_nonlin = torch.nn.Sigmoid()
+        elif bottleneck_nonlinear == "leakyrelu":
+            self.bottleneck_nonlin = torch.nn.LeakyReLU()
+        elif bottleneck_nonlinear == "relu":
+            self.bottleneck_nonlin = torch.nn.ReLU()
+        elif (bottleneck_nonlinear is None) or (
+            bottleneck_nonlinear == "identity"
+        ):
+            self.bottleneck_nonlin = lambda x: x
+        else:
+            raise ValueError(
+                f"Unsupported nonlinearity '{bottleneck_nonlinear}'"
+            )
+
+        # Construct the unsupervised capacity model which is a function of the
+        # predicted concepts and the input features themselves
+        if extra_dims > 0:
+            if entanglement_mode == "concat":
+                self.unsupervised_capacity_model = torch.nn.Linear(
+                    n_concepts + latent_dim,
+                    extra_dims,
+                )
+                self._residual_weights = self.unsupervised_capacity_model.weight
+            elif entanglement_mode == "additive":
+                # Then we will have one layer mapping the latent code to the
+                # extra capacity and another layer mapping the concepts to
+                # the extra capacity and then we will add them together
+                self._latent_to_extra = torch.nn.Linear(
+                    latent_dim,
+                    extra_dims,
+                )
+                self._residual_weights = self._latent_to_extra.weight
+                self.latent_to_extra = torch.nn.Sequential(
+                    torch.nn.LeakyReLU(),
+                    self._latent_to_extra,
+                    self.bottleneck_nonlin,
+                )
+                self.concepts_to_extra = torch.nn.Sequential(
+                    torch.nn.Linear(n_concepts, extra_dims),
+                    self.bottleneck_nonlin,
+                )
+                self.unsupervised_capacity_model = lambda x: (
+                    self.latent_to_extra(
+                        x[:, n_concepts:]
+                    ) +
+                    self.concepts_to_extra(
+                        x[:, :n_concepts]
+                    )
+                )
+            else:
+                raise ValueError(
+                    f"Unsupported entanglement mode '{entanglement_mode}'"
+                )
+        self.loss_concept = torch.nn.BCELoss(weight=weight_loss)
+        self.loss_task = (
+            torch.nn.CrossEntropyLoss(weight=task_class_weights)
+            if n_tasks > 1 else torch.nn.BCEWithLogitsLoss(
+                pos_weight=task_class_weights
+            )
+        )
+        self.bool = bool
+        self.concept_loss_weight = concept_loss_weight
+        self.task_loss_weight = task_loss_weight
+        self.momentum = momentum
+        self.learning_rate = learning_rate
+        self.weight_decay = weight_decay
+        self.optimizer_name = optimizer
+        self.extra_dims = extra_dims
+        self.top_k_accuracy = top_k_accuracy
+        self.n_tasks = n_tasks
+        self.sigmoidal_prob = sigmoidal_prob
+        self.use_concept_groups = use_concept_groups
+        self.training_intervention_prob = training_intervention_prob
+        self.prior_loss_term = prior_loss_term
+        self.prior_only_concepts = prior_only_concepts
+        self._latent_code = None
+        self.l2_reg_residual_weights = l2_reg_residual_weights
+        self.entanglement_mode = entanglement_mode
+
+    def _concept_intervention(
+        self,
+        c_pred,
+        intervention_idxs=None,
+        c_true=None,
+    ):
+        if (c_true is None) or (intervention_idxs is None):
+            return c_pred
+        intervention_idxs = self._standardize_indices(
+            intervention_idxs=intervention_idxs,
+            batch_size=c_pred.shape[0],
+            device=c_pred.device,
+        )
+        intervention_idxs = intervention_idxs.to(c_pred.device).float()
+        # Check whether the mask needs to be extended because of
+        # extra dimensions
+        concept_reprs = c_pred[:, :self.n_concepts]
+        if not self.sigmoidal_prob:
+            raise ValueError(
+                "Interventions on EntangledHybridCBM only support sigmoidal "
+                "concept probabilities."
+            )
+        new_bottleneck = intervention_idxs * c_true + (1 - intervention_idxs) * concept_reprs
+        output = new_bottleneck
+        if self.extra_dims:
+            # Recompute the extra capacity based on the new concepts
+            extra_capacity = self.unsupervised_capacity_model(
+                torch.cat([new_bottleneck, self._latent_code], dim=-1)
+            )
+            output = torch.cat([new_bottleneck, extra_capacity], dim=-1)
+        return output
+
+    def _forward(
+        self,
+        x,
+        intervention_idxs=None,
+        competencies=None,
+        prev_interventions=None,
+        c=None,
+        y=None,
+        train=False,
+        latent=None,
+        output_latent=None,
+        output_embeddings=False,
+        output_interventions=None,
+    ):
+        output_interventions = (
+            output_interventions if output_interventions is not None
+            else self.output_interventions
+        )
+        output_latent = (
+            output_latent if output_latent is not None
+            else self.output_latent
+        )
+        if latent is None:
+            self._latent_code = self.latent_code_generator(x)
+            latent = self._latent_code
+
+        c_pred_logits = self.x2c_model(latent)
+        c_sem = self.sig(c_pred_logits)
+
+        if self.sigmoidal_prob:
+            c_pred = c_sem
+        elif self.bool:
+            c_pred = (c_sem > 0.5).float()
+        else:
+            # Otherwise, the concept vector itself is not sigmoided
+            # but the semantics
+            c_pred = c_pred_logits
+
+        if self.extra_dims > 0:
+            extra_capacity = self.unsupervised_capacity_model(
+                torch.cat([c_pred, latent], dim=-1)
+            )
+            c_pred = torch.cat([c_pred, extra_capacity], axis=-1)
+
+        if output_embeddings or (
+            (intervention_idxs is None) and (c is not None) and (
+            self.intervention_policy is not None
+        )):
+            pos_embeddings = torch.ones(c_sem.shape).to(x.device)
+            neg_embeddings = torch.zeros(c_sem.shape).to(x.device)
+            if not (self.sigmoidal_prob or self.bool):
+                if (
+                    (self.active_intervention_values is not None) and
+                    (self.inactive_intervention_values is not None)
+                ):
+                    active_intervention_values = \
+                        self.active_intervention_values.to(
+                            c_pred.device
+                        )
+                    pos_embeddings = torch.tile(
+                        active_intervention_values,
+                        (c.shape[0], 1),
+                    ).to(active_intervention_values.device)
+                    inactive_intervention_values = \
+                        self.inactive_intervention_values.to(
+                            c_pred.device
+                        )
+                    neg_embeddings = torch.tile(
+                        inactive_intervention_values,
+                        (c.shape[0], 1),
+                    ).to(inactive_intervention_values.device)
+                else:
+                    out_embs = c_pred.detach().cpu().numpy()
+                    for concept_idx in range(self.n_concepts):
+                        pos_embeddings[:, concept_idx] = np.percentile(
+                            out_embs[:, concept_idx],
+                            95,
+                        )
+                        neg_embeddings[:, concept_idx] = np.percentile(
+                            out_embs[:, concept_idx],
+                            5,
+                        )
+            pos_embeddings = torch.unsqueeze(pos_embeddings, dim=-1)
+            neg_embeddings = torch.unsqueeze(neg_embeddings, dim=-1)
+
+        # Now include any interventions that we may want to include
+        if (intervention_idxs is None) and (c is not None) and (
+            self.intervention_policy is not None
+        ):
+            prior_distribution = self._prior_int_distribution(
+                c=c,
+                prob=c_sem,
+                pos_embeddings=pos_embeddings,
+                neg_embeddings=neg_embeddings,
+                competencies=competencies,
+                prev_interventions=prev_interventions,
+                train=train,
+                horizon=1,
+            )
+            intervention_idxs, c_int = self.intervention_policy(
+                x=x,
+                c=c,
+                pred_c=c_sem,
+                y=y,
+                competencies=competencies,
+                prev_interventions=prev_interventions,
+                prior_distribution=prior_distribution,
+            )
+        else:
+            c_int = c
+
+        # Do training time interventions if requested:
+        if train and (self.training_intervention_prob > 0.0) and (
+            intervention_idxs is None
+        ):
+            intervention_idxs = torch.rand(
+                (c_pred.shape[0], self.n_concepts)
+            ).to(x.device) < self.training_intervention_prob
+
+        c_pred = self._concept_intervention(
+            c_pred=c_pred,
+            intervention_idxs=intervention_idxs,
+            c_true=c_int,
+        )
+        # Make the downstream predictions
+        y_pred = self.c2y_model(c_pred)
+
+        tail_results = []
+        if output_interventions:
+            if intervention_idxs is None:
+                intervention_idxs = None
+            if isinstance(intervention_idxs, np.ndarray):
+                intervention_idxs = torch.FloatTensor(
+                    intervention_idxs
+                ).to(x.device)
+            tail_results.append(intervention_idxs)
+
+        if output_latent:
+            tail_results.append(latent)
+
+        if output_embeddings:
+            tail_results.append(pos_embeddings)
+            tail_results.append(neg_embeddings)
+
+        tail_results += self._extra_tail_results(
+            x=x,
+            y=y,
+            c=c,
+            c_sem=c_sem,
+            competencies=competencies,
+            prev_interventions=prev_interventions,
+        )
+        return tuple([c_sem, c_pred, y_pred] + tail_results)
+
+    def _extra_losses(
+        self,
+        x,
+        y,
+        c,
+        y_pred,
+        c_sem,
+        c_pred,
+        competencies=None,
+        prev_interventions=None,
+    ):
+        loss = super()._extra_losses(
+            x=x,
+            y=y,
+            c=c,
+            y_pred=y_pred,
+            c_sem=c_sem,
+            c_pred=c_pred,
+            competencies=competencies,
+            prev_interventions=prev_interventions,
+        )
+        if self.l2_reg_residual_weights > 0.0:
+            if self.entanglement_mode == "concat":
+                weights = self._residual_weights[:, self.n_concepts:]
+            else:
+               weights = self._residual_weights
+            loss += self.l2_reg_residual_weights * torch.sum(
+                weights ** 2
+            )
+        return loss

@@ -266,17 +266,17 @@ def print_table(
                 if key != 'policy'
             ])
             field_names.extend([
-                "25% Int ROC-AUC" if use_int_auc else "25% Int Acc",
+                # "25% Int ROC-AUC" if use_int_auc else "25% Int Acc",
                 "50% Int ROC-AUC" if use_int_auc else "50% Int Acc",
-                "75% Int ROC-AUC" if use_int_auc else "75% Int Acc",
+                # "75% Int ROC-AUC" if use_int_auc else "75% Int Acc",
                 "100% Int ROC-AUC" if use_int_auc else "100% Int Acc",
                 "Val Int AUC",
                 "Test Int AUC",
             ])
             result_table_fields_keys.extend([
-                f"test_{'auc' if use_int_auc else 'acc'}_y_{policy_arg_name}_ints_25%",
+                # f"test_{'auc' if use_int_auc else 'acc'}_y_{policy_arg_name}_ints_25%",
                 f"test_{'auc' if use_int_auc else 'acc'}_y_{policy_arg_name}_ints_50%",
-                f"test_{'auc' if use_int_auc else 'acc'}_y_{policy_arg_name}_ints_75%",
+                # f"test_{'auc' if use_int_auc else 'acc'}_y_{policy_arg_name}_ints_75%",
                 f"test_{'auc' if use_int_auc else 'acc'}_y_{policy_arg_name}_ints_100%",
                 f"val_{'auc' if use_int_auc else 'acc'}_y_{policy_arg_name}_int_auc",
                 f"test_{'auc' if use_int_auc else 'acc'}_y_{policy_arg_name}_int_auc",
