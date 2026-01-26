@@ -1,0 +1,257 @@
+shared_params:
+  results_dir: /anfs/bigdisc/me466/mixcem_results/leaky_cub_incomplete_groups/
+  trials: 3
+  model_selection_trials: 3
+  results_fname: results
+  dataset_config:
+    dataset: "cub"
+    num_workers: 8
+    batch_size: 64
+    root_dir: /homes/me466/data/CUB200/
+    sampling_percent: [0.5] # We include more concepts so that the unseen concept set is much smaller
+    include_unselected_concepts: true # KEY: we will provide the unseen concepts to the model so that we can construct a representation
+    sampling_groups: true
+    test_subsampling: 1
+    weight_loss: true
+
+  intervention_config:
+    competence_levels: [1]
+    intervention_freq: 1
+    intervention_batch_size: 512 #64 #512
+    val_intervention_policies:
+      - policy: "random"
+        group_level: true
+        use_prior: false
+    intervention_policies:
+      - policy: "random"
+        group_level: true
+        use_prior: false
+
+  skip_repr_evaluation: true
+  max_epochs: 50
+  top_k_accuracy: null
+  save_model: true
+  patience: 15
+  emb_size: 16
+  extra_dims: 0
+  learning_rate: 0.01
+  weight_decay: 4.0e-06
+  weight_loss: true
+  c_extractor_arch: "resnet18"
+  optimizer: "sgd"
+  bool: false
+  early_stopping_monitor: "val_loss"
+  early_stopping_mode: "min"
+  early_stopping_delta: 0.0
+  momentum: 0.9
+  sigmoidal_prob: false
+  training_intervention_prob: 0
+
+runs:
+  ###################
+  # Experiments with noisy concept representations
+  ###################
+
+  # Baseline: no leakage at all
+  - architecture: "LeakyReprCBM"
+    run_name: "LeakyReprCBM-Logit_sub_{dataset_config[sampling_percent]}_Baseline_prob_correct_{prob_correct}"
+    training_intervention_prob: 0.0
+    prior_loss_term: 0.0
+    total_range_size: 0  # No range here so this will have no leakage at all
+    encode_concepts: false
+    encode_tasks: true
+    random_bucket_noise: false
+    concept_loss_weight: 0
+    sigmoidal_prob: false
+    max_repr_val: 10000
+    prob_correct: [0.85] #, 0.95, 0.98]
+    leak_unprovided_concepts: true # We will use the unprovided concepts!
+    dataset_config:
+      dataset: "cub"
+      num_workers: 8
+      batch_size: 64
+      root_dir: /homes/me466/data/CUB200/
+      sampling_percent: [0.5] # We include more concepts so that the unseen concept set is much smaller
+      include_unselected_concepts: true # KEY: we will provide the unseen concepts to the model so that we can construct a representation
+      sampling_groups: true
+      test_subsampling: 1
+      weight_loss: true
+
+    grid_variables:
+      - prob_correct
+      - dataset_config.sampling_percent
+    grid_search_mode: exhaustive
+
+
+  # Logits encode concepts
+  - architecture: "LeakyReprCBM"
+    run_name: "LeakyReprCBM-Logit_sub_{dataset_config[sampling_percent]}_range_{total_range_size}_prior_{prior_loss_term}_c_{encode_concepts}_t_{encode_tasks}_r_{random_bucket_noise}_prob_correct_{prob_correct}"
+    training_intervention_prob: 0.0
+    prior_loss_term: [0.0, 10.0]
+    total_range_size: [10000]
+    encode_concepts: true # Encode the unprovided concepts as part of the representation
+    encode_tasks: false
+    random_bucket_noise: false
+    concept_loss_weight: 0
+    sigmoidal_prob: false
+    leak_unprovided_concepts: true # We will use the unprovided concepts!
+    max_repr_val: 10000
+    prob_correct: [0.85] #, 0.95, 0.98]
+
+    grid_variables:
+      - prob_correct
+      - total_range_size
+      - prior_loss_term
+      - dataset_config.sampling_percent
+    grid_search_mode: exhaustive
+
+
+  # # Logits encode tasks
+  # - architecture: "LeakyReprCBM"
+  #   run_name: "LeakyReprCBM-Logit_sub_{dataset_config[sampling_percent]}_range_{total_range_size}_prior_{prior_loss_term}_c_{encode_concepts}_t_{encode_tasks}_r_{random_bucket_noise}_prob_correct_{prob_correct}"
+  #   training_intervention_prob: 0.0
+  #   prior_loss_term: [0.0, 10.0]
+  #   total_range_size: [10000]
+  #   encode_concepts: false
+  #   encode_tasks: true
+  #   random_bucket_noise: false
+  #   concept_loss_weight: 0
+  #   sigmoidal_prob: false
+  #   leak_unprovided_concepts: true # We will use the unprovided concepts!
+  #   max_repr_val: 10000
+  #   prob_correct: [0.85] #, 0.95, 0.98]
+
+  #   grid_variables:
+  #     - prob_correct
+  #     - total_range_size
+  #     - prior_loss_term
+  #     - dataset_config.sampling_percent
+  #   grid_search_mode: exhaustive
+
+
+  ##############################
+  # Leaky fixed CEM Experiments
+  ##############################
+
+  # # Leak all unprovided concepts but make random mistakes
+  # - architecture: "LeakyReprCEM"
+  #   run_name: "LeakyReprCEM_dimension_flips_{prob_flips}_nb_{neg_base}_sub_{dataset_config[sampling_percent]}_prior_{prior_loss_term}_c_{encode_concepts}_t_{encode_tasks}_prob_correct_{prob_correct}"
+  #   training_intervention_prob: 0.0
+  #   prior_loss_term: [0.0, 10.0]
+  #   encode_concepts: true # Encode the unprovided concepts as part of the representation
+  #   encode_tasks: false
+  #   concept_loss_weight: 0
+  #   leak_provided_concepts: false
+  #   leak_unprovided_concepts: true # We will use the unprovided concepts!
+  #   prob_correct: [0.85]
+  #   n_leak_concepts: "{{112 - {n_concepts}}}"
+  #   prob_flips: [0, 0.15]
+  #   prob_encoding_mode: dimension
+  #   neg_base: 0
+  #   max_epochs: 15
+
+  #   grid_variables:
+  #     - prob_correct
+  #     - prior_loss_term
+  #     - dataset_config.sampling_percent
+  #     - prob_flips
+  #   grid_search_mode: exhaustive
+
+  # Leak all unprovided concepts but make random mistakes
+  - architecture: "LeakyReprCEM"
+    run_name: "LeakyReprCEM_proj_flips_{prob_flips}_nb_{neg_base}_sub_{dataset_config[sampling_percent]}_prior_{prior_loss_term}_c_{encode_concepts}_t_{encode_tasks}_prob_correct_{prob_correct}"
+    training_intervention_prob: 0.0
+    prior_loss_term: [0.0, 10.0]
+    encode_concepts: true # Encode the unprovided concepts as part of the representation
+    encode_tasks: false
+    concept_loss_weight: 0
+    leak_provided_concepts: false
+    leak_unprovided_concepts: true # We will use the unprovided concepts!
+    prob_correct: [0.85]
+    n_leak_concepts: "{{112 - {n_concepts}}}"
+    prob_flips: [0.15, 0.05, 0.0]
+    prob_encoding_mode: projection
+    neg_base: 0
+    # max_epochs: 15
+
+    grid_variables:
+      - prob_correct
+      - prior_loss_term
+      - dataset_config.sampling_percent
+      - prob_flips
+    grid_search_mode: exhaustive
+
+
+  # Leak all provided concepts but make random mistakes
+  - architecture: "LeakyReprCEM"
+    run_name: "LeakyReprCEM_proj_provided_concepts_flips_{prob_flips}_nb_{neg_base}_sub_{dataset_config[sampling_percent]}_prior_{prior_loss_term}_prob_correct_{prob_correct}"
+    training_intervention_prob: 0.0
+    prior_loss_term: [0.0, 10.0]
+    encode_concepts: true # Encode the unprovided concepts as part of the representation
+    encode_tasks: false
+    concept_loss_weight: 0
+    leak_provided_concepts: true
+    leak_unprovided_concepts: false # We will use the unprovided concepts!
+    prob_correct: [0.85]
+    n_leak_concepts: "{{112 - {n_concepts}}}"
+    prob_flips: [0.15, 0.05, 0.0]
+    prob_encoding_mode: projection
+    neg_base: 0
+    # max_epochs: 15
+
+    grid_variables:
+      - prob_correct
+      - prior_loss_term
+      - dataset_config.sampling_percent
+      - prob_flips
+    grid_search_mode: exhaustive
+
+
+  # Leak ALL concepts but make random mistakes
+  - architecture: "LeakyReprCEM"
+    run_name: "LeakyReprCEM_proj_all_concepts_flips_{prob_flips}_nb_{neg_base}_sub_{dataset_config[sampling_percent]}_prior_{prior_loss_term}_prob_correct_{prob_correct}"
+    training_intervention_prob: 0.0
+    prior_loss_term: [0.0, 10.0]
+    encode_concepts: true # Encode the unprovided concepts as part of the representation
+    encode_tasks: false
+    concept_loss_weight: 0
+    leak_provided_concepts: true
+    leak_unprovided_concepts: true
+    prob_correct: [0.85]
+    n_leak_concepts: "{{112 - {n_concepts}}}"
+    prob_flips: [0.15, 0.05, 0.0]
+    prob_encoding_mode: projection
+    neg_base: 0
+    # max_epochs: 15
+
+    grid_variables:
+      - prob_correct
+      - prior_loss_term
+      - dataset_config.sampling_percent
+      - prob_flips
+    grid_search_mode: exhaustive
+
+  # # Leak all unprovided concepts but make random mistakes
+  # - architecture: "LeakyReprCEM"
+  #   run_name: "LeakyReprCEM_flips_{prob_flips}_nb_{neg_base}_sub_{dataset_config[sampling_percent]}_prior_{prior_loss_term}_c_{encode_concepts}_t_{encode_tasks}_prob_correct_{prob_correct}"
+  #   training_intervention_prob: 0.0
+  #   prior_loss_term: [0.0, 10.0]
+  #   encode_concepts: true # Encode the unprovided concepts as part of the representation
+  #   encode_tasks: false
+  #   concept_loss_weight: 0
+  #   leak_provided_concepts: false
+  #   leak_unprovided_concepts: true # We will use the unprovided concepts!
+  #   prob_correct: [0.85]
+  #   n_leak_concepts: "{{112 - {n_concepts}}}"
+  #   prob_flips: [0, 0.05, 0.15]
+  #   prob_encoding_mode: scale
+  #   neg_base: 0
+
+  #   grid_variables:
+  #     - prob_correct
+  #     - prior_loss_term
+  #     - dataset_config.sampling_percent
+  #     - prob_flips
+  #   grid_search_mode: exhaustive
+
+

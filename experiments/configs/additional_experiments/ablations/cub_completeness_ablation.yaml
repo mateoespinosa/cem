@@ -1,7 +1,7 @@
 trials: 2
 model_selection_trials: 2
 
-results_dir: /anfs/bigdisc/me466/mixcem_results/cub_completeness_ablation/
+results_dir: /anfs/bigdisc/me466/mixcem_results/ablations/cub_completeness_ablation/
 
 model_selection_groups:
   - ["^(DNN).*$", "DNN (Baseline)"]

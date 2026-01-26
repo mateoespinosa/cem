@@ -47,6 +47,11 @@ class PCBM(ConceptBottleneckModel):
         training_intervention_prob=0.0,
 
         top_k_accuracy=None,
+
+        # New additions
+        prior_loss_term=0.0,
+        default_intervention_bound=1,
+
     ):
         """
         Implementation of a Post-hoc CBM by Yuksekgonul et al. (https://arxiv.org/abs/2205.15480).
@@ -130,14 +135,16 @@ class PCBM(ConceptBottleneckModel):
                 active_intervention_values
             )
         else:
-            self.active_intervention_values = torch.ones(n_concepts)
+            self.active_intervention_values = \
+                default_intervention_bound * torch.ones(n_concepts)
 
         if inactive_intervention_values is not None:
             self.inactive_intervention_values = torch.tensor(
                 inactive_intervention_values
             )
         else:
-            self.inactive_intervention_values = torch.ones(n_concepts)
+            self.inactive_intervention_values = \
+                -default_intervention_bound * torch.ones(n_concepts)
 
 
 
@@ -172,6 +179,7 @@ class PCBM(ConceptBottleneckModel):
         self.optimizer_name = optimizer
         self.lr_scheduler_factor = lr_scheduler_factor
         self.lr_scheduler_patience = lr_scheduler_patience
+        self.prior_loss_term = prior_loss_term
 
 
     def _generate_concept_scores(
@@ -227,9 +235,26 @@ class PCBM(ConceptBottleneckModel):
 
         # And normalize by classes and concepts while also considering the
         # regularizer strength
-        return elastic_net * self.reg_strength / (
+        loss = elastic_net * self.reg_strength / (
             self.n_concepts * self.n_tasks
         )
+
+        if self.prior_loss_term > 0.0:
+            new_y_pred = self._forward(
+                x=x,
+                intervention_idxs=torch.ones_like(c),
+                c=c,
+                y=y,
+                train=self.training,
+                competencies=competencies,
+                prev_interventions=None,
+            )[2]
+            loss += self.prior_loss_term * self.loss_task(
+                new_y_pred if new_y_pred.shape[-1] > 1 else new_y_pred.reshape(-1),
+                y,
+            )
+
+        return loss
 
     def freeze_non_residual_components(self):
         if not self.freeze_pretrained_model:

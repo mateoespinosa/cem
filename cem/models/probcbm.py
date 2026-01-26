@@ -286,7 +286,6 @@ class ConceptConvModelBase(nn.Module):
     ):
         nn.Module.__init__(self)
         self.train_class_mode = train_class_mode
-        # NEW!!!!!!!!!!!!!!!!!!!!!!!!
         self.extractor = nn.Sequential(
             c_extractor_arch(
                 output_dim=output_dim*image_size*image_size
@@ -296,61 +295,8 @@ class ConceptConvModelBase(nn.Module):
         self.d_model = output_dim
         self.avgpool = torch.nn.AvgPool2d((image_size, image_size))
 
-        # BEFORE!!!!!!!!!!!!!!!!!!!!!!!!
-        # self.use_dropout = False
-
-        # base_model = c_extractor_arch(output_dim=1000)
-        # self.conv1 = base_model.conv1
-        # self.bn1 = base_model.bn1
-        # self.relu = base_model.relu
-        # self.maxpool = base_model.maxpool
-        # self.avgpool = base_model.avgpool
-        # self.layer1 = base_model.layer1
-        # self.layer2 = base_model.layer2
-        # self.layer3 = base_model.layer3
-        # self.layer4 = base_model.layer4
-
-        # self.d_model = self.layer4[-1].conv2.out_channels
-
-        # self.cnn_module = nn.ModuleList([
-        #     self.conv1,
-        #     self.bn1,
-        #     self.layer1,
-        #     self.layer2,
-        #     self.layer3,
-        #     self.layer4,
-        # ])
-
     def forward_basic(self, x, avgpool=True, sample=False):
-        # NEW!!!!!!!!!!!!!!!!!!!!!!!!
         return self.extractor(x)
-
-        # BEFORE!!!!!!!!!!!!!!!!!!!!!!!!
-        # if hasattr(self, 'features'):
-        #     x = self.features(x)
-        #     return x
-        # x = self.conv1(x)
-        # x = self.bn1(x)
-        # x = self.relu(x)
-        # if self.use_dropout:
-        #     x = MC_dropout(x, p=0.2, mask=sample)
-        # x = self.maxpool(x)
-
-        # x = self.layer1(x)
-        # if self.use_dropout:
-        #     x = MC_dropout(x, p=0.2, mask=sample)
-        # x = self.layer2(x)
-        # if self.use_dropout:
-        #     x = MC_dropout(x, p=0.2, mask=sample)
-        # x = self.layer3(x)
-        # if self.use_dropout:
-        #     x = MC_dropout(x, p=0.2, mask=sample)
-        # x = self.layer4(x)
-
-        # if avgpool:
-        #     return self.avgpool(x)
-        # return x
-
 
 class ProbConceptModel(ConceptConvModelBase):
     def __init__(
@@ -704,6 +650,9 @@ class ProbCBM(ProbConceptModel, ConceptBottleneckModel):
         use_concept_groups=False,
 
         top_k_accuracy=None,
+
+        # New terms
+        prior_loss_term=0,
     ):
         # We need to explicitly have two tasks at least!
         n_tasks = 2 if n_tasks == 1 else n_tasks
@@ -780,17 +729,11 @@ class ProbCBM(ProbConceptModel, ConceptBottleneckModel):
 
         del self.mean_head
 
-        # BEFORE!!!!!!!!!!!!!!!!!!!!!!!!
         self.stem = nn.Sequential(
             nn.Conv2d(self.d_model, hidden_dim * n_concepts, kernel_size=1),
             nn.BatchNorm2d(hidden_dim * n_concepts),
             nn.ReLU(),
         )
-        # NEW!!!!!!!!!!!!!!!!!!!!!!!!
-        # self.stem = nn.Sequential(
-        #     torch.nn.Linear(self.d_model, hidden_dim * n_concepts),
-        #     nn.ReLU(),
-        # )
         weights_init(self.stem)
         self.mean_head = nn.ModuleList([
             PIENet(1, hidden_dim, hidden_dim, hidden_dim)
@@ -839,6 +782,7 @@ class ProbCBM(ProbConceptModel, ConceptBottleneckModel):
         self.output_interventions = output_interventions
         self.output_latent = output_latent
         self.lr_ratio = lr_ratio
+        self.prior_loss_term = prior_loss_term
 
     def _train_step(
         self,
@@ -997,6 +941,43 @@ class ProbCBM(ProbConceptModel, ConceptBottleneckModel):
                 result[f'y_top_{top_k_val}_accuracy'] = y_top_k_accuracy
         return loss, result
 
+    def _extra_losses(
+        self,
+        x,
+        y,
+        c,
+        y_pred,
+        c_sem,
+        c_pred,
+        competencies=None,
+        prev_interventions=None,
+    ):
+        loss = 0.0
+        if getattr(self, 'prior_loss_term', 0.0) > 0.0:
+            outputs = self._forward(
+                x,
+                intervention_idxs=torch.ones_like(c),
+                c=c,
+                y=y,
+                train=False,
+                competencies=competencies,
+                prev_interventions=prev_interventions,
+                output_embeddings=True,
+                output_latent=True,
+            )
+            c_sem, c_embs, y_probs = outputs[:3]
+            if self.output_interventions:
+                tail_outputs = outputs[4]
+            else:
+                tail_outputs = outputs[3]
+            pred_class_logit = tail_outputs.get('pred_class_logit', None)
+            if self.pred_class and (pred_class_logit is not None):
+                loss += self.prior_loss_term * self.loss_task(
+                    pred_class_logit,
+                    y,
+                )
+        return loss
+
     def _forward(
         self,
         x,
@@ -1062,10 +1043,7 @@ class ProbCBM(ProbConceptModel, ConceptBottleneckModel):
         B = x.shape[0]
         feature = self.forward_basic(x, avgpool=False)
         feature = self.stem(feature)
-        # BEFORE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         feature_avg = self.avgpool(feature).flatten(1)
-        # NEW!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-        # feature_avg = feature.flatten(1)
         feature = feature.view(
             B,
             self.n_concepts,

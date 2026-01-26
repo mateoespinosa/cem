@@ -1,3 +1,4 @@
+model_selection_trials: 3
 model_selection_groups:
   - ["DNN_new", "DNN"]
   - ["Joint CBM", "Joint CBM"]
@@ -18,11 +19,13 @@ model_selection_groups:
   - ["^(Hybrid-CBM_dims_).*(_pint_.*)", "Hybrid-CBM (RandInt)"]
   - ["^(Hybrid-CBM_dims_).*(_prior_loss_term_).*", "Hybrid-CBM (Prior Loss)"]
 
+model_selection_metrics:
+  - val_acc_y_random_group_level_True_use_prior_False_int_auc
+  - val_acc_y
 
 shared_params:
   results_dir: /anfs/bigdisc/me466/mixcem_results/cub_complete/
   trials: 3
-  model_selection_trials: 3
   results_fname: new_results
   dataset_config:
     dataset: "cub"

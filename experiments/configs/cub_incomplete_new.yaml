@@ -1,28 +1,32 @@
+model_selection_trials: 3
 model_selection_groups:
-  - ["DNN_new", "DNN"]
-  - ["Joint CBM", "Joint CBM"]
-  - ["Joint Logit CBM", "Joint Logit CBM"]
-  - ["Sequential CBM", "Sequential CBM"]
-  - ["Independent CBM", "Independent CBM"]
-  - ["CEM", "CEM"]
+  - ["DNN_new$", "DNN"]
+  - ["Joint CBM$", "Joint CBM"]
+  - ["Joint Logit CBM$", "Joint Logit CBM"]
+  - ["Sequential CBM$", "Sequential CBM"]
+  - ["Independent CBM$", "Independent CBM"]
+  - ["CEM$", "CEM"]
   - ["^(CEM_NoRandInt).*$", "CEM (No RandInt)"]
   - ["^(CEM_prior_loss_term).*$", "CEM (Prior Loss)"]
-  - ["IntCEM", "IntCEM"]
-  - ["ProbCBM", "ProbCBM"]
-  - ["Posthoc CBM", "Posthoc CBM"]
-  - ["Posthoc Hybrid CBM", "Posthoc Hybrid CBM"]
-  - ["MixCEM", "MixCEM"]
+  - ["IntCEM$", "IntCEM"]
+  - ["ProbCBM$", "ProbCBM"]
+  - ["Posthoc CBM$", "Posthoc CBM"]
+  - ["Posthoc Hybrid CBM$", "Posthoc Hybrid CBM"]
+  - ["MixCEM$", "MixCEM"]
   - [".*(MixCEM_pint_0_).*$", "MixCEM (No RandInt)"]
   - ["MixCEM_pint_{training_intervention_prob}_lambda_{concept_loss_weight}", "MixCEM (RandInt)"]
   - ["^(Hybrid-CBM_dims_).*", "Hybrid-CBM"]
   - ["^(Hybrid-CBM_dims_).*(_pint_.*)", "Hybrid-CBM (RandInt)"]
   - ["^(Hybrid-CBM_dims_).*(_prior_loss_term_).*", "Hybrid-CBM (Prior Loss)"]
 
+model_selection_metrics:
+  - val_acc_y_random_group_level_True_use_prior_False_int_auc
+  - val_acc_y
+
 
 shared_params:
   results_dir: /anfs/bigdisc/me466/mixcem_results/cub_incomplete/
   trials: 3
-  model_selection_trials: 3
   results_fname: new_results
   dataset_config:
     dataset: "cub"
@@ -137,13 +141,13 @@ shared_params:
       #       amount: 0.99
       #       s_vs_p: 0.5
 
-  skip_repr_evaluation: false
   run_ois: false
   run_repr_avg_pred: false
   run_nis: false
 
   ################
   # New additions
+  skip_repr_evaluation: true #false # CHANGE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   run_cas: false #true
   run_purity_matrix: true
   run_repr_task_matrix: true
@@ -226,8 +230,8 @@ runs:
     concept_loss_weight: 1
     sigmoidal_prob: true
     training_intervention_prob: 0
-    prior_loss_term: [10, 5, 1, 0.1]
     embedding_activation: "leakyrelu"
+    prior_loss_term: [10, 5, 1, 0.1]
     grid_variables:
       - prior_loss_term
     grid_search_mode: exhaustive
@@ -281,6 +285,59 @@ runs:
     vib_beta: 5.0e-05
     lr_ratio: 10
 
+  # New ProbCBM variant: no training time random interventions
+  - architecture: "ProbabilisticConceptBottleneckModel"
+    run_name: "ProbCBM (No RandInt)"
+    learning_rate: 0.001
+    weight_decay: 0
+    weight_loss: false
+    optimizer: "adam"
+    concept_loss_weight: 1
+    n_samples_inference: 50
+    use_neg_concept: true
+    pred_class: true
+    init_negative_scale: 5
+    init_shift: 5
+    pretrained: true
+    hidden_dim: 16
+    class_hidden_dim: 64
+    intervention_prob: 0 # No RandInt
+    gradient_clip_val: 2.0
+    max_concept_epochs: 50
+    warmup_epochs: 5
+    max_task_epochs: 50
+    vib_beta: 5.0e-05
+    lr_ratio: 10
+
+
+  # New ProbCBM variant: prior loss term included
+  - architecture: "ProbabilisticConceptBottleneckModel"
+    run_name: "ProbCBM_prior_loss_{prior_loss_term}"
+    learning_rate: 0.001
+    weight_decay: 0
+    weight_loss: false
+    optimizer: "adam"
+    concept_loss_weight: 1
+    n_samples_inference: 50
+    use_neg_concept: true
+    pred_class: true
+    init_negative_scale: 5
+    init_shift: 5
+    pretrained: true
+    hidden_dim: 16
+    class_hidden_dim: 64
+    intervention_prob: 0 # No RandInt
+    gradient_clip_val: 2.0
+    max_concept_epochs: 50
+    warmup_epochs: 5
+    max_task_epochs: 50
+    vib_beta: 5.0e-05
+    lr_ratio: 10
+    prior_loss_term: [10, 5, 1, 0.1]
+    grid_variables:
+      - prior_loss_term
+    grid_search_mode: exhaustive
+
   - architecture: "PosthocConceptBottleneckModel"
     run_name: "Posthoc CBM"
     emb_size: null
@@ -316,6 +373,53 @@ runs:
     blackbox_training_epochs: 100
     max_residual_epochs: 100
     blackbox_path: "PCBM_BlackBox_Model_resnet18_pre_True_fold_2_layers_[112]"
+
+
+  - architecture: "PosthocConceptBottleneckModel"
+    run_name: "Posthoc_CBM_prior_{prior_loss_term}_val_{default_intervention_bound}"
+    emb_size: null
+    residual: false
+    reg_strength: 0.001
+    l1_ratio: 0.99
+    freeze_pretrained_model: true
+    freeze_concept_embeddings: true
+    svd_penalty: 1
+    active_top_percentile: 95
+    active_bottom_percentile: 5
+    blackbox_model_config:
+      name: "resnet18"
+      imagenet_pretrained: true
+      add_linear_layers: [112]
+    blackbox_training_epochs: 100
+    max_residual_epochs: 100
+    blackbox_path: "PCBM_BlackBox_Model_resnet18_pre_True_fold_2_layers_[112]"
+    default_intervention_bound: 5
+    prior_loss_term: [0.1, 5, 10]
+    grid_variables:
+      - prior_loss_term
+    grid_search_mode: exhaustive
+
+  - architecture: "PosthocConceptBottleneckModel"
+    run_name: "Posthoc_Hybrid_CBM_{prior_loss_term}_val_{default_intervention_bound}"
+    emb_size: null
+    residual: true
+    reg_strength: 0.1
+    l1_ratio: 0.99
+    freeze_pretrained_model: true
+    freeze_concept_embeddings: true
+    svd_penalty: 1
+    blackbox_model_config:
+      name: "resnet18"
+      imagenet_pretrained: true
+      add_linear_layers: [112]
+    blackbox_training_epochs: 100
+    max_residual_epochs: 100
+    blackbox_path: "PCBM_BlackBox_Model_resnet18_pre_True_fold_2_layers_[112]"
+    default_intervention_bound: 5
+    prior_loss_term: [0.1, 5, 10]
+    grid_variables:
+      - prior_loss_term
+    grid_search_mode: exhaustive
 
   - architecture: "MixCEM"
     run_name: "MixCEM"
@@ -365,7 +469,7 @@ runs:
     sigmoidal_prob: true
     concept_loss_weight: 1
     embedding_activation: "leakyrelu"
-    prior_only_concepts: [True, False]
+    prior_only_concepts: [true, false]
     grid_variables:
       - prior_loss_term
       - prior_only_concepts
@@ -378,37 +482,634 @@ runs:
     sigmoidal_prob: true
     concept_loss_weight: 1
     embedding_activation: "leakyrelu"
-    prior_only_concepts: [False]
+    prior_only_concepts: [false]
     grid_variables:
       - extra_dims
       - prior_loss_term
       - prior_only_concepts
     grid_search_mode: exhaustive
 
-  # - architecture: "EntangledHybridCBM"
-  #   run_name: "EntangledHybrid-CBM_dims_{extra_dims}_l2_{l2_reg_residual_weights}_prior_loss_term_{prior_loss_term}"
-  #   extra_dims: 500
-  #   prior_loss_term: [0, 10] #[0, 1, 10]
-  #   sigmoidal_prob: true
-  #   concept_loss_weight: 1
-  #   bottleneck_nonlinear: "leakyrelu"
-  #   entanglement_mode: "additive"
-  #   l2_reg_residual_weights: [0] #1, 0.1] #, 0.01, 0] #[0.1, 0.01, 0]
-  #   grid_variables:
-  #     - l2_reg_residual_weights
-  #     - prior_loss_term
-  #   grid_search_mode: exhaustive
 
-  # - architecture: "EntangledHybridCBM"
-  #   run_name: "EntangledHybrid-Concat-CBM_dims_{extra_dims}_l2_{l2_reg_residual_weights}_prior_loss_term_{prior_loss_term}"
-  #   extra_dims: 500
-  #   prior_loss_term: [0, 10] #[0, 1, 10]
+  - architecture: "ConceptBottleneckModel"
+    run_name: "Hybrid-CBM_no_wd_dims_{extra_dims}_prior_loss_term_{prior_loss_term}_only_con_{prior_only_concepts}"
+    extra_dims: [1000, 500, 250, 125, 50, 25]
+    prior_loss_term: [5]
+    sigmoidal_prob: true
+    concept_loss_weight: 1
+    embedding_activation: "leakyrelu"
+    prior_only_concepts: [false]
+    weight_decay: 0 # DIFFERENCE!!!!!!!!!!!!!!
+    grid_variables:
+      - extra_dims
+      - prior_loss_term
+      - prior_only_concepts
+    grid_search_mode: exhaustive
+
+
+
+
+
+
+
+
+
+
+  # Baseline: no leakage at all
+  - architecture: "LeakyReprCBM"
+    run_name: "LeakyReprCBM-Logit_Baseline_prob_correct_{prob_correct}"
+    training_intervention_prob: 0.0
+    prior_loss_term: 0.0
+    total_range_size: 0  # No range here so this will have no leakage at all
+    encode_concepts: false
+    encode_tasks: true
+    random_bucket_noise: false
+    concept_loss_weight: 0
+    sigmoidal_prob: false
+    max_repr_val: 10000
+    prob_correct: [0.85, 0.8] #, 0.95,]
+    leak_provided_concepts: false
+    leak_unprovided_concepts: false
+    grid_variables:
+      - prob_correct
+    grid_search_mode: exhaustive
+
+
+  # Logits encode tasks
+  - architecture: "LeakyReprCBM"
+    run_name: "LeakyReprCBM-Logit_tasks_range_{total_range_size}_prior_{prior_loss_term}_r_{random_bucket_noise}_prob_correct_{prob_correct}"
+    training_intervention_prob: 0.0
+    prior_loss_term: [0.0, 0.1, 1.0, 5.0, 10.0, 100.0]
+    total_range_size: [10000]
+    encode_concepts: false
+    encode_tasks: true
+    random_bucket_noise: false
+    concept_loss_weight: 0
+    sigmoidal_prob: false
+    leak_provided_concepts: false
+    leak_unprovided_concepts: false
+    max_repr_val: 10000
+    prob_correct: [0.85, 0.75]
+
+    grid_variables:
+      - prob_correct
+      - total_range_size
+      - prior_loss_term
+    grid_search_mode: exhaustive
+
+
+
+    # Logits encode tasks
+  - architecture: "LeakyReprCBM"
+    run_name: "LeakyReprCBM-Logit_tasks_flips_{prob_flips}_range_{total_range_size}_prior_{prior_loss_term}_r_{random_bucket_noise}_prob_correct_{prob_correct}"
+    training_intervention_prob: 0.0
+    prior_loss_term: [0.0, 0.1, 1.0, 10.0]
+    total_range_size: [10000]
+    encode_concepts: false
+    encode_tasks: true
+    random_bucket_noise: false
+    concept_loss_weight: 0
+    sigmoidal_prob: false
+    leak_provided_concepts: false
+    leak_unprovided_concepts: false
+    max_repr_val: 10000
+    prob_correct: [0.85] #, 0.75]
+    prob_flips: [0.3]
+
+    grid_variables:
+      - prob_correct
+      - total_range_size
+      - prior_loss_term
+      - prob_flips
+    grid_search_mode: exhaustive
+
+
+  # Logits encode tasks with different range sizes
+  - architecture: "LeakyReprCBM"
+    run_name: "LeakyReprCBM-Logit_range_{total_range_size}_prior_{prior_loss_term}_c_{encode_concepts}_t_{encode_tasks}_r_{random_bucket_noise}_prob_correct_{prob_correct}"
+    training_intervention_prob: 0.0
+    prior_loss_term: [0.0, 10.0]
+    total_range_size: [10000, 1000, 100, 10, 1]
+    encode_concepts: false
+    encode_tasks: true
+    random_bucket_noise: false
+    concept_loss_weight: 0
+    sigmoidal_prob: false
+    leak_provided_concepts: false
+    leak_unprovided_concepts: false
+    max_repr_val: 10000
+    prob_correct: [0.85]
+
+    grid_variables:
+      - prob_correct
+      - total_range_size
+      - prior_loss_term
+    grid_search_mode: exhaustive
+
+
+  # Logits encode tasks with different range sizes
+  - architecture: "LeakyReprCBM"
+    run_name: "LeakyReprCBM-Logit_tasks_flips_{prob_flips}_range_{total_range_size}_prior_{prior_loss_term}_r_{random_bucket_noise}_prob_correct_{prob_correct}"
+    training_intervention_prob: 0.0
+    prior_loss_term: [0.0]
+    total_range_size: [10000, 1000, 100, 10, 1]
+    encode_concepts: false
+    encode_tasks: true
+    random_bucket_noise: false
+    concept_loss_weight: 0
+    sigmoidal_prob: false
+    leak_provided_concepts: false
+    leak_unprovided_concepts: false
+    max_repr_val: 10000
+    prob_correct: [0.85]
+    prob_flips: 0.3
+
+    grid_variables:
+      - prob_correct
+      - total_range_size
+      - prior_loss_term
+    grid_search_mode: exhaustive
+
+
+
+
+
+
+
+
+  # Baseline of training a sequential CBM that uses the embedding concept
+  # representations which do not leak anything
+  - architecture: "LeakyReprCEM"
+    run_name: "LeakyReprCEM_baseline_prior_{prior_loss_term}_prob_correct_{prob_correct}"
+    training_intervention_prob: 0.0
+    prior_loss_term: [0.0, 10.0]
+    encode_concepts: false
+    encode_tasks: false
+    concept_loss_weight: 0
+    leak_provided_concepts: false
+    leak_unprovided_concepts: false
+    prob_correct: [0.85]  # The probability that each given concept will be correctly predicted
+    n_leak_concepts: "{{112 - {n_concepts}}}"
+    prob_encoding_mode: fixed
+    neg_base: 0
+    max_epochs: 40 # We don't really need more than this
+    dataset_config:
+      dataset: "cub"
+      num_workers: 8
+      batch_size: 64
+      root_dir: /homes/me466/data/CUB200/
+      sampling_percent: 0.25
+      include_unselected_concepts: true # CHANGE!
+      sampling_groups: true
+      test_subsampling: 1
+      weight_loss: true
+
+    grid_variables:
+      - prob_correct
+      - prior_loss_term
+    grid_search_mode: exhaustive
+
+
+    # Leak tasks but make random mistakes
+  - architecture: "LeakyReprCEM"
+    run_name: "LeakyReprCEM_proj_tasks_flips_{prob_flips}_prior_{prior_loss_term}_prob_correct_{prob_correct}"
+    training_intervention_prob: 0.0
+    # prior_loss_term: [0.0, 10.0, 100, 1.0, 5.0, 0.1]
+    prior_loss_term: [0.0, 10.0, 0.1, 1.0]
+    encode_concepts: false
+    encode_tasks: true     # Only leak tasks!
+    concept_loss_weight: 0
+    leak_provided_concepts: false
+    leak_unprovided_concepts: false
+    prob_correct: [0.85]  # The probability that each given concept will be correctly predicted
+    n_leak_concepts: "{{112 - {n_concepts}}}"
+    prob_flips: [0.15] # Make a mistakes on some of the leaked task labels
+    prob_encoding_mode: projection
+    neg_base: 0
+    max_epochs: 40 # We don't really need more than this
+    dataset_config:
+      dataset: "cub"
+      num_workers: 8
+      batch_size: 64
+      root_dir: /homes/me466/data/CUB200/
+      sampling_percent: 0.25
+      include_unselected_concepts: true # CHANGE!
+      sampling_groups: true
+      test_subsampling: 1
+      weight_loss: true
+
+    grid_variables:
+      - prob_correct
+      - prior_loss_term
+      - prob_flips
+    grid_search_mode: exhaustive
+
+
+  # Leak tasks but make random mistakes
+  - architecture: "LeakyReprCEM"
+    run_name: "LeakyReprCEM_proj_large_tasks_flips_{prob_flips}_prior_{prior_loss_term}_prob_correct_{prob_correct}"
+    training_intervention_prob: 0.0
+    prior_loss_term: [0.0, 10.0, 0.1, 1.0]
+    encode_concepts: false
+    encode_tasks: true     # Only leak tasks!
+    concept_loss_weight: 0
+    leak_provided_concepts: false
+    leak_unprovided_concepts: false
+    prob_correct: [0.85]  # The probability that each given concept will be correctly predicted
+    n_leak_concepts: "{{112 - {n_concepts}}}"
+    prob_flips: [0.25, 0.3] # Make a mistakes on some of the leaked task labels
+    prob_encoding_mode: projection_large
+    neg_base: 0
+    max_epochs: 40 # We don't really need more than this
+    dataset_config:
+      dataset: "cub"
+      num_workers: 8
+      batch_size: 64
+      root_dir: /homes/me466/data/CUB200/
+      sampling_percent: 0.25
+      include_unselected_concepts: true # CHANGE!
+      sampling_groups: true
+      test_subsampling: 1
+      weight_loss: true
+
+    grid_variables:
+      - prob_correct
+      - prior_loss_term
+      - prob_flips
+    grid_search_mode: exhaustive
+
+
+  - architecture: "LeakyReprCEM"
+    run_name: "LeakyReprCEM_tasks_flips_{prob_flips}_prior_{prior_loss_term}_prob_correct_{prob_correct}"
+    training_intervention_prob: 0.0
+    prior_loss_term: [0.0, 10.0, 0.1, 1.0]
+    encode_concepts: false
+    encode_tasks: true     # Only leak tasks!
+    concept_loss_weight: 0
+    leak_provided_concepts: false
+    leak_unprovided_concepts: false
+    prob_correct: [0.85]  # The probability that each given concept will be correctly predicted
+    n_leak_concepts: "{{112 - {n_concepts}}}"
+    prob_flips: [0.3] # Make a mistakes on some of the leaked task labels
+    prob_encoding_mode: scale
+    neg_base: 10
+    dataset_config:
+      dataset: "cub"
+      num_workers: 8
+      batch_size: 64
+      root_dir: /homes/me466/data/CUB200/
+      sampling_percent: 0.25
+      include_unselected_concepts: true # CHANGE!
+      sampling_groups: true
+      test_subsampling: 1
+      weight_loss: true
+
+    grid_variables:
+      - prob_correct
+      - prior_loss_term
+      - prob_flips
+    grid_search_mode: exhaustive
+
+
+    # Leak tasks but make random mistakes
+  - architecture: "LeakyReprCEM"
+    run_name: "LeakyReprCEM_proj_large_long_tasks_flips_{prob_flips}_prior_{prior_loss_term}_prob_correct_{prob_correct}"
+    training_intervention_prob: 0.0
+    prior_loss_term: [0.0, 10.0, 0.1, 1.0]
+    encode_concepts: false
+    encode_tasks: true     # Only leak tasks!
+    concept_loss_weight: 0
+    leak_provided_concepts: false
+    leak_unprovided_concepts: false
+    prob_correct: [0.85]  # The probability that each given concept will be correctly predicted
+    n_leak_concepts: "{{112 - {n_concepts}}}"
+    prob_flips: [0.3] # Make a mistakes on some of the leaked task labels
+    prob_encoding_mode: projection_large
+    neg_base: 0
+    dataset_config:
+      dataset: "cub"
+      num_workers: 8
+      batch_size: 64
+      root_dir: /homes/me466/data/CUB200/
+      sampling_percent: 0.25
+      include_unselected_concepts: true # CHANGE!
+      sampling_groups: true
+      test_subsampling: 1
+      weight_loss: true
+
+    grid_variables:
+      - prob_correct
+      - prior_loss_term
+      - prob_flips
+    grid_search_mode: exhaustive
+
+
+
+
+
+
+
+
+
+
+
+
+
+  # Leak all unprovided concepts but make random mistakes
+  - architecture: "LeakyReprCEM"
+    run_name: "LeakyReprCEM_proj_unprovided_concepts_flips_{prob_flips}_prior_{prior_loss_term}_prob_correct_{prob_correct}"
+    training_intervention_prob: 0.0
+    prior_loss_term: [0.0, 10.0]
+    encode_concepts: true
+    encode_tasks: false
+    concept_loss_weight: 0
+    leak_provided_concepts: false
+    leak_unprovided_concepts: true
+    prob_correct: [0.85]
+    n_leak_concepts: "{{112 - {n_concepts}}}"
+    prob_flips: [0.2, 0.15, 0.0]
+    prob_encoding_mode: projection
+    neg_base: 0
+    dataset_config:
+      dataset: "cub"
+      num_workers: 8
+      batch_size: 64
+      root_dir: /homes/me466/data/CUB200/
+      sampling_percent: 0.25
+      include_unselected_concepts: true # CHANGE!
+      sampling_groups: true
+      test_subsampling: 1
+      weight_loss: true
+
+    grid_variables:
+      - prob_correct
+      - prior_loss_term
+      - prob_flips
+    grid_search_mode: exhaustive
+
+
+  # Leak all unprovided concepts but make random mistakes
+  - architecture: "LeakyReprCEM"
+    run_name: "LeakyReprCEM_proj_unprovided_concepts_flips_{prob_flips}_prior_{prior_loss_term}_prob_correct_{prob_correct}"
+    training_intervention_prob: 0.0
+    prior_loss_term: [0.0, 10.0]
+    encode_concepts: true
+    encode_tasks: false
+    concept_loss_weight: 0
+    leak_provided_concepts: false
+    leak_unprovided_concepts: true
+    prob_correct: [0.8, 0.9]
+    n_leak_concepts: "{{112 - {n_concepts}}}"
+    prob_flips: [0.4, 0.3, 0.2, 0.1, 0.05, 0.01]
+    prob_encoding_mode: projection
+    neg_base: 0
+    dataset_config:
+      dataset: "cub"
+      num_workers: 8
+      batch_size: 64
+      root_dir: /homes/me466/data/CUB200/
+      sampling_percent: 0.25
+      include_unselected_concepts: true # CHANGE!
+      sampling_groups: true
+      test_subsampling: 1
+      weight_loss: true
+
+    grid_variables:
+      - prob_correct
+      - prob_flips
+      - prior_loss_term
+    grid_search_mode: exhaustive
+
+  # Leak all provided concepts but make random mistakes
+  - architecture: "LeakyReprCEM"
+    run_name: "LeakyReprCEM_proj_provided_concepts_flips_{prob_flips}_prior_{prior_loss_term}_prob_correct_{prob_correct}"
+    training_intervention_prob: 0.0
+    prior_loss_term: [0.0, 10.0]
+    encode_concepts: true
+    encode_tasks: false
+    concept_loss_weight: 0
+    leak_provided_concepts: true
+    leak_unprovided_concepts: false
+    prob_correct: [0.85]
+    n_leak_concepts: "{{112 - {n_concepts}}}"
+    prob_flips: [0.2, 0.0]
+    prob_encoding_mode: projection
+    neg_base: 0
+    dataset_config:
+      dataset: "cub"
+      num_workers: 8
+      batch_size: 64
+      root_dir: /homes/me466/data/CUB200/
+      sampling_percent: 0.25
+      include_unselected_concepts: true # CHANGE!
+      sampling_groups: true
+      test_subsampling: 1
+      weight_loss: true
+
+    grid_variables:
+      - prob_correct
+      - prior_loss_term
+      - prob_flips
+    grid_search_mode: exhaustive
+
+
+
+  # Leak everything
+  - architecture: "LeakyReprCEM"
+    run_name: "LeakyReprCEM_proj_everything_flips_{prob_flips}_prior_{prior_loss_term}_prob_correct_{prob_correct}"
+    training_intervention_prob: 0.0
+    prior_loss_term: [0.0, 10.0]
+    encode_concepts: true
+    encode_tasks: true
+    concept_loss_weight: 0
+    leak_provided_concepts: true
+    leak_unprovided_concepts: true
+    prob_correct: [0.85]
+    n_leak_concepts: "{{112 - {n_concepts}}}"
+    prob_flips: [0.2, 0.0]
+    prob_encoding_mode: projection
+    neg_base: 0
+    dataset_config:
+      dataset: "cub"
+      num_workers: 8
+      batch_size: 64
+      root_dir: /homes/me466/data/CUB200/
+      sampling_percent: 0.25
+      include_unselected_concepts: true # CHANGE!
+      sampling_groups: true
+      test_subsampling: 1
+      weight_loss: true
+
+    grid_variables:
+      - prob_correct
+      - prior_loss_term
+      - prob_flips
+    grid_search_mode: exhaustive
+
+
+  # - architecture: "ConceptEmbeddingModel"
+  #   run_name: "CEM_derp"
   #   sigmoidal_prob: true
-  #   concept_loss_weight: 1
-  #   bottleneck_nonlinear: "leakyrelu"
-  #   entanglement_mode: "concat"
-  #   l2_reg_residual_weights: [0] #1, 0.1] #, 0.01, 0] #[0.1, 0.01, 0]
-  #   grid_variables:
-  #     - l2_reg_residual_weights
-  #     - prior_loss_term
-  #   grid_search_mode: exhaustive
+  #   training_intervention_prob: 0
+  #   concept_loss_weight: 1 # Set to one as now we will actually train this model
+  #   task_loss_weight: 0 # REMOVE THIS!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  #   embedding_activation: "leakyrelu"
+  #   dataset_config:
+  #     dataset: "cub"
+  #     num_workers: 8
+  #     batch_size: 64
+  #     root_dir: /homes/me466/data/CUB200/
+  #     sampling_percent: 0.25
+  #     include_unselected_concepts: true # CHANGE!
+  #     sampling_groups: true
+  #     test_subsampling: 1
+  #     weight_loss: true
+
+  # Leak given concepts BUT use the predicted probabilities for the provided concepts
+  - architecture: "LeakyReprCEM"
+    run_name: "LeakyReprCEM_proj_given_concepts_flips_{prob_flips}_prior_{prior_loss_term}_prob_correct_{prob_correct}_lamb_{concept_loss_weight}"
+    sigmoidal_prob: true
+    training_intervention_prob: 0.0
+    embedding_activation: "leakyrelu"
+    prior_loss_term: [0.0, 10.0]
+    encode_concepts: true
+    encode_tasks: false
+    concept_loss_weight: 1 # Set to one as now we will actually train this model
+    task_loss_weight: 1
+    leak_provided_concepts: true
+    leak_unprovided_concepts: false
+
+    prob_correct: ["predicted"]
+    n_leak_concepts: "{{112 - {n_concepts}}}"
+    prob_flips: [0.0]
+    prob_encoding_mode: projection
+    neg_base: 0
+
+    dataset_config:
+      dataset: "cub"
+      num_workers: 8
+      batch_size: 64
+      root_dir: /homes/me466/data/CUB200/
+      sampling_percent: 0.25
+      include_unselected_concepts: true # CHANGE!
+      sampling_groups: true
+      test_subsampling: 1
+      weight_loss: true
+
+    grid_variables:
+      - prob_correct
+      - prior_loss_term
+      - prob_flips
+    grid_search_mode: exhaustive
+
+
+  # Leak hidden concepts BUT use the predicted probabilities for the provided concepts
+  - architecture: "LeakyReprCEM"
+    run_name: "LeakyReprCEM_proj_hidden_concepts_flips_{prob_flips}_prior_{prior_loss_term}_prob_correct_{prob_correct}_lamb_{concept_loss_weight}"
+    sigmoidal_prob: true
+    training_intervention_prob: 0.0
+    embedding_activation: "leakyrelu"
+    prior_loss_term: [0.0, 10.0]
+    encode_concepts: true
+    encode_tasks: false
+    concept_loss_weight: 1 # Set to one as now we will actually train this model
+    task_loss_weight: 1
+    leak_provided_concepts: false
+    leak_unprovided_concepts: true
+
+    prob_correct: ["predicted"]
+    n_leak_concepts: "{{112 - {n_concepts}}}"
+    prob_flips: [0.0, 0.1, 0.2]
+    prob_encoding_mode: projection
+    neg_base: 0
+
+    dataset_config:
+      dataset: "cub"
+      num_workers: 8
+      batch_size: 64
+      root_dir: /homes/me466/data/CUB200/
+      sampling_percent: 0.25
+      include_unselected_concepts: true # CHANGE!
+      sampling_groups: true
+      test_subsampling: 1
+      weight_loss: true
+
+    grid_variables:
+      - prob_correct
+      - prior_loss_term
+      - prob_flips
+    grid_search_mode: exhaustive
+
+
+  # Leak hidden concepts BUT use the predicted probabilities for the provided concepts
+  - architecture: "LeakyReprCEM"
+    run_name: "LeakyReprCEM_proj_learnt_hidden_concepts_flips_{prob_flips}_prior_{prior_loss_term}_prob_correct_{prob_correct}_lamb_{concept_loss_weight}"
+    sigmoidal_prob: true
+    training_intervention_prob: 0.0
+    embedding_activation: "leakyrelu"
+    prior_loss_term: [0.0, 10.0]
+    encode_concepts: true
+    encode_tasks: false
+    concept_loss_weight: 1 # Set to one as now we will actually train this model
+    task_loss_weight: 0.01 # REMOVE!!!!!!!
+    leak_provided_concepts: false
+    leak_unprovided_concepts: true
+
+    prob_correct: ["predicted_cem"]
+    n_leak_concepts: "{{112 - {n_concepts}}}"
+    prob_flips: [0.0, 0.1] #, 0.2]
+    prob_encoding_mode: learned_projection  # Difference!
+    neg_base: 0
+
+    dataset_config:
+      dataset: "cub"
+      num_workers: 8
+      batch_size: 64
+      root_dir: /homes/me466/data/CUB200/
+      sampling_percent: 0.25
+      include_unselected_concepts: true # CHANGE!
+      sampling_groups: true
+      test_subsampling: 1
+      weight_loss: true
+
+    grid_variables:
+      - prob_correct
+      - prior_loss_term
+      - prob_flips
+    grid_search_mode: exhaustive
+
+  # Leak ALL concepts BUT use the predicted probabilities for the provided concepts
+  - architecture: "LeakyReprCEM"
+    run_name: "LeakyReprCEM_proj_all_concepts_flips_{prob_flips}_prior_{prior_loss_term}_prob_correct_{prob_correct}_lamb_{concept_loss_weight}"
+    sigmoidal_prob: true
+    training_intervention_prob: 0.0
+    embedding_activation: "leakyrelu"
+    prior_loss_term: [0.0, 10.0]
+    encode_concepts: true
+    encode_tasks: false
+    concept_loss_weight: 1 # Set to one as now we will actually train this model
+    task_loss_weight: 1
+    leak_provided_concepts: true
+    leak_unprovided_concepts: true
+
+    prob_correct: ["predicted"]
+    n_leak_concepts: "{{112 - {n_concepts}}}"
+    prob_flips: [0.0]
+    prob_encoding_mode: projection
+    neg_base: 0
+
+    dataset_config:
+      dataset: "cub"
+      num_workers: 8
+      batch_size: 64
+      root_dir: /homes/me466/data/CUB200/
+      sampling_percent: 0.25
+      include_unselected_concepts: true # CHANGE!
+      sampling_groups: true
+      test_subsampling: 1
+      weight_loss: true
+
+    grid_variables:
+      - prob_correct
+      - prior_loss_term
+      - prob_flips
+    grid_search_mode: exhaustive

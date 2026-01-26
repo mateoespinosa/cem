@@ -272,6 +272,10 @@ class ConceptBottleneckModel(pl.LightningModule):
             prev_interventions = batch[offset + 2]
         else:
             prev_interventions = None
+        if len(batch) > (offset + 3):
+            # Then we are given latent concepts as an input too. Let's
+            # pack those up with the known training concepts
+            c = (c, batch[offset + 3])
         return x, y, (c, g, competencies, prev_interventions)
 
     def _standardize_indices(self, intervention_idxs, batch_size, device='cuda'):
@@ -364,7 +368,9 @@ class ConceptBottleneckModel(pl.LightningModule):
                 ).to(c_pred.device),
                 c_true=c,
             )
-            if self.prior_only_concepts and (self.extra_dims > 0):
+            if getattr(self, 'prior_only_concepts', False) and (
+                getattr(self, 'extra_dims', 0) > 0
+            ):
                 # Then we will block all information from the extra capacity
                 # that is not concept specific.
                 bottleneck_gt[:, self.n_concepts:] = 0.0
@@ -669,6 +675,11 @@ class ConceptBottleneckModel(pl.LightningModule):
             competencies=competencies,
             prev_interventions=prev_interventions,
         )
+        if isinstance(c, (list, tuple)):
+            # Then we were provided with a set of training concepts and a
+            # set of latent concepts. Let's just use the training concepts
+            # for evaluation
+            c = c[0]
         c_sem, c_logits, y_logits = outputs[0], outputs[1], outputs[2]
         if self.task_loss_weight != 0:
             task_loss = self.loss_task(
@@ -676,7 +687,6 @@ class ConceptBottleneckModel(pl.LightningModule):
                 y,
             )
             task_loss_scalar = task_loss.detach()
-            # print("task_loss_scalar =", task_loss_scalar)
         else:
             task_loss = 0
             task_loss_scalar = 0
@@ -1349,3 +1359,352 @@ class EntangledHybridCBM(ConceptBottleneckModel):
                 weights ** 2
             )
         return loss
+
+
+
+class LeakyReprCBM(ConceptBottleneckModel):
+    def __init__(
+        self,
+        n_concepts,
+        n_tasks,
+        concept_loss_weight=0.01,
+        task_loss_weight=1,
+        sigmoidal_prob=True,
+
+        x2c_model=None,
+        c_extractor_arch=utils.wrap_pretrained_model(resnet50),
+        c2y_model=None,
+        c2y_layers=None,
+        output_latent=False,
+
+        optimizer="adam",
+        momentum=0.9,
+        learning_rate=0.01,
+        weight_decay=4e-05,
+        lr_scheduler_factor=0.1,
+        lr_scheduler_patience=10,
+        weight_loss=None,
+        task_class_weights=None,
+
+        intervention_policy=None,
+        output_interventions=False,
+        use_concept_groups=False,
+
+        # New additions
+        training_intervention_prob=0.0,
+        prior_loss_term=0.0,
+
+        top_k_accuracy=None,
+
+        # Parameters for representation definition
+        total_range_size=0.1,
+        encode_concepts=False,
+        encode_tasks=True,
+        random_bucket_noise=True,
+        classes_selected=1.0,
+        concept_selected=1.0,
+        max_repr_val=10000,
+        prob_correct=1.0,
+        prob_flips=0.0,
+        leak_unprovided_concepts=False
+    ):
+        """
+        TODO
+        """
+        assert encode_concepts or encode_tasks, (
+            "At least one of encode_concepts or encode_tasks must be True."
+        )
+
+        self.total_range_size = total_range_size
+        self.encode_concepts = encode_concepts
+        self.leak_unprovided_concepts = leak_unprovided_concepts
+        self.encode_tasks = encode_tasks
+        self.random_bucket_noise = random_bucket_noise
+        self.classes_selected = classes_selected
+        self.concept_selected = concept_selected
+        self.prob_correct = prob_correct
+        self.prob_flips = prob_flips
+        if sigmoidal_prob:
+            self.max_repr_val = 1.0
+            self.min_repr_val = 0.0
+
+            active_intervention_values = None
+            inactive_intervention_values = None
+        else:
+            self.max_repr_val = max_repr_val + 1
+            self.min_repr_val = - self.max_repr_val
+            active_intervention_values = [
+                self.max_repr_val for _ in range(n_concepts)
+            ]
+            inactive_intervention_values = [
+                self.min_repr_val for _ in range(n_concepts)
+            ]
+
+        super().__init__(
+            n_concepts=n_concepts,
+            n_tasks=n_tasks,
+            concept_loss_weight=concept_loss_weight,
+            task_loss_weight=task_loss_weight,
+
+            extra_dims=0,
+            bool=False,
+            sigmoidal_prob=sigmoidal_prob,
+            sigmoidal_extra_capacity=False,
+            bottleneck_nonlinear=None,
+            output_latent=output_latent,
+            x2c_model=x2c_model,
+            c_extractor_arch=c_extractor_arch,
+            c2y_model=c2y_model,
+            c2y_layers=c2y_layers,
+            optimizer=optimizer,
+            momentum=momentum,
+            learning_rate=learning_rate,
+            weight_decay=weight_decay,
+            lr_scheduler_factor=lr_scheduler_factor,
+            lr_scheduler_patience=lr_scheduler_patience,
+            weight_loss=weight_loss,
+            task_class_weights=task_class_weights,
+            active_intervention_values=active_intervention_values,
+            inactive_intervention_values=inactive_intervention_values,
+            intervention_policy=intervention_policy,
+            output_interventions=output_interventions,
+            use_concept_groups=use_concept_groups,
+            training_intervention_prob=training_intervention_prob,
+            prior_loss_term=prior_loss_term,
+            prior_only_concepts=False,
+            top_k_accuracy=top_k_accuracy,
+        )
+
+
+
+
+    def _forward(
+        self,
+        x,
+        intervention_idxs=None,
+        competencies=None,
+        prev_interventions=None,
+        c=None,
+        y=None,
+        train=False,
+        latent=None,
+        output_latent=None,
+        output_embeddings=False,
+        output_interventions=None,
+    ):
+        output_interventions = (
+            output_interventions if output_interventions is not None
+            else self.output_interventions
+        )
+        output_latent = (
+            output_latent if output_latent is not None
+            else self.output_latent
+        )
+        if isinstance(c, (tuple, list)):
+            # Then we are working with a set of provided concepts and unprovided
+            # concepts
+            c, unprovided_concepts = c
+        else:
+            unprovided_concepts = None
+
+        if c is None:
+            raise ValueError(
+                "FixedReprCBM requires concept labels to be provided "
+                "during forward passes."
+            )
+
+        if self.leak_unprovided_concepts:
+            assert unprovided_concepts is not None, (
+                "leak_unprovided_concepts is True, but no unprovided "
+                "concepts were given."
+            )
+            leak_c = unprovided_concepts
+        else:
+            leak_c = c
+
+
+        # Now that we know we have both concept and task labels, we can
+        # construct the fixed representations.
+        # Let's start by calculating how many "buckets" we will use in the
+        # ranges we were given
+        self.n_buckets = 1
+        if self.leak_unprovided_concepts:
+            self.max_concept_idx = int(np.ceil(unprovided_concepts.shape[-1] * self.concept_selected))
+        else:
+            self.max_concept_idx = int(np.ceil(self.n_concepts * self.concept_selected))
+        self.max_task_idx = int(np.ceil(self.n_tasks * self.classes_selected))
+        if self.encode_concepts:
+            self.n_buckets *= 2 ** self.max_concept_idx
+        if self.encode_tasks:
+            self.n_buckets *= self.max_task_idx
+        # Now compute the size of each bucket
+        self.pos_concepts_start_val = (
+            (self.max_repr_val - self.total_range_size)
+        )
+        self.neg_concepts_start_val = self.min_repr_val
+
+        self.bucket_size = self.total_range_size / self.n_buckets
+        # Let's calculate how many different buckets we can have per concept so
+        # far
+        self.n_buckets_per_task = 2 ** self.max_concept_idx if self.encode_concepts else 1
+
+
+        if y is None:
+            raise ValueError(
+                "FixedReprCBM requires task labels to be provided "
+                "during forward passes."
+            )
+
+        # Now compute the bucket index for each example. This index will be
+        # determined by the concept labels and the task labels. Each combination
+        # of concept and task labels will correspond to a unique bucket.
+        # Then we will generate a represention for each concept such that, if
+        # the concept is on, we assign it a value in [1-self.total_range_size, 1]
+        # in the bucket assigned to the example, and if the concept is off,
+        # we assign it a value in [0, self.total_range_size] in the bucket
+        # assigned to the example.
+        batch_size = c.shape[0]
+        bucket_indices = torch.zeros((batch_size, ), dtype=torch.long).to(x.device)
+        if self.encode_concepts:
+            # We add the binary representation of the concept vector to the
+            # bucket index
+            for concept_idx in range(self.max_concept_idx):
+                bucket_indices += (
+                    leak_c[:, concept_idx].long() *
+                    (2 ** concept_idx)
+                )
+
+        if self.encode_tasks:
+            # and next we shift the current bucket index based on the ground
+            # truth task labels (where y is a [B] vector of class indices)
+            # however, we only do this for the first self.classes_selected
+            # classes
+            if self.prob_flips > 0:
+                # Then we randomly change some of the task labels by setting
+                # a task label in y to a random label in {0, ..., n_tasks - 1}
+                # with probability self.prob_flips
+                random_labels = torch.randint(
+                    low=0,
+                    high=self.n_tasks,
+                    size=y.shape,
+                ).to(y.device)
+                flip_mask = (
+                    torch.rand(y.shape).to(y.device) <= self.prob_flips
+                ).long()
+                leak_y = y * (1 - flip_mask) + random_labels * flip_mask
+            else:
+                leak_y = y
+            bucket_indices += (leak_y.long().clamp(
+                max=self.max_task_idx
+            ) * self.n_buckets_per_task)
+            # All classes above the selected ones are mapped to the last
+            # bucket for the selected classes
+
+        # Now we can compute the lower bound of each bucket
+        bucket_lower_bounds = bucket_indices.float() * self.bucket_size
+
+        # We can compute the representations for each concept
+        reprs = torch.zeros((batch_size, self.n_concepts)).to(x.device)
+        # We will flip concepts with probability 1 - self.prob_correct
+        if self.prob_correct < 1.0:
+            flip_mask = (
+                torch.rand((batch_size, self.n_concepts)).to(x.device) >
+                self.prob_correct
+            ).float()
+            used_concepts = c * (1 - flip_mask) + (1 - c) * flip_mask
+        else:
+            used_concepts = c
+        for concept_idx in range(self.n_concepts):
+            concept_on_values = self.pos_concepts_start_val + bucket_lower_bounds
+            concept_off_values = self.neg_concepts_start_val + bucket_lower_bounds
+            reprs[:, concept_idx] = (
+                used_concepts[:, concept_idx] * concept_on_values +
+                (1 - used_concepts[:, concept_idx]) * concept_off_values
+            )
+        if self.random_bucket_noise:
+            reprs += (
+                torch.rand((batch_size, self.n_concepts)).to(x.device) * self.bucket_size
+            )
+        else:
+            reprs += (self.bucket_size / 2.0)
+
+        # Now pass the representations through the concept predictor
+        # and the label predictor
+        if self.sigmoidal_prob:
+            c_sem = reprs
+        else:
+            c_sem = self.sig(reprs)
+        c_pred = reprs
+
+        if output_embeddings or (
+            (intervention_idxs is None) and (c is not None) and (
+            self.intervention_policy is not None
+        )):
+            pos_embeddings = torch.ones(c_sem.shape).to(x.device)
+            neg_embeddings = torch.zeros(c_sem.shape).to(x.device)
+            pos_embeddings = torch.unsqueeze(pos_embeddings, dim=-1)
+            neg_embeddings = torch.unsqueeze(neg_embeddings, dim=-1)
+
+        # Now include any interventions that we may want to include
+        if (intervention_idxs is None) and (c is not None) and (
+            self.intervention_policy is not None
+        ):
+            prior_distribution = self._prior_int_distribution(
+                c=c,
+                prob=c_sem,
+                pos_embeddings=pos_embeddings,
+                neg_embeddings=neg_embeddings,
+                competencies=competencies,
+                prev_interventions=prev_interventions,
+                train=train,
+                horizon=1,
+            )
+            intervention_idxs, c_int = self.intervention_policy(
+                x=x,
+                c=c,
+                pred_c=c_sem,
+                y=y,
+                competencies=competencies,
+                prev_interventions=prev_interventions,
+                prior_distribution=prior_distribution,
+            )
+        else:
+            c_int = c
+
+        if train and (self.training_intervention_prob > 0.0) and (
+            intervention_idxs is None
+        ):
+            intervention_idxs = torch.rand(
+                (c_pred.shape[0], self.n_concepts)
+            ).to(x.device) < self.training_intervention_prob
+
+        c_pred = self._concept_intervention(
+            c_pred=c_pred,
+            intervention_idxs=intervention_idxs,
+            c_true=c_int,
+        )
+        y_pred = self.c2y_model(c_pred)
+
+        tail_results = []
+        if output_interventions:
+            if intervention_idxs is None:
+                intervention_idxs = None
+            if isinstance(intervention_idxs, np.ndarray):
+                intervention_idxs = torch.FloatTensor(
+                    intervention_idxs
+                ).to(x.device)
+            tail_results.append(intervention_idxs)
+        if output_latent:
+            tail_results.append(latent)
+        if output_embeddings:
+            tail_results.append(pos_embeddings)
+            tail_results.append(neg_embeddings)
+        tail_results += self._extra_tail_results(
+            x=x,
+            y=y,
+            c=c,
+            c_sem=c_sem,
+            competencies=competencies,
+            prev_interventions=prev_interventions,
+        )
+        return tuple([c_sem, c_pred, y_pred] + tail_results)

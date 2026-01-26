@@ -1191,12 +1191,16 @@ class CUBDataset(Dataset):
                 attr_label = img_data['attribute_label']
             if self.concept_transform is not None:
                 attr_label = self.concept_transform(attr_label)
+                if isinstance(attr_label, (list, tuple)):
+                    attr_label = tuple([torch.FloatTensor(x) for x in attr_label])
+                elif attr_label is not None:
+                    attr_label = torch.FloatTensor(attr_label)
             if self.no_img:
                 if self.n_class_attr == 3:
                     one_hot_attr_label = np.zeros(
                         (len(SELECTED_CONCEPTS), self.n_class_attr)
                     )
-                    one_hot_attr_label[np.arange(len(SELECTED_CONCEPTS)), attr_label] = 1
+                    one_hot_attr_label[np.arange(len(SELECTED_CONCEPTS)), attr_label.long()] = 1
                     return one_hot_attr_label, class_label
                 else:
                     return attr_label, class_label
@@ -1213,9 +1217,9 @@ class CUBDataset(Dataset):
                 competencies = []
                 for (discrete_unc_val, hard_concept_val) in zip(discrete_unc_label, instance_attr_label):
                     competencies.append(discrete_to_continuous_unc(discrete_unc_val, hard_concept_val, self.unc_map))
-                return img, class_label, torch.FloatTensor(attr_label), torch.FloatTensor(np.array(competencies))
+                return img, class_label, attr_label, torch.FloatTensor(np.array(competencies))
             else:
-                return img, class_label, torch.FloatTensor(attr_label)
+                return img, class_label, attr_label
         else:
             return img, class_label
 
@@ -1506,7 +1510,10 @@ def generate_data(
         imbalance = find_class_imbalance(train_data_path, True)
     else:
         imbalance = None
-
+    include_unselected_concepts = config.get(
+        'include_unselected_concepts',
+        False,
+    )
     val_data_path = train_data_path.replace('train.pkl', 'val.pkl')
     test_data_path = train_data_path.replace('train.pkl', 'test.pkl')
     sampling_percent = config.get("sampling_percent", 1)
@@ -1587,10 +1594,26 @@ def generate_data(
         for k, v in concept_group_map.items():
             print(f"\t\t\t{k} -> {v}")
 
-        def concept_transform(sample):
-            if isinstance(sample, list):
-                sample = np.array(sample)
-            return sample[selected_concepts]
+        if include_unselected_concepts:
+            # find a list of unselected concepts
+            unselected_concepts = [
+                i for i in range(len(SELECTED_CONCEPTS))
+                if i not in selected_concepts
+            ]
+            # and make a transform that outputs a tuple (selected concepts,
+            # unselected concepts)
+            def concept_transform(sample):
+                if isinstance(sample, list):
+                    sample = np.array(sample)
+                return (
+                    sample[selected_concepts],
+                    sample[unselected_concepts],
+                )
+        else:
+            def concept_transform(sample):
+                if isinstance(sample, list):
+                    sample = np.array(sample)
+                return sample[selected_concepts]
 
         # And correct the weight imbalance
         if config.get('weight_loss', False):

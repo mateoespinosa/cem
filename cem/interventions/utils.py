@@ -444,10 +444,11 @@ def intervene_in_cbm(
                         'num_load_workers',
                         config.get('num_workers', 1),
                     ),
+                    output_latent_concepts=True,
                 )
-            x_test, y_test, c_test, g_test = in_memory_dataset_cache['loaded']
+            x_test, y_test, (c_test, c_test_latent), g_test = in_memory_dataset_cache['loaded']
         else:
-            x_test, y_test, c_test, g_test = data_utils.daloader_to_memory(
+            x_test, y_test, (c_test, c_test_latent), g_test = data_utils.daloader_to_memory(
                 test_dl,
                 as_torch=True,
                 output_groups=True,
@@ -455,6 +456,7 @@ def intervene_in_cbm(
                     'num_load_workers',
                     config.get('num_workers', 1)
                 ),
+                output_latent_concepts=True,
             )
     np.random.seed(42)
     indices = np.random.permutation(x_test.shape[0])[
@@ -462,6 +464,8 @@ def intervene_in_cbm(
     ]
     x_test = x_test[indices]
     c_test = c_test[indices]
+    if c_test_latent is not None:
+        c_test_latent = c_test_latent[indices]
     y_test = y_test[indices]
     competencies_test = competence_generator(
         x=x_test,
@@ -480,13 +484,28 @@ def intervene_in_cbm(
 
     if not isinstance(competencies_test, torch.FloatTensor):
         competencies_test = torch.FloatTensor(competencies_test)
-    test_dl = torch.utils.data.DataLoader(
-        dataset=torch.utils.data.TensorDataset(
+    if c_test_latent is None:
+        ds_args = (
             x_test,
             y_test,
             c_test,
             g_test,
             competencies_test,
+            torch.zeros_like(c_test),  # Prev interventions
+        )
+    else:
+        ds_args = (
+            x_test,
+            y_test,
+            c_test,
+            g_test,
+            competencies_test,
+            torch.zeros_like(c_test),  # Prev interventions
+            c_test_latent,
+        )
+    test_dl = torch.utils.data.DataLoader(
+        dataset=torch.utils.data.TensorDataset(
+            *ds_args
         ),
         batch_size=test_dl.batch_size,
         num_workers=test_dl.num_workers,
@@ -588,15 +607,27 @@ def intervene_in_cbm(
         # And generate the next dataset so that we can reuse previous
         # interventions on the same samples in the future to save time
         prev_num_groups_intervened = num_groups_intervened
-        test_dl = torch.utils.data.DataLoader(
-            dataset=torch.utils.data.TensorDataset(
+        if c_test_latent is None:
+            ds_args = (
                 x_test,
                 y_test,
                 c_test,
                 g_test,
                 competencies_test,
                 torch.IntTensor(prev_interventions),
-            ),
+            )
+        else:
+            ds_args = (
+                x_test,
+                y_test,
+                c_test,
+                g_test,
+                competencies_test,
+                torch.IntTensor(prev_interventions),
+                c_test_latent,
+            )
+        test_dl = torch.utils.data.DataLoader(
+            dataset=torch.utils.data.TensorDataset(*ds_args),
             batch_size=test_dl.batch_size,
             num_workers=test_dl.num_workers,
         )

@@ -203,7 +203,8 @@ def construct_model(
             vib_beta=config.get(
                 'vib_beta',
                 0.00005,
-            )
+            ),
+            prior_loss_term=config.get('prior_loss_term', 0),
         )
     elif config["architecture"] in ["IntAwareConceptBottleneckModel", "IntCBM"]:
         task_loss_weight = config.get('task_loss_weight', 0.0)
@@ -540,6 +541,66 @@ def construct_model(
             "concept_head": config.get("concept_head", "linear"),
             "mask_rate": config.get("mask_rate", None),
             "max_prob": config.get("max_prob", 1),
+        }
+
+    elif (
+        "LeakyReprCEM" == config["architecture"]
+    ):
+        model_cls = models_cem.LeakyReprCEM
+        extra_params = {
+            "shared_prob_gen": config.get("shared_prob_gen", True),
+            "intervention_policy": intervention_policy,
+            "training_intervention_prob": config.get(
+                'training_intervention_prob',
+                0.25,
+            ),
+            "embedding_activation": config.get(
+                "embedding_activation",
+                "leakyrelu"
+            ),
+            "c2y_model": c2y_model,
+            "c2y_layers": config.get("c2y_layers", []),
+            "sim_penalty": config.get("sim_penalty", 0.0),
+            "prob_training_thresholding": config.get("prob_training_thresholding", 0),
+            "l2_penalty": config.get("l2_penalty", 0.0),
+            "emb_pred_loss": config.get("emb_pred_loss", 0.0),
+            "cbm_mode": config.get("cbm_mode", False),
+            "encode_concepts": config.get('encode_concepts', False),
+            "encode_tasks": config.get('encode_tasks', True),
+            "prob_correct": config.get('prob_correct', 1.0),
+            "leak_unprovided_concepts": config.get('leak_unprovided_concepts', False),
+            "n_leak_concepts": config.get('n_leak_concepts', None),
+            "prob_encoding_mode": config.get('prob_encoding_mode', 'scale'),
+            "leak_provided_concepts": config.get('leak_provided_concepts', False),
+            "prob_flips": config.get('prob_flips', 0.0),
+            "neg_base": config.get('neg_base', 0.0),
+        }
+
+
+    elif (
+        "LeakyReprCBM" == config["architecture"]
+    ):
+        model_cls = models_cbm.LeakyReprCBM
+        extra_params = {
+            "intervention_policy": intervention_policy,
+            "x2c_model": x2c_model,
+            "c2y_model": c2y_model,
+            "c2y_layers": config.get("c2y_layers", []),
+            "training_intervention_prob": config.get(
+                "training_intervention_prob",
+                0.0,
+            ),
+            "prior_loss_term": config.get("prior_loss_term", 0.0),
+            "total_range_size": config.get("total_range_size", 0.1),
+            "encode_concepts": config.get("encode_concepts", False),
+            "encode_tasks": config.get("encode_tasks", True),
+            "random_bucket_noise": config.get("random_bucket_noise", True),
+            "sigmoidal_prob": config.get("sigmoidal_prob", True),
+            "classes_selected": config.get('classes_selected', 1.0),
+            "concept_selected": config.get('concept_selected', 1.0),
+            "max_repr_val": config.get('max_repr_val', 10000),
+            "prob_correct": config.get('prob_correct', 1.0),
+            "leak_unprovided_concepts": config.get('leak_unprovided_concepts', False),
         }
 
     elif (
