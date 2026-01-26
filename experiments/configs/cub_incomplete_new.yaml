@@ -182,6 +182,15 @@ runs:
     concept_loss_weight: 0
     embedding_activation: "leakyrelu"
 
+
+  - architecture: "ConceptBottleneckModel"
+    run_name: "DNN_localized_prior_{prior_loss_term}"
+    extra_dims: 500
+    sigmoidal_prob: true
+    concept_loss_weight: 0
+    embedding_activation: "leakyrelu"
+    prior_loss_term: 10.0
+
   - architecture: "ConceptBottleneckModel"
     run_name: "Joint CBM"
     sigmoidal_prob: true
@@ -190,11 +199,28 @@ runs:
     sigmoidal_extra_capacity: false
 
   - architecture: "ConceptBottleneckModel"
+    run_name: "Joint_CBM_prior_{prior_loss_term}"
+    sigmoidal_prob: true
+    concept_loss_weight: 1
+    embedding_activation: "leakyrelu"
+    sigmoidal_extra_capacity: false
+    prior_loss_term: 10.0
+
+  - architecture: "ConceptBottleneckModel"
     run_name: "Joint Logit CBM"
     concept_loss_weight: 1
     embedding_activation: "leakyrelu"
     sigmoidal_extra_capacity: false
     sigmoidal_prob: false
+
+
+  - architecture: "ConceptBottleneckModel"
+    run_name: "Joint_Logit_CBM_prior_{prior_loss_term}"
+    concept_loss_weight: 1
+    embedding_activation: "leakyrelu"
+    sigmoidal_extra_capacity: false
+    sigmoidal_prob: false
+    prior_loss_term: 10.0
 
   - architecture: "SequentialConceptBottleneckModel"
     run_name: "Sequential CBM"
@@ -521,12 +547,32 @@ runs:
     prior_loss_term: 0.0
     total_range_size: 0  # No range here so this will have no leakage at all
     encode_concepts: false
-    encode_tasks: true
+    encode_tasks: true  # Not used as we habe no range here
     random_bucket_noise: false
     concept_loss_weight: 0
     sigmoidal_prob: false
     max_repr_val: 10000
     prob_correct: [0.85, 0.8] #, 0.95,]
+    leak_provided_concepts: false
+    leak_unprovided_concepts: false
+    grid_variables:
+      - prob_correct
+    grid_search_mode: exhaustive
+
+
+  # Baseline: no leakage at all
+  - architecture: "LeakyReprCBM"
+    run_name: "LeakyReprCBM-Logit_New_Baseline_prob_correct_{prob_correct}"
+    training_intervention_prob: 0.0
+    prior_loss_term: 0.0
+    total_range_size: 0  # No range here so this will have no leakage at all
+    encode_concepts: false
+    encode_tasks: true  # Not used as we habe no range here
+    random_bucket_noise: false
+    concept_loss_weight: 0
+    sigmoidal_prob: false
+    max_repr_val: 5
+    prob_correct: [0.85]
     leak_provided_concepts: false
     leak_unprovided_concepts: false
     grid_variables:
@@ -557,8 +603,57 @@ runs:
     grid_search_mode: exhaustive
 
 
-
     # Logits encode tasks
+  - architecture: "LeakyReprCBM"
+    run_name: "LeakyReprCBM-Logit_tasks_flips_{prob_flips}_range_{total_range_size}_prior_{prior_loss_term}_r_{random_bucket_noise}_prob_correct_{prob_correct}"
+    training_intervention_prob: 0.0
+    prior_loss_term: [0.0, 0.1, 1.0, 10.0]
+    total_range_size: [200]
+    encode_concepts: false
+    encode_tasks: true
+    random_bucket_noise: false
+    concept_loss_weight: 0
+    sigmoidal_prob: false
+    leak_provided_concepts: false
+    leak_unprovided_concepts: false
+    max_repr_val: 100
+    learning_rate: 0.0001
+    prob_correct: [0.85] #, 0.75]
+    prob_flips: [0.0, 0.3]
+
+    grid_variables:
+      - prob_correct
+      - total_range_size
+      - prior_loss_term
+      - prob_flips
+    grid_search_mode: exhaustive
+
+
+  # Logits encode tasks
+  - architecture: "LeakyReprCBM"
+    run_name: "LeakyReprCBM-Logit_tasks_flips_{prob_flips}_range_{total_range_size}_prior_{prior_loss_term}_r_{random_bucket_noise}_prob_correct_{prob_correct}"
+    training_intervention_prob: 0.0
+    prior_loss_term: [0.0, 0.1, 1.0, 10.0]
+    total_range_size: [10]
+    encode_concepts: false
+    encode_tasks: true
+    random_bucket_noise: false
+    concept_loss_weight: 0
+    sigmoidal_prob: false
+    leak_provided_concepts: false
+    leak_unprovided_concepts: false
+    max_repr_val: 10
+    prob_correct: [0.85] #, 0.75]
+    prob_flips: [0.0, 0.3]
+
+    grid_variables:
+      - prob_correct
+      - total_range_size
+      - prior_loss_term
+      - prob_flips
+    grid_search_mode: exhaustive
+
+  # Logits encode tasks
   - architecture: "LeakyReprCBM"
     run_name: "LeakyReprCBM-Logit_tasks_flips_{prob_flips}_range_{total_range_size}_prior_{prior_loss_term}_r_{random_bucket_noise}_prob_correct_{prob_correct}"
     training_intervention_prob: 0.0
@@ -718,6 +813,40 @@ runs:
     n_leak_concepts: "{{112 - {n_concepts}}}"
     prob_flips: [0.25, 0.3] # Make a mistakes on some of the leaked task labels
     prob_encoding_mode: projection_large
+    neg_base: 0
+    max_epochs: 40 # We don't really need more than this
+    dataset_config:
+      dataset: "cub"
+      num_workers: 8
+      batch_size: 64
+      root_dir: /homes/me466/data/CUB200/
+      sampling_percent: 0.25
+      include_unselected_concepts: true # CHANGE!
+      sampling_groups: true
+      test_subsampling: 1
+      weight_loss: true
+
+    grid_variables:
+      - prob_correct
+      - prior_loss_term
+      - prob_flips
+    grid_search_mode: exhaustive
+
+
+  # Leak tasks but make random mistakes
+  - architecture: "LeakyReprCEM"
+    run_name: "LeakyReprCEM_dimension_new_tasks_flips_{prob_flips}_prior_{prior_loss_term}_prob_correct_{prob_correct}"
+    training_intervention_prob: 0.0
+    prior_loss_term: [0.0, 10.0, 0.1, 1.0]
+    encode_concepts: false
+    encode_tasks: true     # Only leak tasks!
+    concept_loss_weight: 0
+    leak_provided_concepts: false
+    leak_unprovided_concepts: false
+    prob_correct: [0.85]  # The probability that each given concept will be correctly predicted
+    n_leak_concepts: "{{112 - {n_concepts}}}"
+    prob_flips: [0.3] # Make a mistakes on some of the leaked task labels
+    prob_encoding_mode: dimension_new
     neg_base: 0
     max_epochs: 40 # We don't really need more than this
     dataset_config:

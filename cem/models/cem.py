@@ -1164,7 +1164,13 @@ class LeakyReprCEM(ConceptEmbeddingModel):
             if self.prob_encoding_mode == "dimension":
                 base_emb[:, :, -1] = c_sem
                 pos_embs = base_emb
-                neg_embs = torch.zeros_like(pos_embs)
+                neg_embs = 1 - pos_embs
+                # cp + (1-c)(-p) = cp - p + cp = p(2c-1)
+            if self.prob_encoding_mode == "dimension_new":
+                base_emb[:, :, -1] = 1
+                pos_embs = base_emb
+                neg_embs =  -(base_emb + self.neg_base)
+                neg_embs[:, :, -1] = 0  # Asymmetry
                 # cp + (1-c)(-p) = cp - p + cp = p(2c-1)
             if "projection_large" in self.prob_encoding_mode:
                 # We will then multiply self.M_pos, a (n_concepts, emb_size, emb_size) matrx
