@@ -99,10 +99,26 @@ runs:
     sigmoidal_extra_capacity: false
 
   - architecture: "ConceptBottleneckModel"
+    run_name: "Joint_CBM_prior_{prior_loss_term}"
+    sigmoidal_prob: true
+    concept_loss_weight: 10
+    embedding_activation: "leakyrelu"
+    sigmoidal_extra_capacity: false
+    prior_loss_term: 10.0
+
+  - architecture: "ConceptBottleneckModel"
     run_name: "CBM_Logit_Baseline_cwl_{concept_loss_weight}"
     concept_loss_weight: 10
     embedding_activation: "leakyrelu"
     sigmoidal_extra_capacity: false
+
+  - architecture: "ConceptBottleneckModel"
+    run_name: "Joint_Logit_CBM_prior_{prior_loss_term}"
+    concept_loss_weight: 10
+    embedding_activation: "leakyrelu"
+    sigmoidal_extra_capacity: false
+    sigmoidal_prob: false
+    prior_loss_term: 10.0
 
   - architecture: "SequentialConceptBottleneckModel"
     run_name: "CBM_Seq"
@@ -120,7 +136,7 @@ runs:
 
   - architecture: "ConceptBottleneckModel"
     run_name: "Hybrid-CBM"
-    extra_dims: 50
+    extra_dims: 100
     concept_loss_weight: 1
     sigmoidal_prob: true
     embedding_activation: "leakyrelu"
@@ -144,7 +160,7 @@ runs:
     concept_loss_weight: 1
     sigmoidal_prob: true
     training_intervention_prob: 0
-    prior_loss_term: [10, 5, 1]
+    prior_loss_term: [10, 1]
     embedding_activation: "leakyrelu"
     grid_variables:
       - prior_loss_term
@@ -152,8 +168,8 @@ runs:
 
   - architecture: "ConceptBottleneckModel"
     run_name: "Hybrid-CBM_dims_{extra_dims}_prior_loss_term_{prior_loss_term}_only_con_{prior_only_concepts}"
-    extra_dims: 500
-    prior_loss_term: [10, 5, 1]
+    extra_dims: 100
+    prior_loss_term: [10, 1]
     sigmoidal_prob: true
     concept_loss_weight: 1
     embedding_activation: "leakyrelu"
