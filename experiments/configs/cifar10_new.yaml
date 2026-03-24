@@ -84,6 +84,14 @@ runs:
     embedding_activation: "leakyrelu"
 
   - architecture: "ConceptBottleneckModel"
+    run_name: "DNN_localized_prior_{prior_loss_term}"
+    extra_dims: 100
+    sigmoidal_prob: true
+    concept_loss_weight: 0
+    embedding_activation: "leakyrelu"
+    prior_loss_term: 10.0
+
+  - architecture: "ConceptBottleneckModel"
     run_name: "CBM_Sigmoid_Baseline_cwl_{concept_loss_weight}"
     concept_loss_weight: 10
     sigmoidal_prob: true
@@ -149,7 +157,7 @@ runs:
     sigmoidal_prob: true
     concept_loss_weight: 1
     embedding_activation: "leakyrelu"
-    prior_only_concepts: [true, false]
+    prior_only_concepts: [false]
     grid_variables:
       - prior_loss_term
       - prior_only_concepts

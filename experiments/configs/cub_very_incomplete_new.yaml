@@ -1,0 +1,170 @@
+model_selection_trials: 3
+model_selection_groups:
+  - ["DNN_new$", "DNN"]
+  - ["Joint CBM$", "Joint CBM"]
+  - ["Joint Logit CBM$", "Joint Logit CBM"]
+  - ["Sequential CBM$", "Sequential CBM"]
+  - ["Independent CBM$", "Independent CBM"]
+  - ["CEM$", "CEM"]
+  - ["^(CEM_NoRandInt).*$", "CEM (No RandInt)"]
+  - ["^(CEM_prior_loss_term).*$", "CEM (Prior Loss)"]
+  - ["IntCEM$", "IntCEM"]
+  - ["ProbCBM$", "ProbCBM"]
+  - ["Posthoc CBM$", "Posthoc CBM"]
+  - ["Posthoc Hybrid CBM$", "Posthoc Hybrid CBM"]
+  - ["MixCEM$", "MixCEM"]
+  - [".*(MixCEM_pint_0_).*$", "MixCEM (No RandInt)"]
+  - ["MixCEM_pint_{training_intervention_prob}_lambda_{concept_loss_weight}", "MixCEM (RandInt)"]
+  - ["^(Hybrid-CBM_dims_).*", "Hybrid-CBM"]
+  - ["^(Hybrid-CBM_dims_).*(_pint_.*)", "Hybrid-CBM (RandInt)"]
+  - ["^(Hybrid-CBM_dims_).*(_prior_loss_term_).*", "Hybrid-CBM (Prior Loss)"]
+
+model_selection_metrics:
+  - val_acc_y_random_group_level_True_use_prior_False_int_auc
+  - val_acc_y
+
+
+shared_params:
+  results_dir: /anfs/bigdisc/me466/mixcem_results/cub_very_incomplete/
+  trials: 3
+  results_fname: results
+  dataset_config:
+    dataset: "cub"
+    num_workers: 8
+    batch_size: 64
+    root_dir: /homes/me466/data/CUB200/
+    sampling_percent: 0.1
+    sampling_groups: true
+    test_subsampling: 1
+    weight_loss: true
+
+  intervention_config:
+    competence_levels: [1]
+    intervention_freq: 1
+    intervention_batch_size: 64 #512
+    val_intervention_policies:
+      - policy: "random"
+        group_level: true
+        use_prior: false
+    intervention_policies:
+      - policy: "random"
+        group_level: true
+        use_prior: false
+      #########################################################################
+
+  skip_repr_evaluation: true
+
+  max_epochs: 100 #150
+  top_k_accuracy: null
+  save_model: true
+  patience: 15
+  emb_size: 16
+  extra_dims: 0
+  learning_rate: 0.01
+  weight_decay: 4.0e-06
+  weight_loss: true
+  c_extractor_arch: "resnet18"
+  optimizer: "sgd"
+  bool: false
+  early_stopping_monitor: "val_loss"
+  early_stopping_mode: "min"
+  early_stopping_delta: 0.0
+  momentum: 0.9
+  sigmoidal_prob: false
+  training_intervention_prob: 0
+  concept_loss_weight: [1, 5, 10]
+runs:
+
+  - architecture: "ConceptBottleneckModel"
+    run_name: "DNN_new"
+    extra_dims: 500
+    sigmoidal_prob: true
+    concept_loss_weight: 0
+    embedding_activation: "leakyrelu"
+
+
+  - architecture: "ConceptBottleneckModel"
+    run_name: "DNN_localized_prior_{prior_loss_term}"
+    extra_dims: 500
+    sigmoidal_prob: true
+    concept_loss_weight: 0
+    embedding_activation: "leakyrelu"
+    prior_loss_term: 10.0
+
+  - architecture: "ConceptBottleneckModel"
+    run_name: "Joint CBM"
+    sigmoidal_prob: true
+    concept_loss_weight: 1
+    embedding_activation: "leakyrelu"
+    sigmoidal_extra_capacity: false
+
+  - architecture: "ConceptBottleneckModel"
+    run_name: "Joint_CBM_prior_{prior_loss_term}"
+    sigmoidal_prob: true
+    concept_loss_weight: 1
+    embedding_activation: "leakyrelu"
+    sigmoidal_extra_capacity: false
+    prior_loss_term: 10.0
+
+  - architecture: "ConceptBottleneckModel"
+    run_name: "Joint Logit CBM"
+    concept_loss_weight: 1
+    embedding_activation: "leakyrelu"
+    sigmoidal_extra_capacity: false
+    sigmoidal_prob: false
+
+  - architecture: "ConceptBottleneckModel"
+    run_name: "Joint_Logit_CBM_prior_{prior_loss_term}"
+    concept_loss_weight: 1
+    embedding_activation: "leakyrelu"
+    sigmoidal_extra_capacity: false
+    sigmoidal_prob: false
+    prior_loss_term: 10.0
+
+  - architecture: "IndependentConceptBottleneckModel"
+    run_name: "Independent CBM"
+    sigmoidal_prob: true
+    concept_loss_weight: 1
+    embedding_activation: "leakyrelu"
+    sigmoidal_extra_capacity: false
+
+  - architecture: "ConceptEmbeddingModel"
+    run_name: "CEM"
+    sigmoidal_prob: true
+    training_intervention_prob: 0.25
+    concept_loss_weight: 1
+    embedding_activation: "leakyrelu"
+
+  - architecture: "ConceptEmbeddingModel"
+    run_name: "CEM_prior_loss_term_{prior_loss_term}"
+    concept_loss_weight: 1
+    sigmoidal_prob: true
+    training_intervention_prob: 0
+    embedding_activation: "leakyrelu"
+    prior_loss_term: [10]
+    grid_variables:
+      - prior_loss_term
+    grid_search_mode: exhaustive
+
+  - architecture: "ConceptBottleneckModel"
+    run_name: "Hybrid-CBM_dims_{extra_dims}"
+    extra_dims: [500]
+    sigmoidal_prob: true
+    concept_loss_weight: 1
+    embedding_activation: "leakyrelu"
+    grid_variables:
+      - extra_dims
+    grid_search_mode: exhaustive
+
+  - architecture: "ConceptBottleneckModel"
+    run_name: "Hybrid-CBM_dims_{extra_dims}_prior_loss_term_{prior_loss_term}_only_con_{prior_only_concepts}"
+    extra_dims: 500
+    prior_loss_term: [10, 1]
+    sigmoidal_prob: true
+    concept_loss_weight: 1
+    embedding_activation: "leakyrelu"
+    prior_only_concepts: [false]
+    grid_variables:
+      - prior_loss_term
+      - prior_only_concepts
+    grid_search_mode: exhaustive
