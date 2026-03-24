@@ -1,0 +1,219 @@
+model_selection_trials: 3
+model_selection_groups:
+  - ["DNN_new", "DNN"]
+  - ["Joint CBM", "Joint CBM"]
+  - ["Joint Logit CBM", "Joint Logit CBM"]
+  - ["Sequential CBM", "Sequential CBM"]
+  - ["Independent CBM", "Independent CBM"]
+  - ["CEM", "CEM"]
+  - ["^(CEM_NoRandInt).*$", "CEM (No RandInt)"]
+  - ["^(CEM_prior_loss_term).*$", "CEM (Prior Loss)"]
+  - ["IntCEM", "IntCEM"]
+  - ["ProbCBM", "ProbCBM"]
+  - ["Posthoc CBM", "Posthoc CBM"]
+  - ["Posthoc Hybrid CBM", "Posthoc Hybrid CBM"]
+  - ["MixCEM", "MixCEM"]
+  - [".*(MixCEM_pint_0_).*$", "MixCEM (No RandInt)"]
+  - ["MixCEM_pint_{training_intervention_prob}_lambda_{concept_loss_weight}", "MixCEM (RandInt)"]
+  - ["^(Hybrid-CBM_dims_).*", "Hybrid-CBM"]
+  - ["^(Hybrid-CBM_dims_).*(_pint_.*)", "Hybrid-CBM (RandInt)"]
+  - ["^(Hybrid-CBM_dims_).*(_prior_loss_term_).*", "Hybrid-CBM (Prior Loss)"]
+
+model_selection_metrics:
+  - val_acc_y_random_group_level_True_use_prior_False_int_auc
+  - val_acc_y
+
+shared_params:
+  results_dir: /anfs/bigdisc/me466/mixcem_results/cub_complete/
+  trials: 3
+  results_fname: new_results_2
+  dataset_config:
+    dataset: "cub"
+    num_workers: 8
+    batch_size: 64
+    root_dir: /homes/me466/data/CUB200/
+    sampling_percent: 1
+    sampling_groups: true
+    test_subsampling: 1
+    weight_loss: true
+
+  intervention_config:
+    competence_levels: [1]
+    intervention_freq: 1
+    intervention_batch_size: 64 #512
+    val_intervention_policies:
+      - policy: "random"
+        group_level: true
+        use_prior: false
+    intervention_policies:
+      - policy: "random"
+        group_level: true
+        use_prior: false
+      # # Remove the following if you are only interested in random interventions
+      # - policy: "random"
+      #   group_level: true
+      #   use_prior: true
+      #   include_run_names: [".*(IntCEM).*"]
+      # - policy: "coop"
+      #   group_level: true
+      #   use_prior: false
+      # - policy: "behavioural_cloning"
+      #   group_level: true
+      #   use_prior: false
+      # - policy: "optimal_greedy"
+      #   group_level: true
+      #   use_prior: false
+      # - policy: "global_val_error"
+      #   group_level: true
+      #   use_prior: false
+      # - policy: "global_val_improvement"
+      #   group_level: true
+      #   use_prior: false
+      #########################################################################
+  eval_config:
+    additional_metrics:
+      - name: "mixcem_sel"
+        include_list: [".*(MixCEM).*"]
+    additional_test_sets:
+      # - name: "OOD_sap_0.01"
+      #   update_previous: true
+      #   dataset_config:
+      #     test_transformation_config:
+      #       post_generation: false
+      #       name: "salt_and_pepper"
+      #       amount: 0.01
+      #       s_vs_p: 0.5
+      # - name: "OOD_sap_0.05"
+      #   update_previous: true
+      #   dataset_config:
+      #     test_transformation_config:
+      #       post_generation: false
+      #       name: "salt_and_pepper"
+      #       amount: 0.05
+      #       s_vs_p: 0.5
+      - name: "OOD_sap_0.1"
+        update_previous: true
+        dataset_config:
+          test_transformation_config:
+            post_generation: false
+            name: "salt_and_pepper"
+            amount: 0.1
+            s_vs_p: 0.5
+      # - name: "OOD_sap_0.25"
+      #   update_previous: true
+      #   dataset_config:
+      #     test_transformation_config:
+      #       post_generation: false
+      #       name: "salt_and_pepper"
+      #       amount: 0.25
+      #       s_vs_p: 0.5
+      # - name: "OOD_sap_0.5"
+      #   update_previous: true
+      #   dataset_config:
+      #     test_transformation_config:
+      #       post_generation: false
+      #       name: "salt_and_pepper"
+      #       amount: 0.5
+      #       s_vs_p: 0.5
+      # - name: "OOD_sap_0.75"
+      #   update_previous: true
+      #   dataset_config:
+      #     test_transformation_config:
+      #       post_generation: false
+      #       name: "salt_and_pepper"
+      #       amount: 0.75
+      #       s_vs_p: 0.5
+      # - name: "OOD_sap_0.9"
+      #   update_previous: true
+      #   dataset_config:
+      #     test_transformation_config:
+      #       post_generation: false
+      #       name: "salt_and_pepper"
+      #       amount: 0.9
+      #       s_vs_p: 0.5
+      # - name: "OOD_sap_0.99"
+      #   update_previous: true
+      #   dataset_config:
+      #     test_transformation_config:
+      #       post_generation: false
+      #       name: "salt_and_pepper"
+      #       amount: 0.99
+      #       s_vs_p: 0.5
+
+  skip_repr_evaluation: true
+  max_epochs: 100
+  top_k_accuracy: null
+  save_model: true
+  patience: 15
+  emb_size: 16
+  extra_dims: 0
+  concept_loss_weight: [1, 5, 10]
+  learning_rate: 0.01
+  weight_decay: 4.0e-06
+  weight_loss: true
+  c_extractor_arch: "resnet18"
+  optimizer: "sgd"
+  bool: false
+  early_stopping_monitor: "val_loss"
+  early_stopping_mode: "min"
+  early_stopping_delta: 0.0
+  momentum: 0.9
+  sigmoidal_prob: false
+  training_intervention_prob: 0
+  num_load_workers: 0
+runs:
+
+  # Baseline: no leakage at all
+  - architecture: "LeakyReprCBM"
+    run_name: "LeakyReprCBM-Logit_Baseline_prob_correct_{prob_correct}"
+    training_intervention_prob: 0.0
+    prior_loss_term: [0.0, 10.0]
+    total_range_size: [0.5]
+    encode_concepts: false
+    random_bucket_noise: [false] #, true]
+    concept_loss_weight: 0
+    sigmoidal_prob: False
+    leak_provided_concepts: false
+    leak_unprovided_concepts: false
+    # max_repr_val: 0.1
+    max_repr_val: 5
+    prob_correct: [0.85]
+    prob_flips: [0.0, 0.3]
+    encode_tasks: 0 # HACK!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    max_epochs: 50 # DIFFERENCE!!!!!!!!!!!!!!!!!!!!!!!
+
+    grid_variables:
+      - prob_correct
+      - total_range_size
+      - prior_loss_term
+      - prob_flips
+      - random_bucket_noise
+    grid_search_mode: exhaustive
+
+  # Logits encode tasks
+  - architecture: "LeakyReprCBM"
+    run_name: "LeakyReprCBM-Logit-tasks_flips_{prob_flips}_range_{total_range_size}_prior_{prior_loss_term}_r_{random_bucket_noise}_prob_correct_{prob_correct}"
+    training_intervention_prob: 0.0
+    prior_loss_term: [0.0, 10.0]
+    total_range_size: [0.5]
+    encode_concepts: false
+    random_bucket_noise: [false, true] #, true]
+    concept_loss_weight: 0
+    sigmoidal_prob: False
+    leak_provided_concepts: false
+    leak_unprovided_concepts: false
+    # max_repr_val: 0.1
+    max_repr_val: 5
+    prob_correct: [0.85]
+    prob_flips: [0.0, 0.3]
+    encode_tasks: 10 # HACK!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    max_epochs: 50 # DIFFERENCE!!!!!!!!!!!!!!!!!!!!!!!
+
+    grid_variables:
+      - prob_correct
+      - total_range_size
+      - prior_loss_term
+      - prob_flips
+      - random_bucket_noise
+    grid_search_mode: exhaustive
+

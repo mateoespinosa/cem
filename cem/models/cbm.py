@@ -1411,9 +1411,9 @@ class LeakyReprCBM(ConceptBottleneckModel):
         """
         TODO
         """
-        assert encode_concepts or encode_tasks, (
-            "At least one of encode_concepts or encode_tasks must be True."
-        )
+        # assert encode_concepts or encode_tasks, (
+        #     "At least one of encode_concepts or encode_tasks must be True."
+        # )
 
         self.total_range_size = total_range_size
         self.encode_concepts = encode_concepts
@@ -1478,6 +1478,246 @@ class LeakyReprCBM(ConceptBottleneckModel):
 
 
 
+    # def _forward(
+    #     self,
+    #     x,
+    #     intervention_idxs=None,
+    #     competencies=None,
+    #     prev_interventions=None,
+    #     c=None,
+    #     y=None,
+    #     train=False,
+    #     latent=None,
+    #     output_latent=None,
+    #     output_embeddings=False,
+    #     output_interventions=None,
+    # ):
+    #     output_interventions = (
+    #         output_interventions if output_interventions is not None
+    #         else self.output_interventions
+    #     )
+    #     output_latent = (
+    #         output_latent if output_latent is not None
+    #         else self.output_latent
+    #     )
+    #     if isinstance(c, (tuple, list)):
+    #         # Then we are working with a set of provided concepts and unprovided
+    #         # concepts
+    #         c, unprovided_concepts = c
+    #     else:
+    #         unprovided_concepts = None
+
+    #     if c is None:
+    #         raise ValueError(
+    #             "FixedReprCBM requires concept labels to be provided "
+    #             "during forward passes."
+    #         )
+
+    #     if self.leak_unprovided_concepts:
+    #         assert unprovided_concepts is not None, (
+    #             "leak_unprovided_concepts is True, but no unprovided "
+    #             "concepts were given."
+    #         )
+    #         leak_c = unprovided_concepts
+    #     else:
+    #         leak_c = c
+
+
+    #     # Now that we know we have both concept and task labels, we can
+    #     # construct the fixed representations.
+    #     # Let's start by calculating how many "buckets" we will use in the
+    #     # ranges we were given
+    #     self.n_buckets = 1
+    #     if self.leak_unprovided_concepts:
+    #         self.max_concept_idx = int(np.ceil(unprovided_concepts.shape[-1] * self.concept_selected))
+    #     else:
+    #         self.max_concept_idx = int(np.ceil(self.n_concepts * self.concept_selected))
+    #     self.max_task_idx = int(np.ceil(self.n_tasks * self.classes_selected))
+    #     if self.encode_concepts:
+    #         self.n_buckets *= 2 ** self.max_concept_idx
+    #     if self.encode_tasks:
+    #         self.n_buckets *= self.max_task_idx
+    #     # Now compute the size of each bucket
+    #     self.pos_concepts_start_val = (
+    #         (self.max_repr_val - self.total_range_size)
+    #     )
+    #     self.neg_concepts_start_val = self.min_repr_val
+
+    #     self.bucket_size = self.total_range_size / self.n_buckets
+    #     # Let's calculate how many different buckets we can have per concept so
+    #     # far
+    #     self.n_buckets_per_task = 2 ** self.max_concept_idx if self.encode_concepts else 1
+
+
+    #     if y is None:
+    #         raise ValueError(
+    #             "FixedReprCBM requires task labels to be provided "
+    #             "during forward passes."
+    #         )
+
+    #     # Now compute the bucket index for each example. This index will be
+    #     # determined by the concept labels and the task labels. Each combination
+    #     # of concept and task labels will correspond to a unique bucket.
+    #     # Then we will generate a represention for each concept such that, if
+    #     # the concept is on, we assign it a value in [1-self.total_range_size, 1]
+    #     # in the bucket assigned to the example, and if the concept is off,
+    #     # we assign it a value in [0, self.total_range_size] in the bucket
+    #     # assigned to the example.
+    #     batch_size = c.shape[0]
+    #     bucket_indices = torch.zeros((batch_size, ), dtype=torch.long).to(x.device)
+    #     if self.encode_concepts:
+    #         # We add the binary representation of the concept vector to the
+    #         # bucket index
+    #         for concept_idx in range(self.max_concept_idx):
+    #             bucket_indices += (
+    #                 leak_c[:, concept_idx].long() *
+    #                 (2 ** concept_idx)
+    #             )
+
+    #     if self.encode_tasks:
+    #         # and next we shift the current bucket index based on the ground
+    #         # truth task labels (where y is a [B] vector of class indices)
+    #         # however, we only do this for the first self.classes_selected
+    #         # classes
+    #         if self.prob_flips > 0:
+    #             # Then we randomly change some of the task labels by setting
+    #             # a task label in y to a random label in {0, ..., n_tasks - 1}
+    #             # with probability self.prob_flips
+    #             random_labels = torch.randint(
+    #                 low=0,
+    #                 high=self.n_tasks,
+    #                 size=y.shape,
+    #             ).to(y.device)
+    #             y_flip_mask = (
+    #                 torch.rand(y.shape).to(y.device) <= self.prob_flips
+    #             ).long()
+    #             ##print("y_flip_mask[:5] =", y_flip_mask[:5])
+    #             leak_y = y * (1 - y_flip_mask) + random_labels * y_flip_mask
+    #         else:
+    #             leak_y = y
+    #         ##print("leak_y[:5] =", leak_y[:5])
+    #         bucket_indices += (leak_y.long().clamp(
+    #             max=self.max_task_idx
+    #         ) * self.n_buckets_per_task)
+    #         # All classes above the selected ones are mapped to the last
+    #         # bucket for the selected classes
+
+    #     # Now we can compute the lower bound of each bucket
+    #     bucket_lower_bounds = bucket_indices.float() * self.bucket_size
+
+    #     # We can compute the representations for each concept
+    #     reprs = torch.zeros((batch_size, self.n_concepts)).to(x.device)
+    #     # We will flip concepts with probability 1 - self.prob_correct
+    #     if self.prob_correct < 1.0:
+    #         flip_mask = (
+    #             torch.rand((batch_size, self.n_concepts)).to(x.device) >
+    #             self.prob_correct
+    #         ).float()
+    #         used_concepts = c * (1 - flip_mask) + (1 - c) * flip_mask
+    #     else:
+    #         used_concepts = c
+
+    #     for concept_idx in range(self.n_concepts):
+    #         concept_on_values = self.pos_concepts_start_val + bucket_lower_bounds
+    #         concept_off_values = self.neg_concepts_start_val + bucket_lower_bounds
+    #         reprs[:, concept_idx] = (
+    #             used_concepts[:, concept_idx] * concept_on_values +
+    #             (1 - used_concepts[:, concept_idx]) * concept_off_values
+    #         )
+    #     if self.random_bucket_noise:
+    #         reprs += (
+    #             torch.rand((batch_size, self.n_concepts)).to(x.device) * self.bucket_size
+    #         )
+    #     else:
+    #         reprs += (self.bucket_size / 2.0)
+    #     ##print("reprs[:5] =", reprs[:5])
+
+    #     # Now pass the representations through the concept predictor
+    #     # and the label predictor
+    #     if self.sigmoidal_prob:
+    #         c_sem = reprs
+    #         c_pred = reprs
+    #     else:
+    #         c_pred = reprs
+    #         c_sem = self.sig(reprs)
+
+    #     if output_embeddings or (
+    #         (intervention_idxs is None) and (c is not None) and (
+    #         self.intervention_policy is not None
+    #     )):
+    #         pos_embeddings = torch.ones(c_sem.shape).to(x.device)
+    #         neg_embeddings = torch.zeros(c_sem.shape).to(x.device)
+    #         pos_embeddings = torch.unsqueeze(pos_embeddings, dim=-1)
+    #         neg_embeddings = torch.unsqueeze(neg_embeddings, dim=-1)
+
+    #     # Now include any interventions that we may want to include
+    #     if (intervention_idxs is None) and (c is not None) and (
+    #         self.intervention_policy is not None
+    #     ):
+    #         prior_distribution = self._prior_int_distribution(
+    #             c=c,
+    #             prob=c_sem,
+    #             pos_embeddings=pos_embeddings,
+    #             neg_embeddings=neg_embeddings,
+    #             competencies=competencies,
+    #             prev_interventions=prev_interventions,
+    #             train=train,
+    #             horizon=1,
+    #         )
+    #         intervention_idxs, c_int = self.intervention_policy(
+    #             x=x,
+    #             c=c,
+    #             pred_c=c_sem,
+    #             y=y,
+    #             competencies=competencies,
+    #             prev_interventions=prev_interventions,
+    #             prior_distribution=prior_distribution,
+    #         )
+    #     else:
+    #         c_int = c
+
+    #     if train and (self.training_intervention_prob > 0.0) and (
+    #         intervention_idxs is None
+    #     ):
+    #         intervention_idxs = torch.rand(
+    #             (c_pred.shape[0], self.n_concepts)
+    #         ).to(x.device) < self.training_intervention_prob
+
+    #     c_pred = self._concept_intervention(
+    #         c_pred=c_pred,
+    #         intervention_idxs=intervention_idxs,
+    #         c_true=c_int,
+    #     )
+
+    #     y_pred = self.c2y_model(c_pred)
+
+    #     tail_results = []
+    #     if output_interventions:
+    #         if intervention_idxs is None:
+    #             intervention_idxs = None
+    #         if isinstance(intervention_idxs, np.ndarray):
+    #             intervention_idxs = torch.FloatTensor(
+    #                 intervention_idxs
+    #             ).to(x.device)
+    #         tail_results.append(intervention_idxs)
+    #     if output_latent:
+    #         tail_results.append(latent)
+    #     if output_embeddings:
+    #         tail_results.append(pos_embeddings)
+    #         tail_results.append(neg_embeddings)
+    #     tail_results += self._extra_tail_results(
+    #         x=x,
+    #         y=y,
+    #         c=c,
+    #         c_sem=c_sem,
+    #         competencies=competencies,
+    #         prev_interventions=prev_interventions,
+    #     )
+    #     return tuple([c_sem, c_pred, y_pred] + tail_results)
+
+
+
+
     def _forward(
         self,
         x,
@@ -1500,7 +1740,7 @@ class LeakyReprCBM(ConceptBottleneckModel):
             output_latent if output_latent is not None
             else self.output_latent
         )
-        if isinstance(c, (tuple, list)):
+        if isinstance(c, (tuple, list)) and len(c) == 2:
             # Then we are working with a set of provided concepts and unprovided
             # concepts
             c, unprovided_concepts = c
@@ -1523,118 +1763,79 @@ class LeakyReprCBM(ConceptBottleneckModel):
             leak_c = c
 
 
-        # Now that we know we have both concept and task labels, we can
-        # construct the fixed representations.
-        # Let's start by calculating how many "buckets" we will use in the
-        # ranges we were given
-        self.n_buckets = 1
-        if self.leak_unprovided_concepts:
-            self.max_concept_idx = int(np.ceil(unprovided_concepts.shape[-1] * self.concept_selected))
-        else:
-            self.max_concept_idx = int(np.ceil(self.n_concepts * self.concept_selected))
-        self.max_task_idx = int(np.ceil(self.n_tasks * self.classes_selected))
-        if self.encode_concepts:
-            self.n_buckets *= 2 ** self.max_concept_idx
-        if self.encode_tasks:
-            self.n_buckets *= self.max_task_idx
-        # Now compute the size of each bucket
-        self.pos_concepts_start_val = (
-            (self.max_repr_val - self.total_range_size)
-        )
-        self.neg_concepts_start_val = self.min_repr_val
-
-        self.bucket_size = self.total_range_size / self.n_buckets
-        # Let's calculate how many different buckets we can have per concept so
-        # far
-        self.n_buckets_per_task = 2 ** self.max_concept_idx if self.encode_concepts else 1
-
-
         if y is None:
             raise ValueError(
                 "FixedReprCBM requires task labels to be provided "
                 "during forward passes."
             )
+        if self.prob_flips > 0:
+            # Then we randomly change some of the task labels by setting
+            # a task label in y to a random label in {0, ..., n_tasks - 1}
+            # with probability self.prob_flips
+            random_labels = torch.randint(
+                low=0,
+                high=self.n_tasks,
+                size=y.shape,
+            ).to(y.device)
+            y_flip_mask = (
+                torch.rand(y.shape).to(y.device) <= self.prob_flips
+            ).long()
+            ##print("y_flip_mask[:5] =", y_flip_mask[:5])
+            leak_y = y * (1 - y_flip_mask) + random_labels * y_flip_mask
+        else:
+            leak_y = y
 
-        # Now compute the bucket index for each example. This index will be
-        # determined by the concept labels and the task labels. Each combination
-        # of concept and task labels will correspond to a unique bucket.
-        # Then we will generate a represention for each concept such that, if
-        # the concept is on, we assign it a value in [1-self.total_range_size, 1]
-        # in the bucket assigned to the example, and if the concept is off,
-        # we assign it a value in [0, self.total_range_size] in the bucket
-        # assigned to the example.
-        batch_size = c.shape[0]
-        bucket_indices = torch.zeros((batch_size, ), dtype=torch.long).to(x.device)
-        if self.encode_concepts:
-            # We add the binary representation of the concept vector to the
-            # bucket index
-            for concept_idx in range(self.max_concept_idx):
-                bucket_indices += (
-                    leak_c[:, concept_idx].long() *
-                    (2 ** concept_idx)
-                )
-
-        if self.encode_tasks:
-            # and next we shift the current bucket index based on the ground
-            # truth task labels (where y is a [B] vector of class indices)
-            # however, we only do this for the first self.classes_selected
-            # classes
-            if self.prob_flips > 0:
-                # Then we randomly change some of the task labels by setting
-                # a task label in y to a random label in {0, ..., n_tasks - 1}
-                # with probability self.prob_flips
-                random_labels = torch.randint(
-                    low=0,
-                    high=self.n_tasks,
-                    size=y.shape,
-                ).to(y.device)
-                flip_mask = (
-                    torch.rand(y.shape).to(y.device) <= self.prob_flips
-                ).long()
-                leak_y = y * (1 - flip_mask) + random_labels * flip_mask
-            else:
-                leak_y = y
-            bucket_indices += (leak_y.long().clamp(
-                max=self.max_task_idx
-            ) * self.n_buckets_per_task)
-            # All classes above the selected ones are mapped to the last
-            # bucket for the selected classes
-
-        # Now we can compute the lower bound of each bucket
-        bucket_lower_bounds = bucket_indices.float() * self.bucket_size
-
-        # We can compute the representations for each concept
-        reprs = torch.zeros((batch_size, self.n_concepts)).to(x.device)
-        # We will flip concepts with probability 1 - self.prob_correct
         if self.prob_correct < 1.0:
             flip_mask = (
-                torch.rand((batch_size, self.n_concepts)).to(x.device) >
+                torch.rand((x.shape[0], self.n_concepts)).to(x.device) >
                 self.prob_correct
             ).float()
             used_concepts = c * (1 - flip_mask) + (1 - c) * flip_mask
         else:
             used_concepts = c
-        for concept_idx in range(self.n_concepts):
-            concept_on_values = self.pos_concepts_start_val + bucket_lower_bounds
-            concept_off_values = self.neg_concepts_start_val + bucket_lower_bounds
-            reprs[:, concept_idx] = (
-                used_concepts[:, concept_idx] * concept_on_values +
-                (1 - used_concepts[:, concept_idx]) * concept_off_values
-            )
-        if self.random_bucket_noise:
-            reprs += (
-                torch.rand((batch_size, self.n_concepts)).to(x.device) * self.bucket_size
-            )
-        else:
-            reprs += (self.bucket_size / 2.0)
 
-        # Now pass the representations through the concept predictor
-        # and the label predictor
+        # reprs will modify the concepts representations so that the binary
+        # encoding of the ground-truth label is encoded as part of a fluctuation
+        # on the concept activation pattern
+        c_sem = used_concepts
+        c_pred = used_concepts.clone()
+        # encode the ground-truth task labels using a binary representation
+        # with n_concept bits at most
+        batch_size = x.shape[0]
         if self.sigmoidal_prob:
-            c_sem = reprs
+            for i in range(batch_size):
+                task_label = leak_y[i].long().item()
+                for concept_idx in range(self.n_concepts):
+                    bit_value = (task_label >> concept_idx) & 1
+                    if bit_value == 1:
+                        shift = self.max_repr_val * torch.rand(1).item() if self.random_bucket_noise else self.max_repr_val
+                        if c_pred[i, concept_idx] == 1:
+                            c_pred[i, concept_idx] -= shift
+                        else:
+                            c_pred[i, concept_idx] += shift
         else:
-            c_sem = self.sig(reprs)
-        c_pred = reprs
+            for i in range(batch_size):
+                task_label = leak_y[i].long().item()
+                for concept_idx in range(self.n_concepts):
+                    c_pred[i, concept_idx] = self.min_repr_val if c_sem[i, concept_idx] == 0 else self.max_repr_val
+                    # if self.random_bucket_noise:
+                    #     c_pred[i, concept_idx] += torch.randn(1).item()
+                    bit_value = (task_label >> concept_idx) & 1
+                    if bit_value == 1:
+                        # Then shift the representation by 0.5
+                        if isinstance(self.encode_tasks, (float, int)):
+                            pos_shift = neg_shift = self.encode_tasks
+                        elif isinstance(self.encode_tasks, (list, tuple)):
+                            pos_shift = self.encode_tasks[0]
+                            neg_shift = self.encode_tasks[1]
+                        else:
+                            shift = self.max_repr_val/2 * torch.rand(1).item() if self.random_bucket_noise else self.max_repr_val/2
+                        # c_pred[i, concept_idx] += shift
+                        if c_sem[i, concept_idx] == 1:
+                            c_pred[i, concept_idx] += pos_shift
+                        else:
+                            c_pred[i, concept_idx] -= neg_shift
+
 
         if output_embeddings or (
             (intervention_idxs is None) and (c is not None) and (
@@ -1683,6 +1884,7 @@ class LeakyReprCBM(ConceptBottleneckModel):
             intervention_idxs=intervention_idxs,
             c_true=c_int,
         )
+
         y_pred = self.c2y_model(c_pred)
 
         tail_results = []
