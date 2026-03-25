@@ -150,7 +150,7 @@ runs:
   - architecture: "ConceptBottleneckModel"
     run_name: "Hybrid-CBM_dims_{extra_dims}_prior_loss_term_{prior_loss_term}_only_con_{prior_only_concepts}"
     extra_dims: [500] #, 50]
-    prior_loss_term: [10, 5, 1]
+    prior_loss_term: [10] #[10, 5, 1]
     sigmoidal_prob: true
     concept_loss_weight: 10
     embedding_activation: "leakyrelu"
@@ -182,7 +182,7 @@ runs:
     sigmoidal_prob: true
     training_intervention_prob: 0
     embedding_activation: "leakyrelu"
-    prior_loss_term: [1, 5, 10]
+    prior_loss_term: [10] #[1, 5, 10]
     grid_variables:
       - prior_loss_term
     grid_search_mode: exhaustive

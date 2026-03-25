@@ -167,6 +167,26 @@ runs:
     grid_search_mode: exhaustive
 
   - architecture: "ConceptEmbeddingModel"
+    run_name: "CEM_prior_loss_term_{prior_loss_term}_lr_{learning_rate}_opt_{optimizer}_ep_{max_epochs}"
+    concept_loss_weight: 1
+    sigmoidal_prob: true
+    training_intervention_prob: 0
+    prior_loss_term: [5, 10]
+    embedding_activation: "leakyrelu"
+    learning_rate: [0.001] #0.01
+    weight_decay: 1.0e-06
+    weight_loss: true
+    c_extractor_arch: "resnet18"
+    optimizer: ["adam"] #"sgd"
+    max_epochs: [50] #, 100]
+    grid_variables:
+      - prior_loss_term
+      - learning_rate
+      - optimizer
+      - max_epochs
+    grid_search_mode: exhaustive
+
+  - architecture: "ConceptEmbeddingModel"
     run_name: "CEM_prior_loss_term_{prior_loss_term}_cw_{concept_loss_weight}"
     concept_loss_weight: [10]
     sigmoidal_prob: true

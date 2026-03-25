@@ -997,6 +997,11 @@ for i, concept_name in enumerate(list(
     group = concept_name[:concept_name.find("::")]
     CONCEPT_GROUP_MAP[group].append(i)
 
+OG_CONCEPT_GROUP_MAP = defaultdict(list)
+for i, concept_name in enumerate(CONCEPT_SEMANTICS):
+    group = concept_name[:concept_name.find("::")]
+    OG_CONCEPT_GROUP_MAP[group].append(i)
+
 
 '''
 ADDED: remap uncertainty
@@ -1106,6 +1111,7 @@ class CUBDataset(Dataset):
         use_uncertainty_as_competence=False,
         uncertainty_based_random_labels=False,
         unc_map=DEFAULT_UNC_MAP,
+        total_concepts_idxs=SELECTED_CONCEPTS,
     ):
         """
         Arguments:
@@ -1139,6 +1145,7 @@ class CUBDataset(Dataset):
         self.use_uncertainty_as_competence = use_uncertainty_as_competence
         self.uncertainty_based_random_labels = uncertainty_based_random_labels
         self.unc_map = unc_map
+        self.total_concepts_idxs = total_concepts_idxs
         self.is_val = any(["val" in path for path in pkl_file_paths])
 
     def __len__(self):
@@ -1198,21 +1205,21 @@ class CUBDataset(Dataset):
             if self.no_img:
                 if self.n_class_attr == 3:
                     one_hot_attr_label = np.zeros(
-                        (len(SELECTED_CONCEPTS), self.n_class_attr)
+                        (len(self.total_concepts_idxs), self.n_class_attr)
                     )
-                    one_hot_attr_label[np.arange(len(SELECTED_CONCEPTS)), attr_label.long()] = 1
+                    one_hot_attr_label[np.arange(len(self.total_concepts_idxs)), attr_label.long()] = 1
                     return one_hot_attr_label, class_label
                 else:
                     return attr_label, class_label
             if self.uncertainty_based_random_labels:
-                discrete_unc_label = np.array(img_data['attribute_certainty'])[SELECTED_CONCEPTS]
+                discrete_unc_label = np.array(img_data['attribute_certainty'])[self.total_concepts_idxs]
                 instance_attr_label = np.array(img_data['attribute_label'])
                 competencies = []
                 for (discrete_unc_val, hard_concept_val) in zip(discrete_unc_label, instance_attr_label):
                     competencies.append(discrete_to_continuous_unc(discrete_unc_val, hard_concept_val, self.unc_map))
                 return img, class_label, torch.FloatTensor(np.random.binomial(1, competencies))
             elif self.use_uncertainty_as_competence:
-                discrete_unc_label = np.array(img_data['attribute_certainty'])[SELECTED_CONCEPTS]
+                discrete_unc_label = np.array(img_data['attribute_certainty'])[self.total_concepts_idxs]
                 instance_attr_label = np.array(img_data['attribute_label'])
                 competencies = []
                 for (discrete_unc_val, hard_concept_val) in zip(discrete_unc_label, instance_attr_label):
@@ -1292,6 +1299,7 @@ def load_data(
     uncertainty_based_random_labels=False,
     unc_map=DEFAULT_UNC_MAP,
     augment=True,
+    total_concepts_idxs=SELECTED_CONCEPTS,
 ):
     """
     Note: Inception needs (299,299,3) images with inputs scaled between -1 and 1
@@ -1357,6 +1365,7 @@ def load_data(
         use_uncertainty_as_competence=use_uncertainty_as_competence,
         unc_map=unc_map,
         uncertainty_based_random_labels=uncertainty_based_random_labels,
+        total_concepts_idxs=total_concepts_idxs,
     )
     if is_training:
         drop_last = True
@@ -1418,6 +1427,7 @@ def get_concept_descriptions(
     root_dir=DATASET_DIR,
     seed=42,
     rerun=False,
+    selected_concepts=SELECTED_CONCEPTS,
 ):
     if root_dir is None:
         root_dir = DATASET_DIR
@@ -1427,8 +1437,8 @@ def get_concept_descriptions(
     sampling_groups = config.get("sampling_groups", False)
 
     concept_group_map = CONCEPT_GROUP_MAP.copy()
-    n_concepts = len(SELECTED_CONCEPTS)
-    selected_concepts = SELECTED_CONCEPTS
+    n_concepts = len(selected_concepts)
+    selected_concepts = selected_concepts
     if sampling_percent != 1:
         # Do the subsampling
         if sampling_groups:
@@ -1520,6 +1530,7 @@ def generate_data(
     sampling_groups = config.get("sampling_groups", False)
     traveling_birds_root_dir = config.get('traveling_birds_root_dir', None)
     traveling_birds = config.get('traveling_birds', False)
+    full_og_dataset = config.get('full_og_dataset', False)
     train_augment = config.get('train_augment', train_augment)
     use_uncertainty_as_competence = config.get(
         'use_uncertainty_as_competence',
@@ -1531,8 +1542,13 @@ def generate_data(
     )
     unc_map = config.get('unc_map', unc_map)
 
-    concept_group_map = CONCEPT_GROUP_MAP.copy()
-    n_concepts = len(SELECTED_CONCEPTS)
+    if full_og_dataset:
+        total_concepts_idxs = list(range(len(CONCEPT_SEMANTICS)))
+        concept_group_map = OG_CONCEPT_GROUP_MAP.copy()
+    else:
+        total_concepts_idxs = SELECTED_CONCEPTS
+        concept_group_map = CONCEPT_GROUP_MAP.copy()
+    n_concepts = len(total_concepts_idxs)
     if sampling_percent != 1:
         # Do the subsampling
         if sampling_groups:
@@ -1597,7 +1613,7 @@ def generate_data(
         if include_unselected_concepts:
             # find a list of unselected concepts
             unselected_concepts = [
-                i for i in range(len(SELECTED_CONCEPTS))
+                i for i in range(len(total_concepts_idxs))
                 if i not in selected_concepts
             ]
             # and make a transform that outputs a tuple (selected concepts,
@@ -1642,6 +1658,7 @@ def generate_data(
         augment=train_augment,
         unc_map=unc_map,
         uncertainty_based_random_labels=uncertainty_based_random_labels,
+        total_concepts_idxs=total_concepts_idxs,
     )
     val_dl = load_data(
         pkl_paths=[val_data_path],
@@ -1662,6 +1679,7 @@ def generate_data(
         augment=False,
         unc_map=unc_map,
         uncertainty_based_random_labels=uncertainty_based_random_labels,
+        total_concepts_idxs=total_concepts_idxs,
     )
 
     test_dl = load_data(
@@ -1683,6 +1701,7 @@ def generate_data(
         augment=False,
         unc_map=unc_map,
         uncertainty_based_random_labels=uncertainty_based_random_labels,
+        total_concepts_idxs=total_concepts_idxs,
     )
     if not output_dataset_vars:
         return train_dl, val_dl, test_dl, imbalance
