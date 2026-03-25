@@ -1196,6 +1196,8 @@ class CUBDataset(Dataset):
                 attr_label = img_data['uncertain_attribute_label']
             else:
                 attr_label = img_data['attribute_label']
+            if isinstance(attr_label, (list, np.ndarray)):
+                attr_label = torch.FloatTensor(np.array(attr_label))
             if self.concept_transform is not None:
                 attr_label = self.concept_transform(attr_label)
                 if isinstance(attr_label, (list, tuple)):

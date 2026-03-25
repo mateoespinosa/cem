@@ -1,8 +1,11 @@
 model_selection_trials: 1
 model_selection_groups:
   - ["DNN_new$", "DNN"]
+  - ["(DNN_localized_prior_).*", "DNN (Prior Loss)"]
   - ["(CBM_Sigmoid_Baseline_cwl_).*", "Joint CBM"]
+  - ["(Joint_CBM_prior_).*", "Joint CBM (Prior Loss)"]
   - ["(CBM_Logit_Baseline_cwl_).*", "Joint Logit CBM"]
+  - ["(Joint_Logit_CBM_prior_).*", "Joint Logit CBM (Prior Loss)"]
   - ["CBM_Seq$", "Sequential CBM"]
   - ["CBM_Ind", "Independent CBM"]
   - ["(CEM_Baseline_).*", "CEM"]
