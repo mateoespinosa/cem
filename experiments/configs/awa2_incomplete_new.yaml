@@ -143,6 +143,9 @@ runs:
     concept_loss_weight: 10
     sigmoidal_prob: true
     embedding_activation: "leakyrelu"
+    grid_variables:
+      - extra_dims
+    grid_search_mode: exhaustive
 
   - architecture: "ConceptBottleneckModel"
     run_name: "Hybrid-CBM_dims_{extra_dims}_prior_loss_term_{prior_loss_term}_only_con_{prior_only_concepts}"

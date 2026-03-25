@@ -893,6 +893,10 @@ def main(
         if key not in ['runs', 'shared_params']:
             shared_params[key] = vals
     shared_params['num_workers'] = num_workers
+    shared_params["trials"] = shared_params.get(
+        "trials",
+        1,
+    )
 
     utils.extend_with_global_params(
         shared_params, global_params or []

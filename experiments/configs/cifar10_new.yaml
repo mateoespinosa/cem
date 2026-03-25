@@ -127,12 +127,12 @@ runs:
     embedding_activation: "leakyrelu"
     sigmoidal_extra_capacity: false
 
-  # - architecture: "IndependentConceptBottleneckModel"
-  #   run_name: "CBM_Ind"
-  #   concept_loss_weight: 1
-  #   sigmoidal_prob: true
-  #   embedding_activation: "leakyrelu"
-  #   sigmoidal_extra_capacity: false
+  - architecture: "IndependentConceptBottleneckModel"
+    run_name: "CBM_Ind"
+    concept_loss_weight: 1
+    sigmoidal_prob: true
+    embedding_activation: "leakyrelu"
+    sigmoidal_extra_capacity: false
 
   - architecture: "ConceptBottleneckModel"
     run_name: "Hybrid-CBM"
@@ -160,10 +160,22 @@ runs:
     concept_loss_weight: 1
     sigmoidal_prob: true
     training_intervention_prob: 0
-    prior_loss_term: [10, 1]
+    prior_loss_term: [10, 5, 1]
     embedding_activation: "leakyrelu"
     grid_variables:
       - prior_loss_term
+    grid_search_mode: exhaustive
+
+  - architecture: "ConceptEmbeddingModel"
+    run_name: "CEM_prior_loss_term_{prior_loss_term}_cw_{concept_loss_weight}"
+    concept_loss_weight: [10]
+    sigmoidal_prob: true
+    training_intervention_prob: 0
+    prior_loss_term: [10, 5, 1]
+    embedding_activation: "leakyrelu"
+    grid_variables:
+      - prior_loss_term
+      - concept_loss_weight
     grid_search_mode: exhaustive
 
   - architecture: "ConceptBottleneckModel"
