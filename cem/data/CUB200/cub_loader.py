@@ -1429,7 +1429,6 @@ def get_concept_descriptions(
     root_dir=DATASET_DIR,
     seed=42,
     rerun=False,
-    selected_concepts=SELECTED_CONCEPTS,
 ):
     if root_dir is None:
         root_dir = DATASET_DIR
@@ -1438,9 +1437,14 @@ def get_concept_descriptions(
     sampling_percent = config.get("sampling_percent", 1)
     sampling_groups = config.get("sampling_groups", False)
 
-    concept_group_map = CONCEPT_GROUP_MAP.copy()
+    full_og_dataset = config.get('full_og_dataset', False)
+    if full_og_dataset:
+        selected_concepts = list(range(len(CONCEPT_SEMANTICS)))
+        concept_group_map = OG_CONCEPT_GROUP_MAP.copy()
+    else:
+        selected_concepts = SELECTED_CONCEPTS
+        concept_group_map = CONCEPT_GROUP_MAP.copy()
     n_concepts = len(selected_concepts)
-    selected_concepts = selected_concepts
     if sampling_percent != 1:
         # Do the subsampling
         if sampling_groups:
@@ -1532,7 +1536,6 @@ def generate_data(
     sampling_groups = config.get("sampling_groups", False)
     traveling_birds_root_dir = config.get('traveling_birds_root_dir', None)
     traveling_birds = config.get('traveling_birds', False)
-    full_og_dataset = config.get('full_og_dataset', False)
     train_augment = config.get('train_augment', train_augment)
     use_uncertainty_as_competence = config.get(
         'use_uncertainty_as_competence',
@@ -1544,6 +1547,7 @@ def generate_data(
     )
     unc_map = config.get('unc_map', unc_map)
 
+    full_og_dataset = config.get('full_og_dataset', False)
     if full_og_dataset:
         total_concepts_idxs = list(range(len(CONCEPT_SEMANTICS)))
         concept_group_map = OG_CONCEPT_GROUP_MAP.copy()
