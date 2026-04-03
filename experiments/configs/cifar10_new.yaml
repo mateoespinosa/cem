@@ -18,8 +18,7 @@ model_selection_groups:
   - ["MixCEM$", "MixCEM"]
   - [".*(MixCEM_pint_0_).*$", "MixCEM (No RandInt)"]
   - ["MixCEM_pint_{training_intervention_prob}_lambda_{concept_loss_weight}", "MixCEM (RandInt)"]
-  - ["^(Hybrid-CBM_dims_).*", "Hybrid-CBM"]
-  - ["^(Hybrid-CBM_dims_).*(_pint_.*)", "Hybrid-CBM (RandInt)"]
+  - ["Hybrid-CBM$", "Hybrid-CBM"]
   - ["^(Hybrid-CBM_dims_).*(_prior_loss_term_).*", "Hybrid-CBM (Prior Loss)"]
 
 model_selection_metrics:
