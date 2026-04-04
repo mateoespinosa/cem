@@ -1,0 +1,147 @@
+model_selection_trials: 1
+model_selection_groups:
+  - ["DNN_new$", "DNN"]
+  - ["(CBM_Sigmoid_Baseline_cwl_).*", "Joint CBM"]
+  - ["(CBM_Logit_Baseline_cwl_).*", "Joint Logit CBM"]
+  - ["CBM_Seq$", "Sequential CBM"]
+  - ["CBM_Ind", "Independent CBM"]
+  - ["(CEM_Baseline_).*", "CEM"]
+
+model_selection_metrics:
+  - val_acc_y_random_group_level_False_use_prior_False_int_auc
+  - val_acc_y
+
+shared_params:
+  results_dir: /anfs/bigdisc/me466/mixcem_results/sun397/
+  trials: 3
+  results_fname: results
+  dataset_config:
+    dataset: "sun"
+    num_workers: 8
+    num_load_workers: 4
+    batch_size: 512 #64 #256
+    # root_dir: /anfs/bigdisc/me466/sun_attr/
+    root_dir: /anfs/bigdisc/me466/sun/
+    # If needed, set these explicitly. The loader also searches common defaults.
+    class_names_file: sun_attribute_db_classes.txt
+    attribute_names_file: sun_attributes.txt
+    class_attributes_file: sun_attribute_db_attrs_per_class_binary_0.npy
+    images_dir: SUN397
+    # Set true to use the exact SUN Attribute DB image list (Brown release)
+    # with 80/10/10 splits and per-class averaged concepts.
+    use_sun_attribute_db_dataset: false
+    # In this mode we rely on Brown image archive, not HF SUN397 repacks.
+    download_if_missing: false
+    download_dataset_id: tanganke/sun397
+    download_cache_dir:  /anfs/bigdisc/me466/huggingface/
+    use_sun_attribute_database: true
+    download_attribute_db_if_missing: true
+    download_attribute_db_images_if_missing: true
+    sun_attribute_db_url: https://cs.brown.edu/people/gmpatter/Attributes/SUNAttributeDB.tar.gz
+    sun_attribute_db_images_url: https://cs.brown.edu/people/gmpatter/Attributes/SUNAttributeDB_Images.tar.gz
+    regenerate_splits: false
+    class_attribute_threshold: 0.5
+    cache_loss_weights: true
+    recompute_loss_weights: false
+    # Optional override (otherwise defaults to root_dir/sun_attribute_db_concept_loss_weights_cache.npz)
+    # loss_weight_cache_file: sun_attribute_db_concept_loss_weights_cache.npz
+    sampling_percent: 1
+    sampling_groups: false
+    test_subsampling: 1
+    weight_loss: true
+  intervention_config:
+    competence_levels: [1]
+    intervention_freq: 10
+    intervention_batch_size: 512
+    val_intervention_policies:
+      - policy: "random"
+        group_level: false
+        use_prior: false
+    intervention_policies:
+      - policy: "random"
+        group_level: false
+        use_prior: false
+
+  skip_repr_evaluation: true
+  max_epochs: 300
+  top_k_accuracy: null
+  save_model: true
+  patience: 10
+  emb_size: 16
+  extra_dims: 0
+  concept_loss_weight: [10, 1]
+  learning_rate: 0.01
+  weight_decay: 1.0e-06
+  weight_loss: true
+  c_extractor_arch: "resnet18"
+  optimizer: "sgd"
+  bool: false
+  early_stopping_monitor: "val_loss"
+  early_stopping_mode: "min"
+  early_stopping_delta: 0.0
+  momentum: 0.9
+  sigmoidal_prob: false
+  training_intervention_prob: 0
+
+runs:
+  - architecture: "ConceptBottleneckModel"
+    run_name: "DNN_new"
+    extra_dims: 100
+    concept_loss_weight: 0
+    sigmoidal_prob: true
+    embedding_activation: "leakyrelu"
+
+  # - architecture: "ConceptBottleneckModel"
+  #   run_name: "CBM_Sigmoid_Baseline_cwl_{concept_loss_weight}"
+  #   concept_loss_weight: 10
+  #   sigmoidal_prob: true
+  #   embedding_activation: "leakyrelu"
+  #   sigmoidal_extra_capacity: false
+
+  # - architecture: "ConceptBottleneckModel"
+  #   run_name: "CBM_Logit_Baseline_cwl_{concept_loss_weight}"
+  #   concept_loss_weight: 10
+  #   embedding_activation: "leakyrelu"
+  #   sigmoidal_extra_capacity: false
+  #   sigmoidal_prob: false
+
+  # - architecture: "SequentialConceptBottleneckModel"
+  #   run_name: "CBM_Seq"
+  #   concept_loss_weight: 1
+  #   sigmoidal_prob: true
+  #   embedding_activation: "leakyrelu"
+  #   sigmoidal_extra_capacity: false
+
+  - architecture: "IndependentConceptBottleneckModel"
+    run_name: "CBM_Ind"
+    concept_loss_weight: 1
+    sigmoidal_prob: true
+    embedding_activation: "leakyrelu"
+    sigmoidal_extra_capacity: false
+
+  # - architecture: "ConceptEmbeddingModel"
+  #   run_name: "CEM_Baseline_cwl_{concept_loss_weight}"
+  #   concept_loss_weight: 1
+  #   sigmoidal_prob: true
+  #   training_intervention_prob: 0.25
+  #   embedding_activation: "leakyrelu"
+
+  - architecture: "ConceptBottleneckModel"
+    run_name: "Hybrid-CBM"
+    extra_dims: 100
+    concept_loss_weight: 1
+    sigmoidal_prob: true
+    embedding_activation: "leakyrelu"
+
+  - architecture: "ConceptBottleneckModel"
+    run_name: "Hybrid-CBM_dims_{extra_dims}_prior_loss_term_{prior_loss_term}_only_con_{prior_only_concepts}"
+    extra_dims: 100
+    prior_loss_term: [10, 1]
+    sigmoidal_prob: true
+    concept_loss_weight: 1
+    embedding_activation: "leakyrelu"
+    prior_only_concepts: [false]
+    grid_variables:
+      - prior_loss_term
+      - prior_only_concepts
+    grid_search_mode: exhaustive
