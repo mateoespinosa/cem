@@ -114,6 +114,14 @@ runs:
     sigmoidal_prob: true
     embedding_activation: "leakyrelu"
 
+  - architecture: "ConceptBottleneckModel"
+    run_name: "DNN_localized_prior_{prior_loss_term}"
+    extra_dims: 100
+    sigmoidal_prob: true
+    concept_loss_weight: 0
+    embedding_activation: "leakyrelu"
+    prior_loss_term: 10.0
+
   # - architecture: "ConceptBottleneckModel"
   #   run_name: "CBM_Sigmoid_Baseline_cwl_{concept_loss_weight}"
   #   concept_loss_weight: 10
@@ -126,6 +134,13 @@ runs:
     embedding_activation: "leakyrelu"
     sigmoidal_extra_capacity: false
     sigmoidal_prob: false
+
+  - architecture: "ConceptBottleneckModel"
+    run_name: "CBM_Logit_Baseline_cwl_{concept_loss_weight}_weight_loss_{weight_loss}"
+    embedding_activation: "leakyrelu"
+    sigmoidal_extra_capacity: false
+    sigmoidal_prob: false
+    weight_loss: true  # Difference!
 
   - architecture: "ConceptBottleneckModel"
     run_name: "Joint_Logit_CBM_prior_{prior_loss_term}"
@@ -218,7 +233,7 @@ runs:
     embedding_activation: "leakyrelu"
     prior_only_concepts: [false]
     learning_rate: [0.01, 0.001]
-    optimizer: "sgd"
+    optimizer: ["sgd"]
     grid_variables:
       - prior_loss_term
       - prior_only_concepts
