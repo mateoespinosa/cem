@@ -115,6 +115,7 @@ try:
 except ImportError:
     siim_arc_data_module = None
 import cem.data.sun_loader as sun_data_module
+import cem.data.sun_loader_v2 as sun_data_module_v2
 import cem.data.traffic_loader as traffic_data_module
 import cem.data.waterbirds_loader as waterbirds_data_module
 import cem.train.train_blackbox as train_blackbox
@@ -264,8 +265,9 @@ def _generate_dataset_and_update_config(
         data_module = mnist_data_module
     elif ds_name == "traffic":
         data_module = traffic_data_module
-    elif ds_name in ["sun", "sun397"]:
-        data_module = sun_data_module
+    elif ds_name in ["sun", "sun397", "sun_v2", "sun397_v2"]:
+        use_sun_v2 = dataset_config.get("use_sun_loader_v2", False) or (ds_name in ["sun_v2", "sun397_v2"])
+        data_module = sun_data_module_v2 if use_sun_v2 else sun_data_module
     elif ds_name in ["siim_arc", "siim-arc", "siim"]:
         if siim_arc_data_module is None:
             raise ValueError(

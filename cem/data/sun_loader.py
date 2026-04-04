@@ -11,9 +11,13 @@ import os
 import sys
 import shutil
 import io
+import struct
 import time
 import tarfile
+import tempfile
 import urllib.request
+import zipfile
+import zlib
 from contextlib import contextmanager
 import numpy as np
 import torch
@@ -49,6 +53,11 @@ SUN_ATTRIBUTE_DB_DIR = "SUNAttributeDB"
 SUN_ATTRIBUTE_DB_IMAGES_URL = "https://cs.brown.edu/people/gmpatter/Attributes/SUNAttributeDB_Images.tar.gz"
 SUN_ATTRIBUTE_DB_IMAGES_ARCHIVE = "SUNAttributeDB_Images.tar.gz"
 SUN_ATTRIBUTE_DB_SPLIT_PREFIX = "sun_attribute_db"
+XIAN_SUN_ZIP_URL = "http://datasets.d2.mpi-inf.mpg.de/xian/xlsa17.zip"
+XIAN_SUN_DATA_DIR = "xlsa17/data/SUN"
+XIAN_SUN_RES101_MEMBER = "xlsa17/data/SUN/res101.mat"
+XIAN_SUN_SPLITS_MEMBER = "xlsa17/data/SUN/att_splits.mat"
+XIAN_SUN_SPLIT_PREFIX = "xian_sun"
 
 
 MANUAL_SUN_CLASS_FALLBACKS = {
@@ -64,6 +73,40 @@ MANUAL_SUN_CLASS_FALLBACKS = {
 
 def _normalize_class_name(name):
     return name.replace("\\", "/").strip().strip("/").lower()
+
+
+def _canonical_xian_split_strategy(split_strategy):
+    strategy = str(split_strategy).strip().lower()
+    if strategy in ["official", "benchmark"]:
+        return "official"
+    if strategy in ["original", "original_sizes", "stratified", "standard"]:
+        return "original_sizes"
+    if strategy in ["trainval_test", "trainval"]:
+        return "trainval_test"
+    raise ValueError(
+        f"Unsupported xian_split_strategy '{split_strategy}'."
+    )
+
+
+def _canonical_fraction_tag(value):
+    # Keep file-name-safe, deterministic tags for cache keys.
+    return str(float(value)).replace(".", "p")
+
+
+def _get_xian_split_fractions(config):
+    val_fraction = float(
+        config.get(
+            "xian_val_fraction",
+            0.1,
+        )
+    )
+    test_fraction = float(
+        config.get(
+            "xian_test_fraction",
+            0.1,
+        )
+    )
+    return val_fraction, test_fraction
 
 
 def _first_existing_file(root_dir, candidates):
@@ -439,6 +482,269 @@ def _ensure_sun_attribute_db_concepts(root_dir, config, class_names=None):
     np.save(target_attr_matrix, class_matrix[:, :DEFAULT_NUM_ATTRIBUTES])
 
 
+def _load_mat_from_bytes(raw_bytes):
+    with tempfile.NamedTemporaryFile(suffix=".mat", delete=False) as tmp_file:
+        tmp_file.write(raw_bytes)
+        tmp_path = tmp_file.name
+    try:
+        return loadmat(tmp_path)
+    finally:
+        try:
+            os.unlink(tmp_path)
+        except FileNotFoundError:
+            pass
+
+
+def _download_remote_zip_member(url, member_name, destination, tail_bytes=16 * 1024 * 1024):
+    head_request = urllib.request.Request(url, method="HEAD")
+    with urllib.request.urlopen(head_request, timeout=120) as response:
+        content_length = int(response.headers.get("Content-Length"))
+
+    tail_sizes = [tail_bytes, tail_bytes * 2, tail_bytes * 4]
+    for current_tail_bytes in tail_sizes:
+        current_tail_bytes = min(current_tail_bytes, content_length)
+        tail_start = max(0, content_length - current_tail_bytes)
+        tail_request = urllib.request.Request(
+            url,
+            headers={"Range": f"bytes={tail_start}-"},
+        )
+        with urllib.request.urlopen(tail_request, timeout=300) as response:
+            tail_data = response.read()
+
+        try:
+            archive = zipfile.ZipFile(io.BytesIO(tail_data))
+            info = archive.getinfo(member_name)
+        except Exception:
+            continue
+
+        header_offset = tail_start + info.header_offset
+        header_request = urllib.request.Request(
+            url,
+            headers={"Range": f"bytes={header_offset}-{header_offset + 200}"},
+        )
+        with urllib.request.urlopen(header_request, timeout=120) as response:
+            local_header = response.read()
+
+        if local_header[:4] != b"PK\x03\x04":
+            raise ValueError(f"Could not read local zip header for {member_name}.")
+
+        _, _, _, compression_method, _, _, _, _, _, file_name_len, extra_len = struct.unpack(
+            "<IHHHHHIIIHH",
+            local_header[:30],
+        )
+        file_start = header_offset + 30 + file_name_len + extra_len
+        data_request = urllib.request.Request(
+            url,
+            headers={"Range": f"bytes={file_start}-{file_start + info.compress_size - 1}"},
+        )
+        with urllib.request.urlopen(data_request, timeout=600) as response:
+            compressed_bytes = response.read()
+
+        if compression_method == zipfile.ZIP_STORED:
+            raw_bytes = compressed_bytes
+        elif compression_method == zipfile.ZIP_DEFLATED:
+            raw_bytes = zlib.decompress(compressed_bytes, -15)
+        else:
+            raise ValueError(
+                f"Unsupported compression method {compression_method} for {member_name}."
+            )
+
+        os.makedirs(os.path.dirname(destination), exist_ok=True)
+        with open(destination, "wb") as out_file:
+            out_file.write(raw_bytes)
+        return destination
+
+    raise ValueError(f"Could not locate {member_name} in remote zip archive {url}.")
+
+
+def _ensure_xian_sun_representation_files(root_dir, config):
+    if not config.get("use_xian_sun_representation_dataset", False):
+        return None
+
+    xian_dir = _resolve_path(root_dir, config.get("xian_sun_dir", XIAN_SUN_DATA_DIR))
+    res101_path = os.path.join(xian_dir, "res101.mat")
+    splits_path = os.path.join(xian_dir, "att_splits.mat")
+
+    if os.path.exists(res101_path) and os.path.exists(splits_path):
+        return xian_dir
+
+    if not config.get("download_xian_sun_if_missing", True):
+        raise ValueError(
+            "Xian SUN representation files are missing. Enable `download_xian_sun_if_missing` "
+            "or place xlsa17/data/SUN/res101.mat and att_splits.mat under the root directory."
+        )
+
+    xian_url = config.get("xian_sun_url", XIAN_SUN_ZIP_URL)
+    _download_remote_zip_member(
+        xian_url,
+        XIAN_SUN_RES101_MEMBER,
+        res101_path,
+        tail_bytes=int(config.get("xian_sun_tail_bytes", 16 * 1024 * 1024)),
+    )
+    _download_remote_zip_member(
+        xian_url,
+        XIAN_SUN_SPLITS_MEMBER,
+        splits_path,
+        tail_bytes=int(config.get("xian_sun_tail_bytes", 16 * 1024 * 1024)),
+    )
+    return xian_dir
+
+
+def _build_xian_sun_class_attribute_matrix(class_names, attr_names, class_attr_values, threshold=0.5):
+    if class_attr_values.shape[0] == len(class_names):
+        class_attributes = class_attr_values
+    elif class_attr_values.shape[1] == len(class_names):
+        class_attributes = class_attr_values.T
+    else:
+        raise ValueError(
+            f"Could not align SUN class-attribute matrix of shape {class_attr_values.shape} "
+            f"with {len(class_names)} classes."
+        )
+
+    class_attributes = np.array(class_attributes, dtype=np.float32)
+    if threshold is not None:
+        class_attributes = (class_attributes >= threshold).astype(np.float32)
+
+    return class_attributes[:len(class_names), :DEFAULT_NUM_ATTRIBUTES]
+
+
+def _ensure_xian_sun_representation_concepts(root_dir, config, class_names=None):
+    if not config.get("use_xian_sun_representation_dataset", False):
+        return
+
+    target_class_names = _resolve_path(
+        root_dir,
+        config.get("class_names_file", f"{XIAN_SUN_SPLIT_PREFIX}_classes.txt"),
+    )
+    target_class_attributes = _resolve_path(
+        root_dir,
+        config.get("class_attributes_file", f"{XIAN_SUN_SPLIT_PREFIX}_attrs_per_class_binary_0.npy"),
+    )
+    if os.path.exists(target_class_names) and os.path.exists(target_class_attributes):
+        return
+
+    xian_dir = _ensure_xian_sun_representation_files(root_dir, config)
+    if xian_dir is None:
+        return
+
+    splits_data = loadmat(os.path.join(xian_dir, "att_splits.mat"))
+    raw_class_names = np.array(splits_data["allclasses_names"]).reshape(-1)
+    attr_matrix = np.array(splits_data.get("original_att", splits_data.get("att")), dtype=np.float32)
+
+    if class_names is None:
+        class_names = [_mat_cell_to_str(cell) for cell in raw_class_names]
+
+    class_attributes = _build_xian_sun_class_attribute_matrix(
+        class_names=class_names,
+        attr_names=[],
+        class_attr_values=attr_matrix,
+        threshold=config.get("xian_attribute_threshold", 0.5),
+    )
+
+    with open(target_class_names, "w") as class_names_file:
+        for class_name in class_names:
+            class_names_file.write(class_name + "\n")
+
+    np.save(target_class_attributes, class_attributes)
+
+
+def _load_xian_sun_representation_data(root_dir, config):
+    xian_dir = _ensure_xian_sun_representation_files(root_dir, config)
+    if xian_dir is None:
+        raise ValueError("Xian SUN representation files could not be initialized.")
+
+    res101_path = os.path.join(xian_dir, "res101.mat")
+    splits_path = os.path.join(xian_dir, "att_splits.mat")
+    res101_data = loadmat(res101_path)
+    splits_data = loadmat(splits_path)
+
+    feature_matrix = np.array(res101_data["features"], dtype=np.float32)
+    if feature_matrix.shape[0] == 2048 and feature_matrix.shape[1] != 2048:
+        feature_matrix = feature_matrix.T
+    if feature_matrix.shape[1] != 2048:
+        raise ValueError(
+            f"Expected 2048-dimensional SUN features but found shape {feature_matrix.shape}."
+        )
+
+    labels = np.array(res101_data["labels"], dtype=np.int64).reshape(-1)
+    if labels.min() == 1:
+        labels = labels - 1
+
+    class_names = [_mat_cell_to_str(cell) for cell in np.array(splits_data["allclasses_names"]).reshape(-1)]
+    attr_matrix = np.array(splits_data.get("original_att", splits_data.get("att")), dtype=np.float32)
+    class_attribute_matrix = _build_xian_sun_class_attribute_matrix(
+        class_names=class_names,
+        attr_names=[],
+        class_attr_values=attr_matrix,
+        threshold=config.get("xian_attribute_threshold", 0.5),
+    )
+
+    return feature_matrix, labels, class_names, class_attribute_matrix, splits_data
+
+
+def _build_xian_sun_split_payloads(root_dir, config, seed):
+    features, labels, class_names, class_attribute_matrix, splits_data = _load_xian_sun_representation_data(
+        root_dir,
+        config,
+    )
+
+    split_strategy = _canonical_xian_split_strategy(
+        config.get("xian_split_strategy", "official")
+    )
+    val_fraction, test_fraction = _get_xian_split_fractions(config)
+    if split_strategy == "official":
+        train_indices = np.array(splits_data["train_loc"]).reshape(-1) - 1
+        val_indices = np.array(splits_data["val_loc"]).reshape(-1) - 1
+        test_seen = np.array(splits_data.get("test_seen_loc", [])).reshape(-1)
+        test_unseen = np.array(splits_data.get("test_unseen_loc", [])).reshape(-1)
+        if len(test_seen) or len(test_unseen):
+            test_indices = np.concatenate([test_seen, test_unseen]).reshape(-1) - 1
+        else:
+            test_indices = np.array(splits_data.get("test_loc", [])).reshape(-1) - 1
+    elif split_strategy == "original_sizes":
+        class_to_indices = {}
+        for sample_index, class_idx in enumerate(labels.tolist()):
+            class_to_indices.setdefault(int(class_idx), []).append(sample_index)
+        (
+            train_indices,
+            _,
+            val_indices,
+            _,
+            test_indices,
+            _,
+        ) = _stratified_train_val_test_split_indices(
+            class_to_indices,
+            seed=seed,
+            val_fraction=val_fraction,
+            test_fraction=test_fraction,
+        )
+    elif split_strategy == "trainval_test":
+        train_indices = np.array(splits_data["trainval_loc"]).reshape(-1) - 1
+        val_indices = np.array(splits_data["val_loc"]).reshape(-1) - 1
+        test_seen = np.array(splits_data.get("test_seen_loc", [])).reshape(-1)
+        test_unseen = np.array(splits_data.get("test_unseen_loc", [])).reshape(-1)
+        if len(test_seen) or len(test_unseen):
+            test_indices = np.concatenate([test_seen, test_unseen]).reshape(-1) - 1
+        else:
+            test_indices = np.array(splits_data.get("test_loc", [])).reshape(-1) - 1
+
+    split_payloads = {
+        "train": {
+            "features": features[train_indices],
+            "labels": labels[train_indices],
+        },
+        "val": {
+            "features": features[val_indices],
+            "labels": labels[val_indices],
+        },
+        "test": {
+            "features": features[test_indices],
+            "labels": labels[test_indices],
+        },
+    }
+    return class_names, class_attribute_matrix, split_payloads
+
+
 @contextmanager
 def _temporary_hf_cache_env(cache_dir):
     old_env = {name: os.environ.get(name) for name in [
@@ -551,22 +857,13 @@ def _maybe_bootstrap_sun397_images(root_dir, config):
             pass
         return existing_root
 
-    if not sys.stdin.isatty():
-        os.close(lock_fd)
-        try:
-            os.remove(lock_path)
-        except FileNotFoundError:
-            pass
-        raise RuntimeError(
-            f"SUN397 images are missing under {root_dir}, and download_if_missing "
-            "is enabled, but the current session is not interactive. Re-run in an "
-            "interactive terminal to confirm the download."
-        )
-
-    response = input(
-        f"SUN397 images are missing under {root_dir}. Download {dataset_id} "
-        f"into {images_root}? [y/N]: "
-    ).strip().lower()
+    if sys.stdin.isatty():
+        response = input(
+            f"SUN397 images are missing under {root_dir}. Download {dataset_id} "
+            f"into {images_root}? [y/N]: "
+        ).strip().lower()
+    else:
+        response = "y"
     if response not in {"y", "yes"}:
         os.close(lock_fd)
         try:
@@ -980,6 +1277,55 @@ def _stratified_train_val_test_split(class_to_paths, seed, val_fraction=0.2, tes
     )
 
 
+def _stratified_train_val_test_split_indices(class_to_indices, seed, val_fraction=0.2, test_fraction=0.2):
+    rng = np.random.default_rng(seed)
+    train_indices, train_labels = [], []
+    val_indices, val_labels = [], []
+    test_indices, test_labels = [], []
+
+    class_ids = sorted(class_to_indices.keys())
+    for class_id in class_ids:
+        indices = np.array(sorted(class_to_indices[class_id]))
+        if len(indices) < 3:
+            splits = [len(indices), 0, 0]
+        else:
+            n_test = max(1, int(np.floor(len(indices) * test_fraction)))
+            n_val = max(1, int(np.floor(len(indices) * val_fraction)))
+            n_train = max(1, len(indices) - n_test - n_val)
+            while n_train + n_val + n_test > len(indices):
+                if n_val > 1:
+                    n_val -= 1
+                elif n_test > 1:
+                    n_test -= 1
+                else:
+                    n_train -= 1
+            splits = [n_train, n_val, n_test]
+
+        perm = rng.permutation(len(indices))
+        indices = indices[perm]
+        n_train, n_val, n_test = splits
+
+        train_chunk = indices[:n_train]
+        val_chunk = indices[n_train:n_train + n_val]
+        test_chunk = indices[n_train + n_val:n_train + n_val + n_test]
+
+        train_indices.extend(train_chunk.tolist())
+        train_labels.extend([class_id] * len(train_chunk))
+        val_indices.extend(val_chunk.tolist())
+        val_labels.extend([class_id] * len(val_chunk))
+        test_indices.extend(test_chunk.tolist())
+        test_labels.extend([class_id] * len(test_chunk))
+
+    return (
+        np.array(train_indices, dtype=np.int64),
+        np.array(train_labels, dtype=np.int64),
+        np.array(val_indices, dtype=np.int64),
+        np.array(val_labels, dtype=np.int64),
+        np.array(test_indices, dtype=np.int64),
+        np.array(test_labels, dtype=np.int64),
+    )
+
+
 ########################################################
 ## Dataset Loader
 ########################################################
@@ -1004,7 +1350,14 @@ class SUNDataset(Dataset):
         self.config = config or {}
         self.concept_transform = concept_transform
 
-        _maybe_bootstrap_sun397_images(self.root_dir, self.config)
+        self.use_xian_representation_dataset = self.config.get(
+            "use_xian_sun_representation_dataset",
+            False,
+        )
+        if self.use_xian_representation_dataset:
+            _ensure_xian_sun_representation_files(self.root_dir, self.config)
+        else:
+            _maybe_bootstrap_sun397_images(self.root_dir, self.config)
 
         if not os.path.exists(self.root_dir):
             raise ValueError(
@@ -1012,7 +1365,9 @@ class SUNDataset(Dataset):
                 f"dataset first."
             )
 
-        if split == "train":
+        if self.use_xian_representation_dataset:
+            self.transform = sample_transform
+        elif split == "train":
             self.transform = get_transform_sun(
                 train=True,
                 augment_data=augment_data,
@@ -1034,14 +1389,40 @@ class SUNDataset(Dataset):
             split_payload,
         ) = self._load_or_generate_splits(seed=seed)
 
-        self.img_paths = split_payload["paths"]
-        self.img_labels = split_payload["labels"].astype(int)
+        if self.use_xian_representation_dataset:
+            self.sample_features = split_payload["features"].astype(np.float32)
+            self.sample_labels = split_payload["labels"].astype(int)
+            self.sample_paths = None
+        else:
+            self.img_paths = split_payload["paths"]
+            self.img_labels = split_payload["labels"].astype(int)
         print(f"{split.upper()} SUN dataset has: {len(self)} samples")
 
     def _load_or_generate_splits(self, seed):
         use_attribute_db_dataset = self.config.get("use_sun_attribute_db_dataset", False)
+        use_xian_representation_dataset = self.config.get(
+            "use_xian_sun_representation_dataset",
+            False,
+        )
 
-        if use_attribute_db_dataset:
+        if use_xian_representation_dataset:
+            xian_strategy = _canonical_xian_split_strategy(
+                self.config.get("xian_split_strategy", "original_sizes")
+            )
+            xian_val_fraction, xian_test_fraction = _get_xian_split_fractions(self.config)
+            xian_fraction_tag = (
+                f"vf{_canonical_fraction_tag(xian_val_fraction)}"
+                f"_tf{_canonical_fraction_tag(xian_test_fraction)}"
+            )
+            class_names_file = _first_existing_file(
+                self.root_dir,
+                [
+                    self.config.get("class_names_file", None),
+                    f"{XIAN_SUN_SPLIT_PREFIX}_classes.txt",
+                ],
+            )
+            split_prefix = f"{XIAN_SUN_SPLIT_PREFIX}_{xian_strategy}_{xian_fraction_tag}_"
+        elif use_attribute_db_dataset:
             class_names_file = _first_existing_file(
                 self.root_dir,
                 [
@@ -1066,11 +1447,24 @@ class SUNDataset(Dataset):
             os.path.exists(os.path.join(self.root_dir, f"{split_prefix}{x}_split.npz"))
             for x in ["train", "val", "test"]
         )
+        should_regenerate = self.config.get("regenerate_splits", False)
 
-        if (not all_split_files_exist) or self.config.get("regenerate_splits", False):
+        if (not all_split_files_exist) or should_regenerate:
+            if use_xian_representation_dataset:
+                print(
+                    f"Generating Xian SUN splits with strategy '{xian_strategy}' "
+                    f"(val_fraction={xian_val_fraction}, test_fraction={xian_test_fraction}) "
+                    f"(regenerate_splits={should_regenerate}, all_split_files_exist={all_split_files_exist})."
+                )
             class_to_paths = None
 
-            if use_attribute_db_dataset:
+            if use_xian_representation_dataset:
+                class_names, class_attribute_matrix, split_payloads = _build_xian_sun_split_payloads(
+                    self.root_dir,
+                    self.config,
+                    seed=seed,
+                )
+            elif use_attribute_db_dataset:
                 class_names, split_payloads = _build_sun_attribute_db_split_payloads(
                     self.root_dir,
                     self.config,
@@ -1141,20 +1535,35 @@ class SUNDataset(Dataset):
                         "test": {"paths": test_paths, "labels": test_labels},
                     }
 
+                class_attribute_matrix = None
+
             for split_name, payload in split_payloads.items():
+                split_save_kwargs = {
+                    "labels": payload["labels"],
+                    "class_names": np.array(class_names, dtype=object),
+                }
+                if use_xian_representation_dataset:
+                    split_save_kwargs["features"] = payload["features"]
+                else:
+                    split_save_kwargs["paths"] = payload["paths"]
                 np.savez(
                     os.path.join(self.root_dir, f"{split_prefix}{split_name}_split.npz"),
-                    paths=payload["paths"],
-                    labels=payload["labels"],
-                    class_names=np.array(class_names, dtype=object),
+                    **split_save_kwargs,
                 )
+        elif use_xian_representation_dataset:
+            print(
+                f"Loading cached Xian SUN splits with strategy '{xian_strategy}' "
+                f"(val_fraction={xian_val_fraction}, test_fraction={xian_test_fraction}) "
+                f"from prefix '{split_prefix}'."
+            )
 
             if class_names_file is None:
-                generated_name = (
-                    f"{SUN_ATTRIBUTE_DB_SPLIT_PREFIX}_classes.txt"
-                    if use_attribute_db_dataset
-                    else "classes.txt"
-                )
+                if use_xian_representation_dataset:
+                    generated_name = f"{XIAN_SUN_SPLIT_PREFIX}_classes.txt"
+                elif use_attribute_db_dataset:
+                    generated_name = f"{SUN_ATTRIBUTE_DB_SPLIT_PREFIX}_classes.txt"
+                else:
+                    generated_name = "classes.txt"
                 generated_path = os.path.join(self.root_dir, generated_name)
                 with open(generated_path, "w") as f:
                     for name in class_names:
@@ -1178,6 +1587,12 @@ class SUNDataset(Dataset):
                 class_names = [inv_map[i] for i in sorted(inv_map.keys())]
 
         class_to_idx = {name: idx for idx, name in enumerate(class_names)}
+        if use_xian_representation_dataset:
+            _ensure_xian_sun_representation_concepts(
+                self.root_dir,
+                self.config,
+                class_names=class_names,
+            )
         class_attribute_matrix = _load_class_attribute_matrix(
             self.root_dir,
             self.config,
@@ -1188,20 +1603,28 @@ class SUNDataset(Dataset):
         return class_names, class_to_idx, class_attribute_matrix, split_payload
 
     def __len__(self):
+        if self.use_xian_representation_dataset:
+            return len(self.sample_labels)
         return len(self.img_paths)
 
     def __getitem__(self, index):
-        img = Image.open(self.img_paths[index])
-        if img.mode != "RGB":
-            img = img.convert("RGB")
-        if self.transform:
-            img = self.transform(img)
+        if self.use_xian_representation_dataset:
+            sample = torch.FloatTensor(self.sample_features[index])
+            if self.transform:
+                sample = self.transform(sample)
+            label_idx = int(self.sample_labels[index])
+        else:
+            sample = Image.open(self.img_paths[index])
+            if sample.mode != "RGB":
+                sample = sample.convert("RGB")
+            if self.transform:
+                sample = self.transform(sample)
 
-        label_idx = int(self.img_labels[index])
+            label_idx = int(self.img_labels[index])
         concepts = self.class_attribute_matrix[label_idx, :]
         if self.concept_transform is not None:
             concepts = self.concept_transform(concepts)
-        return img, label_idx, torch.FloatTensor(concepts)
+        return sample, label_idx, torch.FloatTensor(concepts)
 
 
 def get_transform_sun(
@@ -1453,8 +1876,23 @@ def generate_data(
     batch_size = config.get("batch_size", 32)
 
     use_attribute_db_dataset = config.get("use_sun_attribute_db_dataset", False)
+    use_xian_representation_dataset = config.get(
+        "use_xian_sun_representation_dataset",
+        False,
+    )
     class_names_file = config.get("class_names_file", None)
     class_attributes_file = config.get("class_attributes_file", None)
+
+    if use_xian_representation_dataset and class_names_file in [None, "sun_classes.txt", "classes.txt", f"{SUN_ATTRIBUTE_DB_SPLIT_PREFIX}_classes.txt"]:
+        class_names_file = f"{XIAN_SUN_SPLIT_PREFIX}_classes.txt"
+    if use_xian_representation_dataset and class_attributes_file in [
+        None,
+        "sun_attrs_per_class_binary_0.npy",
+        "sun_attrs_per_class_binary.npy",
+        "sun_attrs_per_class.npy",
+        f"{SUN_ATTRIBUTE_DB_SPLIT_PREFIX}_attrs_per_class_binary_0.npy",
+    ]:
+        class_attributes_file = f"{XIAN_SUN_SPLIT_PREFIX}_attrs_per_class_binary_0.npy"
 
     if use_attribute_db_dataset and class_names_file in [None, "sun_classes.txt", "classes.txt"]:
         class_names_file = f"{SUN_ATTRIBUTE_DB_SPLIT_PREFIX}_classes.txt"
@@ -1474,6 +1912,7 @@ def generate_data(
         "attribute_class_names_file": config.get("attribute_class_names_file", None),
         "images_dir": config.get("images_dir", None),
         "use_sun_attribute_db_dataset": use_attribute_db_dataset,
+        "use_xian_sun_representation_dataset": use_xian_representation_dataset,
         "download_if_missing": config.get("download_if_missing", False),
         "download_dataset_id": config.get("download_dataset_id", DEFAULT_HF_DATASET_ID),
         "download_cache_dir": config.get("download_cache_dir", DEFAULT_HF_CACHE_DIR),
@@ -1489,6 +1928,14 @@ def generate_data(
         "download_attribute_db_images_if_missing": config.get("download_attribute_db_images_if_missing", True),
         "sun_attribute_db_images_url": config.get("sun_attribute_db_images_url", SUN_ATTRIBUTE_DB_IMAGES_URL),
         "sun_attribute_db_images_archive": config.get("sun_attribute_db_images_archive", SUN_ATTRIBUTE_DB_IMAGES_ARCHIVE),
+        "download_xian_sun_if_missing": config.get("download_xian_sun_if_missing", True),
+        "xian_sun_url": config.get("xian_sun_url", XIAN_SUN_ZIP_URL),
+        "xian_sun_dir": config.get("xian_sun_dir", XIAN_SUN_DATA_DIR),
+        "xian_sun_tail_bytes": config.get("xian_sun_tail_bytes", 16 * 1024 * 1024),
+        "xian_split_strategy": config.get("xian_split_strategy", "original_sizes"),
+        "xian_val_fraction": config.get("xian_val_fraction", 0.1),
+        "xian_test_fraction": config.get("xian_test_fraction", 0.1),
+        "xian_attribute_threshold": config.get("xian_attribute_threshold", 0.5),
         "regenerate_splits": config.get("regenerate_splits", False),
         "class_attribute_threshold": config.get("class_attribute_threshold", 0.5),
         "val_fraction": config.get("val_fraction", 0.1 if use_attribute_db_dataset else 0.2),
@@ -1496,9 +1943,12 @@ def generate_data(
     }
 
     # In SUN397 mode, optionally bootstrap full SUN397 images from Hugging Face.
-    if not use_attribute_db_dataset:
+    if not use_attribute_db_dataset and (not use_xian_representation_dataset):
         _maybe_bootstrap_sun397_images(root_dir, dataset_opts)
-    _ensure_sun_attribute_db_concepts(root_dir, dataset_opts)
+    if use_xian_representation_dataset:
+        _ensure_xian_sun_representation_concepts(root_dir, dataset_opts)
+    if use_attribute_db_dataset:
+        _ensure_sun_attribute_db_concepts(root_dir, dataset_opts)
 
     concept_names = _load_concept_semantics(root_dir, config)
     n_concepts = len(concept_names)

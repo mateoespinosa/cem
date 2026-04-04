@@ -12,24 +12,26 @@ model_selection_metrics:
   - val_acc_y
 
 shared_params:
-  results_dir: /anfs/bigdisc/me466/mixcem_results/sun397/
+  results_dir: /anfs/bigdisc/me466/mixcem_results/sun397_from_reprs/
   trials: 3
   results_fname: results
   dataset_config:
     dataset: "sun"
+    use_sun_loader_v2: true
     num_workers: 8
     num_load_workers: 4
-    batch_size: 512 #64 #256
+    batch_size: 256
     # root_dir: /anfs/bigdisc/me466/sun_attr/
     root_dir: /anfs/bigdisc/me466/sun/
     # If needed, set these explicitly. The loader also searches common defaults.
-    class_names_file: sun_attribute_db_classes.txt
+    class_names_file: xian_sun_classes.txt
     attribute_names_file: sun_attributes.txt
-    class_attributes_file: sun_attribute_db_attrs_per_class_binary_0.npy
+    class_attributes_file: xian_sun_attrs_per_class_binary_0.npy
     images_dir: SUN397
     # Set true to use the exact SUN Attribute DB image list (Brown release)
     # with 80/10/10 splits and per-class averaged concepts.
     use_sun_attribute_db_dataset: false
+    use_xian_sun_representation_dataset: true
     # In this mode we rely on Brown image archive, not HF SUN397 repacks.
     download_if_missing: false
     download_dataset_id: tanganke/sun397
@@ -39,12 +41,17 @@ shared_params:
     download_attribute_db_images_if_missing: true
     sun_attribute_db_url: https://cs.brown.edu/people/gmpatter/Attributes/SUNAttributeDB.tar.gz
     sun_attribute_db_images_url: https://cs.brown.edu/people/gmpatter/Attributes/SUNAttributeDB_Images.tar.gz
+    download_xian_sun_if_missing: true
+    xian_sun_url: http://datasets.d2.mpi-inf.mpg.de/xian/xlsa17.zip
+    xian_val_fraction: 0.1
+    xian_test_fraction: 0.1
+    xian_split_strategy: original_sizes
+    xian_attribute_threshold: 0.5
     regenerate_splits: false
     class_attribute_threshold: 0.5
     cache_loss_weights: true
     recompute_loss_weights: false
-    # Optional override (otherwise defaults to root_dir/sun_attribute_db_concept_loss_weights_cache.npz)
-    # loss_weight_cache_file: sun_attribute_db_concept_loss_weights_cache.npz
+    loss_weight_cache_file: xian_sun_concept_loss_weights_cache.npz
     sampling_percent: 1
     sampling_groups: false
     test_subsampling: 1
@@ -70,11 +77,14 @@ shared_params:
   emb_size: 16
   extra_dims: 0
   concept_loss_weight: [10, 1]
-  learning_rate: 0.01
+  learning_rate: 0.001
+  optimizer: "adam"
   weight_decay: 1.0e-06
   weight_loss: true
-  c_extractor_arch: "resnet18"
-  optimizer: "sgd"
+  # c_extractor_arch: "resnet18"
+  c_extractor_arch: "mlp"
+  c_extractor_arch_layers: [256]
+
   bool: false
   early_stopping_monitor: "val_loss"
   early_stopping_mode: "min"
