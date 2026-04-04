@@ -83,20 +83,20 @@ shared_params:
         use_prior: false
 
   skip_repr_evaluation: true
-  max_epochs: 100
+  max_epochs: 150
   top_k_accuracy: null
   save_model: true
-  patience: 10
+  patience: 20
   emb_size: 16
   extra_dims: 0
   concept_loss_weight: 10
   learning_rate: 0.001
   optimizer: "adam"
-  weight_decay: 1.0e-06
-  weight_loss: true
+  weight_decay: 1.0e-04
+  weight_loss: false
   # c_extractor_arch: "resnet18"
   c_extractor_arch: "mlp"
-  c_extractor_arch_layers: [256]
+  c_extractor_arch_layers: [512]
 
   bool: false
   early_stopping_monitor: "val_loss"
@@ -167,10 +167,25 @@ runs:
     concept_loss_weight: 10
     sigmoidal_prob: true
     training_intervention_prob: 0
-    prior_loss_term: [10]
+    prior_loss_term: [10, 5, 1]
     embedding_activation: "leakyrelu"
     grid_variables:
       - prior_loss_term
+    grid_search_mode: exhaustive
+
+  - architecture: "ConceptEmbeddingModel"
+    run_name: "CEM_prior_loss_term_{prior_loss_term}_opt_{optimizer}_lr_{learning_rate}"
+    concept_loss_weight: 10
+    sigmoidal_prob: true
+    training_intervention_prob: 0
+    prior_loss_term: [10, 5, 1]
+    embedding_activation: "leakyrelu"
+    learning_rate: [0.01, 0.001]
+    optimizer: "sgd"
+    grid_variables:
+      - prior_loss_term
+      - optimizer
+      - learning_rate
     grid_search_mode: exhaustive
 
   - architecture: "ConceptBottleneckModel"
@@ -183,12 +198,31 @@ runs:
   - architecture: "ConceptBottleneckModel"
     run_name: "Hybrid-CBM_dims_{extra_dims}_prior_loss_term_{prior_loss_term}_only_con_{prior_only_concepts}_cwl_{concept_loss_weight}"
     extra_dims: 100
-    prior_loss_term: [10, 1]
+    prior_loss_term: [10, 5, 1]
     sigmoidal_prob: true
-    concept_loss_weight: 10
+    concept_loss_weight: [10, 1, 0.1]
     embedding_activation: "leakyrelu"
     prior_only_concepts: [false]
     grid_variables:
       - prior_loss_term
       - prior_only_concepts
+      - concept_loss_weight
+    grid_search_mode: exhaustive
+
+  - architecture: "ConceptBottleneckModel"
+    run_name: "Hybrid-CBM_dims_{extra_dims}_prior_loss_term_{prior_loss_term}_only_con_{prior_only_concepts}_cwl_{concept_loss_weight}_opt_{optimizer}_lr_{learning_rate}"
+    extra_dims: 100
+    prior_loss_term: [10, 5, 1]
+    sigmoidal_prob: true
+    concept_loss_weight: [10, 1, 0.1]
+    embedding_activation: "leakyrelu"
+    prior_only_concepts: [false]
+    learning_rate: [0.01, 0.001]
+    optimizer: "sgd"
+    grid_variables:
+      - prior_loss_term
+      - prior_only_concepts
+      - concept_loss_weight
+      - optimizer
+      - learning_rate
     grid_search_mode: exhaustive
